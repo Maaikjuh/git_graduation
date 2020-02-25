@@ -32,7 +32,7 @@ TIME_RELOAD = None  # The time (in ms) of the timestep to reload. Set to -1 for 
 # instead of defining them in get_inputs(). If you do not want to load inputs from a
 # file and you want to define the inputs in get_inputs(), set the below path to None.
 INPUTS_PATH = None #'inputs.csv'
-
+#doofus code here
 # Specify output directory.
 DIR_OUT = 'output/sepran_simulation/sepran_simulation_res_30'
 
