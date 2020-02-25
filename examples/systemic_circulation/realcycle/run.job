@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# ---------------------------------------------------------------------------- #
+# This is an example run script for the Portable Batch System (PBS) system.    #
+# ---------------------------------------------------------------------------- #
+
+# Request the appropriate number of cores. Choose (responsibly) from 1 to 16.
+# On Furnace, this needs to be changed to a maximum of 8.
+#PBS -l nodes=1:ppn=8:intel
+
+# Combine the standard output and error output into one file.
+#PBS -j oe -o "${PBS_JOBID}.out"
+
+# Unload all modules that have been loaded, just in case of incompatibility.
+module purge
+
+# Activate the proper conda FEniCS environment.
+# The first part shouldn't need to be changed.
+# The second part, 'fenics-2017.1.0' should be changed to whatever environment you want to activate.
+source "${HOME}/fenics-tue/anaconda/bin/activate" 'fenics-2017-1-0'
+
+# Change into the working directory and run the job.
+cd "${PBS_O_WORKDIR}"
+
+# The default script is main.py.
+# Alternative scripts can be set via the -v script="my_script.py" option.
+date
+mpirun -np "${PBS_NP}" python -u ${script:-main.py}
+date
