@@ -34,7 +34,7 @@ TIME_RELOAD = None  # The time (in ms) of the timestep to reload. Set to -1 for 
 INPUTS_PATH = None #'inputs.csv'
 
 # Specify output directory.
-DIR_OUT =  'output/' #'output/sepran_simulation/sepran_simulation_res_30'
+DIR_OUT = 'output/sepran_simulation/sepran_simulation_res_30'
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
