@@ -15,20 +15,20 @@ import os
 #ROOT_DIRECTORY = r'E:\Graduation project'
 # Automatically deduce root directory from the path to this file:
 ROOT_DIRECTORY = os.path.join(
-        os.path.abspath(__file__).split('\\Graduation project\\')[0],
-        '\\Graduation project')
+        os.path.abspath(__file__).split('\\Graduation_project\\')[0],
+        '\\Graduation_project')
 
 # Path to LifeTec data (curves.hdf5 and hemo.csv files)
 # (e.g. E:\Graduation project\LifeTec PhysioHeart data)
-LIFETEC_DATA_PATH = os.path.join(ROOT_DIRECTORY, 'LifeTec PhysioHeart data')
+#LIFETEC_DATA_PATH = os.path.join(ROOT_DIRECTORY, 'LifeTec PhysioHeart data')
 
 # Path to the directory containing the output of the simulations. 
 # (e.g. E:\Graduation project\output)
-SIMULATION_DATA_PATH = os.path.join(ROOT_DIRECTORY, 'output')
+SIMULATION_DATA_PATH = os.path.join(ROOT_DIRECTORY, 'Results_Tim\systemic_circulation_27_02')
 
 # Path to the cvbtk directory.
 # (e.g. E:\Graduation project\model\cvbtk)
-CVBTK_PATH = os.path.join(ROOT_DIRECTORY, 'model\cvbtk')
+CVBTK_PATH = os.path.join(ROOT_DIRECTORY, 'Tim_Hermans\model\cvbtk')
 
 # Path to the postprocessing_BiV directory (automatically)
 # (is a subdirectory of the current file location).
@@ -38,7 +38,7 @@ POSTPROCESSING_BIV_PATH = os.path.join(os.path.split(
 
 # Check whether paths exist.
 check_paths = [ROOT_DIRECTORY,
-               LIFETEC_DATA_PATH,
+#               LIFETEC_DATA_PATH,
                SIMULATION_DATA_PATH,
                CVBTK_PATH,
                POSTPROCESSING_BIV_PATH]
