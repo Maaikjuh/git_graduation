@@ -1311,6 +1311,8 @@ class Export(object):
         else:
             vector_numbers = list(self.data['vector_number'])
 
+        print("accesing main plotting.py")
+
         # Create function spaces.
         V = self.model.u.ufl_function_space()
         Q = vector_space_to_scalar_space(V)
@@ -1423,6 +1425,8 @@ class Export(object):
         V = kwargs['V']
         ef = self.model.geometry.fiber_vectors()[0].to_function(None)
         self.xdmf_files['ef'].write(project(ef, V), t)
+
+        print("accesing save_ef in plotting.py")
 
     def save_Ecc(self, **kwargs):
         t = kwargs['t']
