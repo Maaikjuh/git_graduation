@@ -1,0 +1,10 @@
+Metadata-Version: 1.0
+Name: cvbtk
+Version: 0.0.1
+Summary: Cardiovascular Biomechanics Toolkit
+Home-page: https://bitbucket.org/ericnchen/leftventricle
+Author: Eric Chen
+Author-email: e.chen@tue.nl
+License: Proprietary
+Description: Cardiovascular Biomechanics Toolkit
+Platform: UNKNOWN
