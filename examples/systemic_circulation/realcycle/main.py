@@ -31,7 +31,7 @@ TIME_RELOAD = None  # The time (in ms) of the timestep to reload. Set to -1 for 
 # By specifying a path to an inputs.csv file, you can load the inputs from the file
 # instead of defining them in get_inputs(). If you do not want to load inputs from a
 # file and you want to define the inputs in get_inputs(), set the below path to None.
-INPUTS_PATH = None #'inputs.csv'
+INPUTS_PATH = 'inputs.csv'
 #doofus code here
 # Specify output directory.
 DIR_OUT = 'output/27_02_default_inputs'
