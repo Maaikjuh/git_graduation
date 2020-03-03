@@ -16,7 +16,7 @@ import os
 # Automatically deduce root directory from the path to this file:
 ROOT_DIRECTORY = os.path.join(
         os.path.abspath(__file__).split('\\Graduation_project\\')[0],
-        '\\Graduation_project')
+        'Graduation_project')
 
 # Path to LifeTec data (curves.hdf5 and hemo.csv files)
 # (e.g. E:\Graduation project\LifeTec PhysioHeart data)
@@ -24,11 +24,11 @@ ROOT_DIRECTORY = os.path.join(
 
 # Path to the directory containing the output of the simulations. 
 # (e.g. E:\Graduation project\output)
-SIMULATION_DATA_PATH = os.path.join(ROOT_DIRECTORY, 'Results_Tim\systemic_circulation_27_02')
+SIMULATION_DATA_PATH = os.path.join(ROOT_DIRECTORY, r'Results_Tim')
 
 # Path to the cvbtk directory.
 # (e.g. E:\Graduation project\model\cvbtk)
-CVBTK_PATH = os.path.join(ROOT_DIRECTORY, 'Tim_Hermans\model\cvbtk')
+CVBTK_PATH = os.path.join(ROOT_DIRECTORY,'git_graduation_project\cvbtk')
 
 # Path to the postprocessing_BiV directory (automatically)
 # (is a subdirectory of the current file location).
