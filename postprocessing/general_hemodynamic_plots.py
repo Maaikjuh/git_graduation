@@ -7,9 +7,11 @@ Created on Fri Apr  6 14:14:22 2018
 
 # Add path to cvbtk directory.
 import sys
-sys.path.append(r'C:\Users\Maaike\Documents\Master\Graduation_project\Tim_Hermans\model')
+sys.path.append(r'C:\Users\Maaike\Documents\Master\Graduation_project\git_graduation_project\cvbtk')
+sys.path.append(r'C:\Users\Maaike\Documents\Master\Graduation_project\git_graduation_project\postprocessing')
 
 from dataset import Dataset
+
 
 from postprocessing import (postprocess, 
                             hemodynamic_summary, print_hemodynamic_summary,
@@ -19,9 +21,10 @@ import os
 import matplotlib.pyplot as plt
 plt.close('all')
 
+
 # Specify the results.csv file (which contains the hemodynamic data) directly:
 #csv = r'E:\Graduation Project\FEniCS\PycharmProject\output\sepran_simulation\sepran_simulation_res_30\results.csv'
-csv = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\systemic_circulation_27_02\results.csv'
+csv = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\27_02_default_inputs\results.csv'
 
 ## OR specify heart condition and find csv file automatically:
 #hc = 1
