@@ -12,7 +12,10 @@ from .geometries import LeftVentricleGeometry, BiventricleGeometry
 __all__ = ['reference_hemodynamics',
            'reference_left_ventricle',
            'reference_left_ventricle_pluijmert',
-           'reference_biventricle']
+           'reference_biventricle',
+           
+           #added by Maaike
+           'select_left_ventricle_mesh']
 
 DATA_DIRECTORY = 'data/'
 
@@ -86,6 +89,11 @@ def reference_left_ventricle_pluijmert(resolution=30, **kwargs):
     meshfile = meshfile.format(int(resolution))
     datafile = pkg_resources.resource_filename(__name__, meshfile)
     return LeftVentricleGeometry(meshfile=datafile, **inputs)
+
+def select_left_ventricle_mesh(filename='lv_maaike_seg30_res30_mesh', resolution=30, **kwargs):
+    meshfile = DATA_DIRECTORY + filename
+    datafile = pkg_resources.resource_filename(__name__, meshfile)
+    return LeftVentricleGeometry(meshfile=datafile, **kwargs)
 
 
 def reference_biventricle(resolution=43, **kwargs):
