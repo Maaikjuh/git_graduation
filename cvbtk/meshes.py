@@ -41,12 +41,12 @@ def LeftVentricleMesh(focus, cutoff, inner_eccentricity, outer_eccentricity,
     # Compute the inner radii and create the inner ellipsoidal volume.
     r1_inner = focus*np.sqrt(1 - inner_eccentricity**2)/inner_eccentricity
     r2_inner = focus/inner_eccentricity
-    inner_volume = Ellipsoid(Point(), r1_inner, r1_inner, r2_inner, segments)
+    inner_volume = Ellipsoid(Point(), r1_inner, r1_inner, r2_inner, segments=segments)
 
     # Compute the outer radii and create the outer ellipsoidal volume.
     r1_outer = focus*np.sqrt(1 - outer_eccentricity**2)/outer_eccentricity
     r2_outer = focus/outer_eccentricity
-    outer_volume = Ellipsoid(Point(), r1_outer, r1_outer, r2_outer, segments)
+    outer_volume = Ellipsoid(Point(), r1_outer, r1_outer, r2_outer, segments=segments)
 
     # Create a box above the cutoff height and a bit larger than the ellipsoids.
     p1 = Point(1.1*r2_outer, 1.1*r2_outer, cutoff)
@@ -181,6 +181,7 @@ def BiventricleMesh(geometry_parameters, **kwargs):
 
     # Create final domain
     domain = lv_epi + rv - lv_endo - box_trunc
+    print('domain biventricular mesh:{}'.format(domain))
     domain = CSGCGALDomain3D(domain)
 
     # Instantiate and configure the mesh generator.

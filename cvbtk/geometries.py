@@ -16,7 +16,7 @@ from dolfin import Function, VectorFunctionSpace, interpolate, unit_vector, proj
 from dolfin.common.constants import DOLFIN_PI
 from dolfin.cpp.common import MPI, Parameters, Timer, mpi_comm_world, mpi_comm_self
 from dolfin.cpp.function import ALE
-from dolfin.cpp.io import HDF5File
+from dolfin.cpp.io import HDF5File, XDMFFile
 from dolfin.cpp.mesh import (BoundaryMesh, Facet, FacetFunction, Mesh, cells,
                              facets, vertices, Cell, CellFunction)
 
@@ -264,13 +264,13 @@ class LeftVentricleGeometry(BaseGeometry):
         self._wallbounded_coordinates = None
 
         # Compute the eccentricity of the inner surface if not given.
-        if self.parameters.get('inner_eccentricity')[3] == 0:
+        if self.parameters.get('inner_eccentricity')[1] == 0:
             V = self.parameters['cavity_volume']
             e = self._estimate_eccentricity(V)
             self.parameters['inner_eccentricity'] = e
 
         # Compute the eccentricity of the outer surface if not given.
-        if self.parameters.get('outer_eccentricity')[3] == 0:
+        if self.parameters.get('outer_eccentricity')[1] == 0:
             V = (self.parameters['cavity_volume']
                  + self.parameters['wall_volume'])
             e = self._estimate_eccentricity(V)
@@ -1495,7 +1495,7 @@ class BiventricleGeometry(BaseGeometry):
             with HDF5File(mpi_comm_self(), meshfile, 'a') as f:
                 geometric_parameters = self.parameters['geometry']
                 # Create (empty) geometry dataset in hdf5 file.
-                f.write([], 'geometry')
+                f.write(np.array([], dtype=np.float_), 'geometry')
                 # Add geometry parameters as attributes to the geometry dataset.
                 geo_data = f.attributes('geometry')
                 for k, v in geometric_parameters.items():

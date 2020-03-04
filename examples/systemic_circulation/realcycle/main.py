@@ -15,9 +15,8 @@ import cvbtk.resources
 import os
 import matplotlib.pyplot as plt
 
-
 # Change the number of cycles and active stress ('new' or 'old') here:
-NUM_CYCLES = 5
+NUM_CYCLES = 2
 ACT_STRESS = 'old'  # 'old' is Arts Kerckhoffs, 'new' is Arts Bovendeerd.
 
 # Use the following options if you want to reload a saved model state and continue
@@ -31,10 +30,10 @@ TIME_RELOAD = None  # The time (in ms) of the timestep to reload. Set to -1 for 
 # By specifying a path to an inputs.csv file, you can load the inputs from the file
 # instead of defining them in get_inputs(). If you do not want to load inputs from a
 # file and you want to define the inputs in get_inputs(), set the below path to None.
-INPUTS_PATH = 'inputs.csv'
+INPUTS_PATH = None #'inputs.csv'
 #doofus code here
 # Specify output directory.
-DIR_OUT = 'output/27_02_default_inputs'
+DIR_OUT = 'output/test_04_03'
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
@@ -82,7 +81,10 @@ def get_inputs(number_of_cycles, active_stress):
     # We do not need to set all of the geometry parameters
     # as we will load a reference mesh.
     # Specify reference mesh to load and resolution.
-    geometry_type = 'reference_left_ventricle'
+
+    # Specify alternative mesh, enter for geometry_type: alternative_lv_mesh
+    # after the ',' enter the filename of the alternative mesh
+    geometry_type = 'alternative_lv_mesh', 'lv_maaike_seg30_res20_mesh.hdf5' #'reference_left_ventricle'
     geometry = {'mesh_resolution': 30.0}
 
     # Fiber field.
