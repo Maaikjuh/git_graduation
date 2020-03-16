@@ -227,7 +227,7 @@ def plot_results(results, dir_out='.', cycle=None):
     simulation_plot = HemodynamicsPlot(results)
         
     simulation_plot.plot(cycle=cycle) #, cycle=NUM_CYCLES)
-    simulation_plot.save(os.path.join(dir_out, 'hemodynamics.png'))
+    simulation_plot.save(os.path.join(dir_out, 'hemodynamics_cycle_{}.png'.format(cycle)))
        
     #simulation_plot.plot_function()
     plt.savefig(os.path.join(dir_out, 'lv_function.png'), dpi=300)
