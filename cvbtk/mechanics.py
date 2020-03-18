@@ -2,7 +2,7 @@
 """
 This module provides classes and functions related to mechanics.
 """
-from dolfin import (And, Constant, DOLFIN_PI, Function, conditional, ge, gt, le,
+from dolfin import (And, Constant, Expression, DOLFIN_PI, Function, conditional, ge, gt, le,
                     lt, sin, tanh, project, VectorElement, parameters, FunctionSpace)
 from dolfin.cpp.common import Parameters
 from ufl import Identity, as_tensor, det, dot, exp, grad, inv, sqrt
@@ -272,7 +272,7 @@ class ArtsBovendeerdActiveStress(ActiveStressModel):
         """
         prm = Parameters('active_stress')
 
-        prm.add('T0', float())
+        prm.add('Ta0', float())
 
         prm.add('ad', float())
         prm.add('ar', float())
@@ -307,7 +307,7 @@ class ArtsBovendeerdActiveStress(ActiveStressModel):
         prm = self.parameters
 
         # Term for the length dependence.
-        iso_term = prm['T0']*(tanh(prm['ca']*(self.ls - prm['lsa0'])))**2
+        iso_term = prm['Ta0']*(tanh(prm['ca']*(self.ls - prm['lsa0'])))**2
         iso_cond = conditional(gt(self.ls, prm['lsa0']), 1, 0)
         f_iso = iso_cond*iso_term
 
@@ -358,6 +358,46 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         lc_old = Function(Q)
         self._lc_old = lc_old
         lc = lc_old + self.dt*(prm['Ea']*(self.ls_old - lc_old) - 1)*prm['v0']
+        
+        # 17-03, variable T0 to express the level of active stress generation
+                # 18-03 initialize T0
+       
+        #self.T0 = Function(Q)
+        self.T0 = prm['Ta0']       
+    
+        
+        #domain =  u.ufl_function_space().ufl_domain().ufl_cargo()
+        #print("domain.coordinates= {}".format(domain.coordinates))
+        #V = u.ufl_function_space()
+            #family = V.ufl_element().family()
+        #degree = V.ufl_element().degree()
+
+        
+        #element = u.ufl_element()
+        
+
+        #phi = domain.coordinates._compute_coordinate_expression("phi",                                                                  
+        #                                                    degree=degree,                                                          
+        #                                                    element=element)                                                        
+        #theta = domain.coordinates._compute_coordinate_expression("theta",                                                              
+        #                                                      degree=degree,                                                        
+        #                                                      element=element)                                                      
+        #xi = domain.coordinates._compute_coordinate_expression("xi", degree=degree,                                                     
+        #                                                   element=element) 
+        phimax = 0.175
+        phimin = 0.
+        thetar = 0.175
+        ximin = 0.5
+        Ta0 = 250.
+        #if phi <= phimax & phi>=phimin & fabs(theta)<thetar & xi >= ximin:
+        #    cpp_exp_Ta0 = 0.
+        #else:
+        #    cpp_exp_Ta0 = Ta0
+        
+        #T0expression = Expression(cpp_exp_Ta0, element=element, phi=phi,theta=theta,xi=xi)
+        #print(T0expression)
+        
+
 
         if prm['restrict_lc']:
             # Upper bound: restrict lc to not be greater than ls.
@@ -387,7 +427,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         """
         prm = Parameters('active_stress')
 
-        prm.add('T0', float())
+        prm.add('Ta0', float())
         prm.add('Ea', float())
         prm.add('al', float())
 
@@ -421,10 +461,18 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             A UFL-like object.
         """
         prm = self.parameters
+        
+
+
+
 
         # Term for the length dependence.
-        iso_term = prm['T0']*(tanh(prm['al']*(self.lc - prm['lc0'])))**2
+        #iso_term = prm['T0']*(tanh(prm['al']*(self.lc - prm['lc0'])))**2
         iso_cond = conditional(ge(self.lc, prm['lc0']), 1, 0)
+        #f_iso = iso_cond*iso_term
+
+        # 17-03, substitute T0 with self.T0
+        iso_term = self.T0*(tanh(prm['al']*(self.lc - prm['lc0'])))**2
         f_iso = iso_cond*iso_term
 
         # Maximum activation time.
