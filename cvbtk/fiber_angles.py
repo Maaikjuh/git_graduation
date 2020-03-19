@@ -8,6 +8,9 @@ from dolfin import project
 
 from .utils import scalar_space_to_vector_space, print_once
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 __all__ = ['DefaultFiberAngles',
            'ComputeFiberAngles']
 

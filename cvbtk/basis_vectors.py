@@ -19,6 +19,9 @@ from numpy.linalg import norm
 import scipy.integrate
 import scipy
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 __all__ = [
     'CardiacBasisVectors',
     'BasisVectorsBayer',

@@ -13,6 +13,9 @@ import csv
 import os
 import matplotlib.pyplot as plt
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 __all__ = [
     'build_nullspace',
     'import_h5',

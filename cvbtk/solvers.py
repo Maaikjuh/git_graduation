@@ -16,6 +16,10 @@ from dolfin import info, Function
 from cvbtk import ArtsKerckhoffsActiveStress
 from cvbtk.utils import print_once, info_once, save_to_disk
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+
 __all__ = ['VolumeSolver',
            'VolumeSolverBiV',
            'CustomNewtonSolver']
