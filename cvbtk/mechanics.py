@@ -43,8 +43,6 @@ def compute_coordinate_expression(degree,element,var =""):
 
     focus = 4.3
 
-        # Split X into x, y, and z components.
-
     rastr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]+{f})*(x[2]+{f}))".format(f=focus)
     rbstr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]-{f})*(x[2]-{f}))".format(f=focus)
 
@@ -392,67 +390,19 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         
         # 17-03, variable T0 to express the level of active stress generation
         # 18-03 initialize T0
-        mesh = u.function_space()
        
         self.T0 = Function(Q)
         self.T0.assign(Constant(self.parameters['Ta0']))
-        #sig, tau, phi = LeftVentricleGeometry.ellipsoidal_coordinates(self)
 
-        #print("parameters = {}".format(prm['focus_height']))        
-        #print("sig= {}".format(sig))
-        #print("tau= {}".format(tau))
-        #print("phi= {}".format(phi))
 
         phi = compute_coordinate_expression(3, Q.ufl_element(),'phi')
         theta = compute_coordinate_expression(3, Q.ufl_element(),'theta')
         xi = compute_coordinate_expression(3, Q.ufl_element(),'xi')
 
-        print("phi= {}".format(phi))
-
-        phimax = 0.175
-        phimin = 0.
-        thetar = 0.175
-        ximin = 0.5
-        Ta0 = 250.
-        
-        if phi <= phimax and phi>=phimin and fabs(theta)<thetar and xi >= ximin:
-            cpp_exp_Ta0 = 0.
-        else:
-            cpp_exp_Ta0 = Ta0
-        print('cpp_exp_Ta0= {}'.format(cpp_exp_Ta0))
-
-        #print("phi= {}".format(phi))
-
-
-        #self.T0 = project(u.ufl_function_space(), prm['Ta0'])
-        #print("T0 = {}".format(self.T0))
-        #self.T0 = prm['Ta0']       
-    
-        
-        #domain =  u.ufl_function_space().ufl_domain().ufl_cargo()
-        #print("domain.coordinates= {}".format(domain.coordinates))
-        #V = u.ufl_function_space()
-            #family = V.ufl_element().family()
-        #degree = V.ufl_element().degree()
-
-        
-        #element = u.ufl_element()
-        
-
-        #phi = domain.coordinates._compute_coordinate_expression("phi",                                                                  
-        #                                                    degree=degree,                                                          
-        #                                                    element=element)                                                        
-        #theta = domain.coordinates._compute_coordinate_expression("theta",                                                              
-        #                                                      degree=degree,                                                        
-        #                                                      element=element)                                                      
-        #xi = domain.coordinates._compute_coordinate_expression("xi", degree=degree,                                                     
-        #                                                   element=element) 
-
-        
-        #T0expression = Expression(cpp_exp_Ta0, element=element, phi=phi,theta=theta,xi=xi)
-        #print(T0expression)
-        
-
+        cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 0.175, thetar=0.175, ximin=0.5) 
+        T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
+        self.T0.interpolate(T0expression)
+ 
 
         if prm['restrict_lc']:
             # Upper bound: restrict lc to not be greater than ls.
