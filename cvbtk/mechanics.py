@@ -2,12 +2,13 @@
 """
 This module provides classes and functions related to mechanics.
 """
-from dolfin import (And, Constant, Expression, DOLFIN_PI, Function, conditional, ge, gt, le,
+from dolfin import (And, Constant, interpolate, Expression, DOLFIN_PI, Function, conditional, ge, gt, le,
                     lt, sin, tanh, project, VectorElement, parameters, FunctionSpace)
 from dolfin.cpp.common import Parameters
 from ufl import Identity, as_tensor, det, dot, exp, grad, inv, sqrt
 
 from .utils import safe_project, vector_space_to_scalar_space, quadrature_function_space
+
 
 __all__ = [
     'ActiveStressModel',
@@ -24,6 +25,36 @@ __all__ = [
     'left_cauchy_green_deformation',
     'right_cauchy_green_deformation',
 ]
+
+def compute_coordinate_expression(degree,element,var =""):
+    """
+    19-03 Maaike
+    Expression for ellipsoidal coordinates
+    function obtained from Luca Barbarotta
+
+    Args:
+        var : string of ellipsoidal coordinate to be calculated
+        V: :class:`~dolfin.FunctionSpace` to define the coordinates on.
+        focus: Distance from the origin to the shared focus points.
+
+    Returns:
+        Expression for ellipsoidal coordinate
+    """
+
+    focus = 4.3
+
+        # Split X into x, y, and z components.
+
+    rastr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]+{f})*(x[2]+{f}))".format(f=focus)
+    rbstr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]-{f})*(x[2]-{f}))".format(f=focus)
+
+    taustr= "(1./(2.*{f})*({ra}-{rb}))".format(ra=rastr,rb=rbstr,f=focus)
+    sigmastr="(1./(2.*{f})*({ra}+{rb}))".format(ra=rastr,rb=rbstr,f=focus)
+
+    expressions_dict = {"phi": "atan2(x[2],x[0])",
+                            "xi": "acosh({sigma})".format(sigma=sigmastr),
+                            "theta": "acos({tau})".format(tau=taustr)} 
+    return Expression(expressions_dict[var],degree=degree,element=element)
 
 
 class ConstitutiveModel(object):
@@ -360,10 +391,42 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         lc = lc_old + self.dt*(prm['Ea']*(self.ls_old - lc_old) - 1)*prm['v0']
         
         # 17-03, variable T0 to express the level of active stress generation
-                # 18-03 initialize T0
+        # 18-03 initialize T0
+        mesh = u.function_space()
        
-        #self.T0 = Function(Q)
-        self.T0 = prm['Ta0']       
+        self.T0 = Function(Q)
+        self.T0.assign(Constant(self.parameters['Ta0']))
+        #sig, tau, phi = LeftVentricleGeometry.ellipsoidal_coordinates(self)
+
+        #print("parameters = {}".format(prm['focus_height']))        
+        #print("sig= {}".format(sig))
+        #print("tau= {}".format(tau))
+        #print("phi= {}".format(phi))
+
+        phi = compute_coordinate_expression(3, Q.ufl_element(),'phi')
+        theta = compute_coordinate_expression(3, Q.ufl_element(),'theta')
+        xi = compute_coordinate_expression(3, Q.ufl_element(),'xi')
+
+        print("phi= {}".format(phi))
+
+        phimax = 0.175
+        phimin = 0.
+        thetar = 0.175
+        ximin = 0.5
+        Ta0 = 250.
+        
+        if phi <= phimax and phi>=phimin and fabs(theta)<thetar and xi >= ximin:
+            cpp_exp_Ta0 = 0.
+        else:
+            cpp_exp_Ta0 = Ta0
+        print('cpp_exp_Ta0= {}'.format(cpp_exp_Ta0))
+
+        #print("phi= {}".format(phi))
+
+
+        #self.T0 = project(u.ufl_function_space(), prm['Ta0'])
+        #print("T0 = {}".format(self.T0))
+        #self.T0 = prm['Ta0']       
     
         
         #domain =  u.ufl_function_space().ufl_domain().ufl_cargo()
@@ -384,15 +447,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         #                                                      element=element)                                                      
         #xi = domain.coordinates._compute_coordinate_expression("xi", degree=degree,                                                     
         #                                                   element=element) 
-        phimax = 0.175
-        phimin = 0.
-        thetar = 0.175
-        ximin = 0.5
-        Ta0 = 250.
-        #if phi <= phimax & phi>=phimin & fabs(theta)<thetar & xi >= ximin:
-        #    cpp_exp_Ta0 = 0.
-        #else:
-        #    cpp_exp_Ta0 = Ta0
+
         
         #T0expression = Expression(cpp_exp_Ta0, element=element, phi=phi,theta=theta,xi=xi)
         #print(T0expression)
