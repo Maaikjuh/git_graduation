@@ -11,6 +11,9 @@ from dolfin.cpp.function import FunctionAssigner
 
 from .utils import vector_space_to_scalar_space
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 __all__ = [
     'CoordinateSystem',
     'EllipsoidalCoordinates',
@@ -175,6 +178,39 @@ class EllipsoidalCoordinates(object):
 
         # Compute and return the phi values.
         return np.arctan2(y, x)
+
+    #@staticmethod
+def compute_coordinate_expression(var="",degree,focus,V):
+        """
+        19-03 Maaike
+        Expression for ellipsoidal coordinates
+        function obtained from Luca Barbarotta
+
+        Args:
+            var : string of ellipsoidal coordinate to be calculated
+            V: :class:`~dolfin.FunctionSpace` to define the coordinates on.
+            focus: Distance from the origin to the shared focus points.
+
+        Returns:
+            Expression for ellipsoidal coordinate
+        """
+    X = V.tabulate_dof_coordinates().reshape(-1, 3)
+
+        # Split X into x, y, and z components.
+    x = X[:, 0]
+    y = X[:, 1]
+    z = X[:, 2]
+
+    rastr = "sqrt(x*x+y*y+(z+{f})*(z+{f}))".format(f=focus)
+    rbstr = "sqrt(x*x+y*y+(z-{f})*(z-{f}))".format(f=focus)
+
+    taustr= "(1./(2.*{f})*({ra}-{rb}))".format(ra=rastr,rb=rbstr,f=focus)
+    sigmastr="(1./(2.*{f})*({ra}+{rb}))".format(ra=rastr,rb=rbstr,f=focus)
+
+    expressions_dict = {"phi": "atan2(y,x)",
+                            "xi": "acosh({sigma})".format(sigma=sigmastr),
+                            "theta": "acos({tau})".format(tau=taustr)} 
+    return Expression(expressions_dict[var],degree=degree)
 
 
 class WallBoundedCoordinates(object):

@@ -7,12 +7,8 @@
 # On Furnace, this needs to be changed to a maximum of 8.
 #PBS -l nodes=1:ppn=8:intel
 
-#!/usr/bin/env python -W ignore::DeprecationWarning
-
 # Combine the standard output and error output into one file.
 #PBS -j oe -o "${PBS_JOBID}.out"
-#PBS -m e
-#PBS -M m.kraamer@student.tue.nl
 
 # Unload all modules that have been loaded, just in case of incompatibility.
 module purge
@@ -28,5 +24,5 @@ cd "${PBS_O_WORKDIR}"
 # The default script is main.py.
 # Alternative scripts can be set via the -v script="my_script.py" option.
 date
-mpirun -np "${PBS_NP}" python -u ${script:-main.py}
+mpirun -np "${PBS_NP}" python -u ${script:-voorbeeld.py}
 date

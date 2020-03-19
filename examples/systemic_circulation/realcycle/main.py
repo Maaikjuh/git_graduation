@@ -11,12 +11,12 @@ from cvbtk import (HemodynamicsPlot, VolumeSolver, print_once, save_dict_to_csv,
                    CustomNewtonSolver, ReloadState, simulate, preprocess_lv, read_dict_from_csv)
 
 import cvbtk.resources
-
+import datetime
 import os
 import matplotlib.pyplot as plt
 
 # Change the number of cycles and active stress ('new' or 'old') here:
-NUM_CYCLES = 2
+NUM_CYCLES = 1
 ACT_STRESS = 'old'  # 'old' is Arts Kerckhoffs, 'new' is Arts Bovendeerd.
 
 # Use the following options if you want to reload a saved model state and continue
@@ -31,14 +31,32 @@ TIME_RELOAD = None  # The time (in ms) of the timestep to reload. Set to -1 for 
 # instead of defining them in get_inputs(). If you do not want to load inputs from a
 # file and you want to define the inputs in get_inputs(), set the below path to None.
 INPUTS_PATH = None #'inputs.csv'
+
+
+# Set mesh resololution. For the default mesh, chose 30, 40 or 50. 
+SET_MESH_RESOLUTION = 20.0
+
+# Use the following option if you want to load an alternative mesh (that has already been created). 
+# By specifying a path to an .hdf5 file, you can load the mesh from the file
+# instead of the reference mesh. If you do not want to load an alternative mesh from a
+# file, but just use the reference lv mesh, set the below path to None.
+LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION))
 #doofus code here
 # Specify output directory.
-DIR_OUT = 'output/test_04_03'
+
+now = datetime.datetime.now()
+
+DIR_OUT = 'output/{}_Ta0_tests'.format(now.strftime("%d-%m"))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
     if not os.path.exists(DIR_OUT):
         os.makedirs(DIR_OUT)
+#    else:
+#        DIR_OUT = DIR_OUT + "_v2"
+#        os.makedirs(DIR_OUT)
+print_once('Saving to output directory: {}'.format(DIR_OUT))
+
 # Synchronize.
 MPI.barrier(mpi_comm_world())
 
@@ -84,8 +102,11 @@ def get_inputs(number_of_cycles, active_stress):
 
     # Specify alternative mesh, enter for geometry_type: alternative_lv_mesh
     # after the ',' enter the filename of the alternative mesh
-    geometry_type = 'alternative_lv_mesh', 'lv_maaike_seg30_res20_mesh.hdf5' #'reference_left_ventricle'
-    geometry = {'mesh_resolution': 30.0}
+    if LOAD_ALTERNATIVE_MESH == None:
+        geometry_type = 'reference_left_ventricle', None
+    else:
+        geometry_type = 'alternative_lv_mesh', LOAD_ALTERNATIVE_MESH
+    geometry = {'mesh_resolution': SET_MESH_RESOLUTION}
 
     # Fiber field.
     ## Uncomment this part to get a fiber field without transverse angle:
@@ -127,7 +148,7 @@ def get_inputs(number_of_cycles, active_stress):
     # NOTE: tdep is actually the reset time: active stress is assumed zero and
     # state variables are reset when t_act exceeds tcycle-tdep.
 
-    active_stress_arts_kerckhoffs = {'T0': 160.0,
+    active_stress_arts_kerckhoffs = {'Ta0': 160.0,
                                      'Ea': 20.0,
                                      'al': 2.0,
                                      'lc0': 1.5,
@@ -141,7 +162,7 @@ def get_inputs(number_of_cycles, active_stress):
                                      'tdep': active_stress_tdep,
                                      'restrict_lc': True}
 
-    active_stress_arts_bovendeerd = {'T0': 160.0,  # pg. 66: 250 kPa
+    active_stress_arts_bovendeerd = {'Ta0': 160.0,  # pg. 66: 250 kPa
                                      'ar': 100.0,
                                      'ad': 400.0,
                                      'ca': 1.2,

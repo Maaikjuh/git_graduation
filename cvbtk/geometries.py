@@ -32,6 +32,8 @@ from .meshes import (LeftVentricleMesh, LeftVentricleVADMesh,
                      BiventricleMesh, compute_biventricular_parameters,
                      ThickWalledSphereMesh)
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 __all__ = [
     'BaseGeometry',

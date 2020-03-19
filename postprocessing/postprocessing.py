@@ -895,7 +895,7 @@ def load_reduced_dataset(filename, cycle=None):
     reduced = full[full['cycle'] == cycle].copy(deep=True)
     return reduced
 
-def hemodynamic_summary(data):
+def hemodynamic_summary(data,cycle=None):
     
     if 'qart' in data.keys():
         # LifeTec data (arterial flow in LV simulations is 'qao').
@@ -941,8 +941,9 @@ def hemodynamic_summary(data):
         qao += qlvad        
     else:
         raise ValueError('Unexpected keys in data dictionary.')
-     
-    HR = round(60000/(max(time)-min(time)))
+    data_cycle = data[data['cycle']==cycle]
+    time_cycle = data_cycle['time'].values
+    HR = round(60000/(max(time_cycle)-min(time_cycle)))
     EDV =  max(vlv)
     SV = np.mean(qao - qlvad)/HR * 1000
     CO = np.mean(qao)

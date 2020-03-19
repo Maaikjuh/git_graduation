@@ -15,6 +15,9 @@ import time
 from cvbtk.utils import print_once, vector_space_to_tensor_space, vector_space_to_scalar_space, save_to_disk
 from cvbtk.mechanics import deformation_gradient, right_cauchy_green_deformation, fiber_stretch_ratio
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 __all__ = [
     'TimeVaryingElastance',
     'VentriclesWrapper',

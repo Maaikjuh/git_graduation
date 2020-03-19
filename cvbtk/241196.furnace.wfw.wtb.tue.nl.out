@@ -1,0 +1,214 @@
+INFO: activate-gcc_linux-64.sh made the following environmental changes:
++CC=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-cc
++CFLAGS=-ftree-vectorize -fPIC -fno-plt -O3 -pipe
++CPP=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-cpp
++CPPFLAGS=-DNDEBUG -O3
++GCC=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gcc
++GCC_AR=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gcc-ar
++GCC_NM=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gcc-nm
++GCC_RANLIB=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gcc-ranlib
++LDFLAGS=-Wl,-O3 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro -Wl,-z,now
++_PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata_x86_64_conda_cos6_linux_gnu
+INFO: activate-gfortran_linux-64.sh made the following environmental changes:
++F77=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gfortran
++F95=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-f95
++FC=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gfortran
++FCFLAGS=-ftree-vectorize -fPIC -fno-plt -O3 -pipe
++FFLAGS=-ftree-vectorize -fPIC -fno-plt -O3 -pipe
++FORTRANFLAGS=-ftree-vectorize -fPIC -fno-plt -O3 -pipe
++GFORTRAN=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gfortran
+INFO: activate-gxx_linux-64.sh made the following environmental changes:
++CXX=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-c++
++CXXFLAGS=-fvisibility-inlines-hidden -std=c++11 -fmessage-length=0 -ftree-vectorize -fPIC -fno-plt -O3 -pipe
++GXX=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-g++
+Wed Mar  4 11:36:32 CET 2020
+difference outer and inner volume - excess: ((Ellipsoid(<Point x = 0 y = 0 z = 0>, 1.63351, 1.63351, 4.59982) - Ellipsoid(<Point x = 0 y = 0 z = 0>, 3.14584, 3.14584, 5.32788)) - Box(<Point x = -5.0598 y = -5.0598 z = 2.4>, <Point x = 5.0598 y = 5.0598 z = 5.0598>))
+difference outer and inner volume - excess: ((Ellipsoid(<Point x = 0 y = 0 z = 0>, 1.63351, 1.63351, 4.59982) - Ellipsoid(<Point x = 0 y = 0 z = 0>, 3.14584, 3.14584, 5.32788)) - Box(<Point x = -5.0598 y = -5.0598 z = 2.4>, <Point x = 5.0598 y = 5.0598 z = 5.0598>))
+difference outer and inner volume - excess: ((Ellipsoid(<Point x = 0 y = 0 z = 0>, 1.63351, 1.63351, 4.59982) - Ellipsoid(<Point x = 0 y = 0 z = 0>, 3.14584, 3.14584, 5.32788)) - Box(<Point x = -5.0598 y = -5.0598 z = 2.4>, <Point x = 5.0598 y = 5.0598 z = 5.0598>))
+difference outer and inner volume - excess: ((Ellipsoid(<Point x = 0 y = 0 z = 0>, 1.63351, 1.63351, 4.59982) - Ellipsoid(<Point x = 0 y = 0 z = 0>, 3.14584, 3.14584, 5.32788)) - Box(<Point x = -5.0598 y = -5.0598 z = 2.4>, <Point x = 5.0598 y = 5.0598 z = 5.0598>))
+difference outer and inner volume - excess: ((Ellipsoid(<Point x = 0 y = 0 z = 0>, 1.63351, 1.63351, 4.59982) - Ellipsoid(<Point x = 0 y = 0 z = 0>, 3.14584, 3.14584, 5.32788)) - Box(<Point x = -5.0598 y = -5.0598 z = 2.4>, <Point x = 5.0598 y = 5.0598 z = 5.0598>))
+difference outer and inner volume - excess: ((Ellipsoid(<Point x = 0 y = 0 z = 0>, 1.63351, 1.63351, 4.59982) - Ellipsoid(<Point x = 0 y = 0 z = 0>, 3.14584, 3.14584, 5.32788)) - Box(<Point x = -5.0598 y = -5.0598 z = 2.4>, <Point x = 5.0598 y = 5.0598 z = 5.0598>))
+Passable parameters to LeftVentricleGeometry:
+difference outer and inner volume - excess: ((Ellipsoid(<Point x = 0 y = 0 z = 0>, 1.63351, 1.63351, 4.59982) - Ellipsoid(<Point x = 0 y = 0 z = 0>, 3.14584, 3.14584, 5.32788)) - Box(<Point x = -5.0598 y = -5.0598 z = 2.4>, <Point x = 5.0598 y = 5.0598 z = 5.0598>))
+Process 0: <Parameter set "left_ventricle" containing 10 parameter(s) and parameter set(s)>
+
+  left_ventricle                  |    type     value    range  access  change
+  ----------------------------------------------------------------------------
+  cavity_volume                   |  double  0.000000  Not set       0       0
+  focus_height                    |  double  0.000000  Not set       0       0
+  inner_eccentricity              |  double  0.000000  Not set       0       0
+  load_fiber_field_from_meshfile  |    bool         1  Not set       0       0
+  mesh_resolution                 |  double  0.000000  Not set       0       0
+  mesh_segments                   |     int        20  Not set       0       0
+  outer_eccentricity              |  double  0.000000  Not set       0       0
+  truncation_height               |  double  0.000000  Not set       0       0
+  wall_volume                     |  double  0.000000  Not set       0       0
+
+  <Parameter set "fiber_field" containing 12 parameter(s) and parameter set(s)>
+  
+    fiber_field  |    type      value    range  access  change
+    ----------------------------------------------------------
+    h10          |  double   0.362000  Not set       0       0
+    h11          |  double  -1.160000  Not set       0       0
+    h12          |  double  -0.124000  Not set       0       0
+    h13          |  double   0.129000  Not set       0       0
+    h14          |  double  -0.061400  Not set       0       0
+    h22          |  double   0.098400  Not set       0       0
+    h24          |  double  -0.070100  Not set       0       0
+    t11          |  double  -0.626000  Not set       0       0
+    t12          |  double   0.502000  Not set       0       0
+    t21          |  double   0.626000  Not set       0       0
+    t23          |  double   0.211000  Not set       0       0
+    t25          |  double   0.038000  Not set       0       0
+lv_maaike_seg30_res20
+Process 0: <Parameter set "left_ventricle" containing 10 parameter(s) and parameter set(s)>
+
+  left_ventricle                  |    type      value    range  access  change
+  -----------------------------------------------------------------------------
+  cavity_volume                   |  double   0.000000  Not set       0       0
+  focus_height                    |  double   4.300000  Not set       0       0
+  inner_eccentricity              |  double   1.000000  Not set       0       0
+  load_fiber_field_from_meshfile  |    bool          1  Not set       0       0
+  mesh_resolution                 |  double  30.000000  Not set       0       0
+  mesh_segments                   |     int         30  Not set       0       0
+  outer_eccentricity              |  double   1.000000  Not set       0       0
+  truncation_height               |  double   2.400000  Not set       0       0
+  wall_volume                     |  double   0.000000  Not set       0       0
+
+  <Parameter set "fiber_field" containing 12 parameter(s) and parameter set(s)>
+  
+    fiber_field  |    type      value    range  access  change
+    ----------------------------------------------------------
+    h10          |  double   0.362000  Not set       0       0
+    h11          |  double  -1.160000  Not set       0       0
+    h12          |  double  -0.124000  Not set       0       0
+    h13          |  double   0.129000  Not set       0       0
+    h14          |  double  -0.061400  Not set       0       0
+    h22          |  double   0.098400  Not set       0       0
+    h24          |  double  -0.070100  Not set       0       0
+    t11          |  double  -0.626000  Not set       0       0
+    t12          |  double   0.502000  Not set       0       0
+    t21          |  double   0.626000  Not set       0       0
+    t23          |  double   0.211000  Not set       0       0
+    t25          |  double   0.038000  Not set       0       0
+difference outer and inner volume - excess: ((Ellipsoid(<Point x = 0 y = 0 z = 0>, 1.63351, 1.63351, 4.59982) - Ellipsoid(<Point x = 0 y = 0 z = 0>, 3.14584, 3.14584, 5.32788)) - Box(<Point x = -5.0598 y = -5.0598 z = 2.4>, <Point x = 5.0598 y = 5.0598 z = 5.0598>))
+Traceback (most recent call last):
+  File "leftventricular_meshing.py", line 48, in <module>
+    lv_mesh = lv.mesh()
+  File "/home/maaike/model/cvbtk/geometries.py", line 164, in mesh
+    self._mesh = self._create_mesh()
+  File "/home/maaike/model/cvbtk/geometries.py", line 595, in _create_mesh
+    return LeftVentricleMesh(C, h, e1, e2, resolution, segments=segments)
+  File "/home/maaike/model/cvbtk/meshes.py", line 73, in LeftVentricleMesh
+    domain = CSGCGALDomain3D(outer_volume - inner_volume - excess)
+  File "/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/lib/python3.5/site-packages/mshr.py", line 574, in __init__
+    _mshr.CSGCGALDomain3D_swiginit(self, _mshr.new_CSGCGALDomain3D(*args))
+RuntimeError: 
+
+*** -------------------------------------------------------------------------
+*** DOLFIN encountered an error. If you are not able to resolve this issue
+*** using the information listed below, you can ask for help at
+***
+***     fenics-support@googlegroups.com
+***
+*** Remember to include the error message listed below and, if possible,
+*** include a *minimal* running example to reproduce the error.
+***
+*** -------------------------------------------------------------------------
+*** Error:   Unable to Convert geometry to polyhedron.
+*** Reason:  Geometry contains no facet.
+*** Where:   This error was encountered inside CSGCGALDomain3D.cpp.
+*** Process: 0
+*** 
+*** DOLFIN version: 2017.2.0
+*** Git changeset:  unknown
+*** -------------------------------------------------------------------------
+
+--------------------------------------------------------------------------
+MPI_ABORT was invoked on rank 2 in communicator MPI_COMM_WORLD
+with errorcode 59.
+
+NOTE: invoking MPI_ABORT causes Open MPI to kill all MPI processes.
+You may or may not see output from other processes, depending on
+exactly when Open MPI kills them.
+--------------------------------------------------------------------------
+[1]PETSC ERROR: ------------------------------------------------------------------------
+[1]PETSC ERROR: Caught signal number 15 Terminate: Some process (or the batch system) has told this process to end
+[1]PETSC ERROR: Try option -start_in_debugger or -on_error_attach_debugger
+[1]PETSC ERROR: or see http://www.mcs.anl.gov/petsc/documentation/faq.html#valgrind
+[1]PETSC ERROR: or try http://valgrind.org on GNU/linux and Apple Mac OS X to find memory corruption errors
+[1]PETSC ERROR: configure using --with-debugging=yes, recompile, link, and run 
+[1]PETSC ERROR: to get more information on the crash.
+[2]PETSC ERROR: ------------------------------------------------------------------------
+[2]PETSC ERROR: Caught signal number 15 Terminate: Some process (or the batch system) has told this process to end
+[2]PETSC ERROR: Try option -start_in_debugger or -on_error_attach_debugger
+[2]PETSC ERROR: or see http://www.mcs.anl.gov/petsc/documentation/faq.html#valgrind
+[2]PETSC ERROR: or try http://valgrind.org on GNU/linux and Apple Mac OS X to find memory corruption errors
+[2]PETSC ERROR: configure using --with-debugging=yes, recompile, link, and run 
+[2]PETSC ERROR: to get more information on the crash.
+[3]PETSC ERROR: ------------------------------------------------------------------------
+[3]PETSC ERROR: Caught signal number 15 Terminate: Some process (or the batch system) has told this process to end
+[3]PETSC ERROR: Try option -start_in_debugger or -on_error_attach_debugger
+[3]PETSC ERROR: or see http://www.mcs.anl.gov/petsc/documentation/faq.html#valgrind
+[3]PETSC ERROR: or try http://valgrind.org on GNU/linux and Apple Mac OS X to find memory corruption errors
+[3]PETSC ERROR: configure using --with-debugging=yes, recompile, link, and run 
+[3]PETSC ERROR: to get more information on the crash.
+[4]PETSC ERROR: ------------------------------------------------------------------------
+[4]PETSC ERROR: Caught signal number 15 Terminate: Some process (or the batch system) has told this process to end
+[4]PETSC ERROR: Try option -start_in_debugger or -on_error_attach_debugger
+[4]PETSC ERROR: or see http://www.mcs.anl.gov/petsc/documentation/faq.html#valgrind
+[4]PETSC ERROR: or try http://valgrind.org on GNU/linux and Apple Mac OS X to find memory corruption errors
+[4]PETSC ERROR: configure using --with-debugging=yes, recompile, link, and run 
+[4]PETSC ERROR: to get more information on the crash.
+[5]PETSC ERROR: ------------------------------------------------------------------------
+[5]PETSC ERROR: Caught signal number 15 Terminate: Some process (or the batch system) has told this process to end
+[5]PETSC ERROR: Try option -start_in_debugger or -on_error_attach_debugger
+[5]PETSC ERROR: or see http://www.mcs.anl.gov/petsc/documentation/faq.html#valgrind
+[5]PETSC ERROR: or try http://valgrind.org on GNU/linux and Apple Mac OS X to find memory corruption errors
+[5]PETSC ERROR: configure using --with-debugging=yes, recompile, link, and run 
+[5]PETSC ERROR: to get more information on the crash.
+[6]PETSC ERROR: ------------------------------------------------------------------------
+[6]PETSC ERROR: Caught signal number 15 Terminate: Some process (or the batch system) has told this process to end
+[6]PETSC ERROR: Try option -start_in_debugger or -on_error_attach_debugger
+[6]PETSC ERROR: or see http://www.mcs.anl.gov/petsc/documentation/faq.html#valgrind
+[6]PETSC ERROR: or try http://valgrind.org on GNU/linux and Apple Mac OS X to find memory corruption errors
+[6]PETSC ERROR: configure using --with-debugging=yes, recompile, link, and run 
+[6]PETSC ERROR: to get more information on the crash.
+Traceback (most recent call last):
+  File "leftventricular_meshing.py", line 48, in <module>
+    lv_mesh = lv.mesh()
+  File "/home/maaike/model/cvbtk/geometries.py", line 164, in mesh
+    self._mesh = self._create_mesh()
+  File "/home/maaike/model/cvbtk/geometries.py", line 595, in _create_mesh
+    return LeftVentricleMesh(C, h, e1, e2, resolution, segments=segments)
+  File "/home/maaike/model/cvbtk/meshes.py", line 73, in LeftVentricleMesh
+    domain = CSGCGALDomain3D(outer_volume - inner_volume - excess)
+  File "/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/lib/python3.5/site-packages/mshr.py", line 574, in __init__
+    _mshr.CSGCGALDomain3D_swiginit(self, _mshr.new_CSGCGALDomain3D(*args))
+RuntimeError: 
+
+*** -------------------------------------------------------------------------
+*** DOLFIN encountered an error. If you are not able to resolve this issue
+*** using the information listed below, you can ask for help at
+***
+***     fenics-support@googlegroups.com
+***
+*** Remember to include the error message listed below and, if possible,
+*** include a *minimal* running example to reproduce the error.
+***
+*** -------------------------------------------------------------------------
+*** Error:   Unable to Convert geometry to polyhedron.
+*** Reason:  Geometry contains no facet.
+*** Where:   This error was encountered inside CSGCGALDomain3D.cpp.
+*** Process: 7
+*** 
+*** DOLFIN version: 2017.2.0
+*** Git changeset:  unknown
+*** -------------------------------------------------------------------------
+
+--------------------------------------------------------------------------
+mpirun noticed that process rank 0 with PID 0 on node compute-0-26 exited on signal 6 (Aborted).
+--------------------------------------------------------------------------
+[compute-0-26.local:20354] 1 more process has sent help message help-mpi-api.txt / mpi-abort
+[compute-0-26.local:20354] Set MCA parameter "orte_base_help_aggregate" to 0 to see all help / error messages
+Wed Mar  4 11:36:42 CET 2020
