@@ -90,9 +90,10 @@ def reference_left_ventricle_pluijmert(resolution=30, **kwargs):
     datafile = pkg_resources.resource_filename(__name__, meshfile)
     return LeftVentricleGeometry(meshfile=datafile, **inputs)
 
-def select_left_ventricle_mesh(filename='lv_maaike_seg30_res30_mesh', resolution=30, **kwargs):
+def select_left_ventricle_mesh(filename='lv_maaike_seg30_res30_mesh', **kwargs):
     meshfile = DATA_DIRECTORY + filename
     datafile = pkg_resources.resource_filename(__name__, meshfile)
+    print_once('loading mesh file: {}'.format(filename))
     return LeftVentricleGeometry(meshfile=datafile, **kwargs)
 
 

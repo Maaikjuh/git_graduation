@@ -18,6 +18,8 @@ cycle = None
 # 'begin_ic' (reference is the state at onset of LV isovolumic contraction phase).
 strain_reference = 'stress_free'
 
+print('strain reference: {}'.format(strain_reference))
+
 # For additional options and their default settings
 # (e.g. you can choose the strain reference state),
 # see the documentation in the Export class.

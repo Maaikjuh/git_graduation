@@ -9,6 +9,9 @@ from dolfin.cpp.common import Parameters
 from mshr import (Box, CSGCGALDomain3D, CSGCGALMeshGenerator3D, Cylinder,
                   Ellipsoid, Sphere)
 
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 __all__ = [
     'LeftVentricleMesh',
     'LeftVentricleVADMesh',

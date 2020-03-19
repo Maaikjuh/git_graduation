@@ -24,7 +24,7 @@ plt.close('all')
 
 # Specify the results.csv file (which contains the hemodynamic data) directly:
 #csv = r'E:\Graduation Project\FEniCS\PycharmProject\output\sepran_simulation\sepran_simulation_res_30\results.csv'
-csv = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\27_02_default_inputs\results.csv'
+csv = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\05-03_2cycles_default\results.csv'
 
 ## OR specify heart condition and find csv file automatically:
 #hc = 1
@@ -36,10 +36,11 @@ csv = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\27_02_de
 results = Dataset(filename=csv)
 
 cycle = max(results['cycle']) - 1
+#cycle =3
 
 print('Analyzing cycle {}...'.format(cycle))
 
 postprocess(results, dir_out=os.path.dirname(csv), cycle=cycle)
 
-hemo_sum = hemodynamic_summary(results)
+hemo_sum = hemodynamic_summary(results,cycle)
 print_hemodynamic_summary(hemo_sum)

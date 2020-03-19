@@ -1,0 +1,100 @@
+INFO: activate-gcc_linux-64.sh made the following environmental changes:
++CC=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-cc
++CFLAGS=-ftree-vectorize -fPIC -fno-plt -O3 -pipe
++CPP=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-cpp
++CPPFLAGS=-DNDEBUG -O3
++GCC=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gcc
++GCC_AR=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gcc-ar
++GCC_NM=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gcc-nm
++GCC_RANLIB=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gcc-ranlib
++LDFLAGS=-Wl,-O3 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro -Wl,-z,now
++_PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata_x86_64_conda_cos6_linux_gnu
+INFO: activate-gfortran_linux-64.sh made the following environmental changes:
++F77=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gfortran
++F95=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-f95
++FC=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gfortran
++FCFLAGS=-ftree-vectorize -fPIC -fno-plt -O3 -pipe
++FFLAGS=-ftree-vectorize -fPIC -fno-plt -O3 -pipe
++FORTRANFLAGS=-ftree-vectorize -fPIC -fno-plt -O3 -pipe
++GFORTRAN=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-gfortran
+INFO: activate-gxx_linux-64.sh made the following environmental changes:
++CXX=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-c++
++CXXFLAGS=-fvisibility-inlines-hidden -std=c++11 -fmessage-length=0 -ftree-vectorize -fPIC -fno-plt -O3 -pipe
++GXX=/home/maaike/fenics-tue/anaconda/envs/fenics-2017-2-0/bin/x86_64-conda_cos6-linux-gnu-g++
+Wed Mar  4 11:35:18 CET 2020
+Traceback (most recent call last):
+  File "leftventricular_meshing.py", line 6, in <module>
+Traceback (most recent call last):
+  File "leftventricular_meshing.py", line 6, in <module>
+Traceback (most recent call last):
+  File "leftventricular_meshing.py", line 6, in <module>
+Traceback (most recent call last):
+  File "leftventricular_meshing.py", line 6, in <module>
+Traceback (most recent call last):
+  File "leftventricular_meshing.py", line 6, in <module>
+    from cvbtk import LeftVentricleGeometry, print_once, info_once, save_to_disk, quadrature_function_space
+  File "/home/maaike/model/cvbtk/__init__.py", line 8, in <module>
+    from cvbtk import LeftVentricleGeometry, print_once, info_once, save_to_disk, quadrature_function_space
+  File "/home/maaike/model/cvbtk/__init__.py", line 8, in <module>
+    from cvbtk import LeftVentricleGeometry, print_once, info_once, save_to_disk, quadrature_function_space
+  File "/home/maaike/model/cvbtk/__init__.py", line 8, in <module>
+    from cvbtk import LeftVentricleGeometry, print_once, info_once, save_to_disk, quadrature_function_space
+  File "/home/maaike/model/cvbtk/__init__.py", line 8, in <module>
+    from cvbtk import LeftVentricleGeometry, print_once, info_once, save_to_disk, quadrature_function_space
+  File "/home/maaike/model/cvbtk/__init__.py", line 8, in <module>
+    from .geometries import (BaseGeometry, LeftVentricleGeometry,
+  File "/home/maaike/model/cvbtk/geometries.py", line 597
+    from .geometries import (BaseGeometry, LeftVentricleGeometry,
+  File "/home/maaike/model/cvbtk/geometries.py", line 597
+    return LeftVentricleMesh(C, h, e1, e2, resolution,geometry_parameters segments=segments)
+    return LeftVentricleMesh(C, h, e1, e2, resolution,geometry_parameters segments=segments)
+                                                                                 ^
+SyntaxError: invalid syntax
+    from .geometries import (BaseGeometry, LeftVentricleGeometry,
+  File "/home/maaike/model/cvbtk/geometries.py", line 597
+    return LeftVentricleMesh(C, h, e1, e2, resolution,geometry_parameters segments=segments)
+                                                                                 ^
+SyntaxError: invalid syntax
+    from .geometries import (BaseGeometry, LeftVentricleGeometry,
+  File "/home/maaike/model/cvbtk/geometries.py", line 597
+    return LeftVentricleMesh(C, h, e1, e2, resolution,geometry_parameters segments=segments)
+                                                                                 ^
+SyntaxError: invalid syntax
+    from .geometries import (BaseGeometry, LeftVentricleGeometry,
+  File "/home/maaike/model/cvbtk/geometries.py", line 597
+                                                                                 ^
+SyntaxError: invalid syntax
+    return LeftVentricleMesh(C, h, e1, e2, resolution,geometry_parameters segments=segments)
+                                                                                 ^
+SyntaxError: invalid syntax
+Traceback (most recent call last):
+  File "leftventricular_meshing.py", line 6, in <module>
+Traceback (most recent call last):
+  File "leftventricular_meshing.py", line 6, in <module>
+    from cvbtk import LeftVentricleGeometry, print_once, info_once, save_to_disk, quadrature_function_space
+  File "/home/maaike/model/cvbtk/__init__.py", line 8, in <module>
+Traceback (most recent call last):
+  File "leftventricular_meshing.py", line 6, in <module>
+    from cvbtk import LeftVentricleGeometry, print_once, info_once, save_to_disk, quadrature_function_space
+  File "/home/maaike/model/cvbtk/__init__.py", line 8, in <module>
+    from .geometries import (BaseGeometry, LeftVentricleGeometry,
+  File "/home/maaike/model/cvbtk/geometries.py", line 597
+    return LeftVentricleMesh(C, h, e1, e2, resolution,geometry_parameters segments=segments)
+    from cvbtk import LeftVentricleGeometry, print_once, info_once, save_to_disk, quadrature_function_space
+  File "/home/maaike/model/cvbtk/__init__.py", line 8, in <module>
+                                                                                 ^
+SyntaxError: invalid syntax
+    from .geometries import (BaseGeometry, LeftVentricleGeometry,
+  File "/home/maaike/model/cvbtk/geometries.py", line 597
+    return LeftVentricleMesh(C, h, e1, e2, resolution,geometry_parameters segments=segments)
+                                                                                 ^
+SyntaxError: invalid syntax
+    from .geometries import (BaseGeometry, LeftVentricleGeometry,
+  File "/home/maaike/model/cvbtk/geometries.py", line 597
+    return LeftVentricleMesh(C, h, e1, e2, resolution,geometry_parameters segments=segments)
+                                                                                 ^
+SyntaxError: invalid syntax
+--------------------------------------------------------------------------
+mpirun noticed that process rank 1 with PID 0 on node compute-0-26 exited on signal 6 (Aborted).
+--------------------------------------------------------------------------
+Wed Mar  4 11:35:21 CET 2020
