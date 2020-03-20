@@ -9,6 +9,9 @@ from ufl import Identity, as_tensor, det, dot, exp, grad, inv, sqrt
 
 from .utils import safe_project, vector_space_to_scalar_space, quadrature_function_space
 
+import os
+from dolfin.cpp.common import MPI, mpi_comm_world
+from dolfin.cpp.io import XDMFFile
 
 __all__ = [
     'ActiveStressModel',
@@ -53,6 +56,17 @@ def compute_coordinate_expression(degree,element,var =""):
                             "xi": "acosh({sigma})".format(sigma=sigmastr),
                             "theta": "acos({tau})".format(tau=taustr)} 
     return Expression(expressions_dict[var],degree=degree,element=element)
+
+def save_to_xdmf(T0,dir_out):
+    if MPI.rank(mpi_comm_world()) == 0:
+        if not os.path.exists(dir_out):
+            os.makedirs(dir_out)
+    xdmf_files = {}
+    filename = os.path.join(dir_out,'T0.xdmf')
+    xdmf_files['T0']= XDMFFile(filename)
+
+    with XDMFFile(filename) as f:
+        f.write(T0)
 
 
 class ConstitutiveModel(object):
@@ -395,13 +409,6 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         self.T0.assign(Constant(self.parameters['Ta0']))
 
 
-        phi = compute_coordinate_expression(3, Q.ufl_element(),'phi')
-        theta = compute_coordinate_expression(3, Q.ufl_element(),'theta')
-        xi = compute_coordinate_expression(3, Q.ufl_element(),'xi')
-
-        cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 0.175, thetar=0.175, ximin=0.5) 
-        T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
-        self.T0.interpolate(T0expression)
  
 
         if prm['restrict_lc']:
@@ -466,8 +473,24 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             A UFL-like object.
         """
         prm = self.parameters
-        
 
+        Q = vector_space_to_scalar_space(u.ufl_function_space())
+
+        phi = compute_coordinate_expression(3, Q.ufl_element(),'phi')
+        theta = compute_coordinate_expression(3, Q.ufl_element(),'theta')
+        xi = compute_coordinate_expression(3, Q.ufl_element(),'xi')
+
+        #cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 0.175, thetar=0.175, ximin=0.5) 
+        cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax =  1.5708, thetar= 1.5708) 
+
+        T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
+        self.T0.interpolate(T0expression)
+        
+        dir_out= 'output/20-03_Ta0_tests'
+        # t= prm['t']
+
+        save_to_xdmf(self.T0,dir_out)
+        print("T0 = {}".format(self.T0))
 
 
 
