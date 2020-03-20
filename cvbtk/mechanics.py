@@ -480,13 +480,13 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         theta = compute_coordinate_expression(3, Q.ufl_element(),'theta')
         xi = compute_coordinate_expression(3, Q.ufl_element(),'xi')
 
-        #cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 0.175, thetar=0.175, ximin=0.5) 
-        cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax =  1.5708, thetar= 1.5708) 
+        cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 1.5708, thetar=1.5708, ximin=0.5) 
+        #cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax =  1.5708, thetar= 1.5708) 
 
         T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
         self.T0.interpolate(T0expression)
         
-        dir_out= 'output/20-03_Ta0_tests'
+        dir_out= 'output/20-03_Ta0_tests_changed_cond_with_xi'
         # t= prm['t']
 
         save_to_xdmf(self.T0,dir_out)
