@@ -7,7 +7,7 @@ from dolfin import (And, Constant, interpolate, Expression, DOLFIN_PI, Function,
 from dolfin.cpp.common import Parameters
 from ufl import Identity, as_tensor, det, dot, exp, grad, inv, sqrt
 
-from .utils import safe_project, vector_space_to_scalar_space, quadrature_function_space
+from .utils import safe_project, vector_space_to_scalar_space, quadrature_function_space, print_once
 
 import datetime
 import os
@@ -84,7 +84,7 @@ class ConstitutiveModel(object):
     def __init__(self, u, fiber_vectors, **kwargs):
         self._parameters = self.default_parameters()
         self._parameters.update(kwargs)
-
+        
         try:
             # Discretize the fiber vectors onto quadrature elements.
             mesh = u.ufl_function_space().ufl_domain().ufl_cargo()
@@ -397,9 +397,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
     def __init__(self, u, fiber_vectors, **kwargs):
         super(ArtsKerckhoffsActiveStress, self).__init__(u, fiber_vectors, **kwargs)
         prm = self.parameters
-
-        print('prm = {}'.format(prm))
-
+        
         # This model requires lc (and lc_old) to be defined.
         Q = vector_space_to_scalar_space(u.ufl_function_space())
         lc_old = Function(Q)
@@ -433,7 +431,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         self._lc = lc_cond*lc + ls_cond*self.ls
         self._lc_old = lc_old
 
-    def infarct_T0(self,u,degree,dir_out,**kwargs):
+    def infarct_T0(self,u,dir_out):
         """
         Define value of T0 for nodes to express level of active stress
 
@@ -455,6 +453,8 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         focus = self.parameters['focus']
 
+        degree = 3
+
         Q = vector_space_to_scalar_space(u.ufl_function_space())
 
         # calculate spherical nodal coordinates of the mesh
@@ -475,6 +475,8 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
 
         self.T0.interpolate(T0expression)
+
+        return self.T0
 
     @staticmethod
     def default_parameters():
@@ -503,6 +505,19 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         prm.add('restrict_lc', False)
 
+        prm.add('phi_min', float())
+        prm.add('phi_max', float())
+        prm.add('thetar', float())
+        prm.add('ximin', float())
+        prm.add('focus', float())
+        prm.add('save_T0_mesh', "./")
+
+        # prm.add(infarct_prm)
+
+        return prm
+
+    @staticmethod
+    def default_infarct_parameters():
         infarct_prm = Parameters('infarct_prm')
 
         infarct_prm.add('phi_min', float())
@@ -510,11 +525,8 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         infarct_prm.add('thetar', float())
         infarct_prm.add('ximin', float())
         infarct_prm.add('focus', float())
-        infarct_prm.add('save_T0_mesh', "./")
-
-        prm.add(infarct_prm)
-
-        return prm
+        # infarct_prm.add('save_T0_mesh', False)
+        return infarct_prm
 
     def active_stress_scalar(self, u):
         """
@@ -532,12 +544,19 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         Q = vector_space_to_scalar_space(u.ufl_function_space())
 
 
-        phimin = prm['infarct_prm']['phi_min']
-        phimax = prm['infarct_prm']['phi_max']
-        thetar = prm['infarct_prm']['thetar']
-        ximin = prm['infarct_prm']['ximin']
+        phimin = prm['phi_min']
+        phimax = prm['phi_max']
+        thetar = prm['thetar']
+        ximin = prm['ximin']
         Ta0 = prm['Ta0']
-        focus = prm['infarct_prm']['focus']
+        focus = prm['focus']
+
+        print_once("phimin: {}".format(phimin))
+        print_once("phimax: {}".format(phimax))
+        print_once("thetar: {}".format(thetar))
+        print_once("ximin: {}".format(ximin))
+        print_once("Ta0: {}".format(Ta0))
+
 
         phi = compute_coordinate_expression(3, Q.ufl_element(),'phi',focus)
         theta = compute_coordinate_expression(3, Q.ufl_element(),'theta',focus)
@@ -556,26 +575,15 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         #T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, xi=xi)
         self.T0.interpolate(T0expression)
 
-        # infarct_prm = { 'focus':4.3,
-        #                 'phimax': 1.5708,
-        #                 'phimin': 0.,
-        #                 'thetar': 1.5708,
-        #                 'ximin': 0.5}
-
-        now = datetime.datetime.now()
-        dir_out= 'output/T0_meshes/{}_full_run'.format(now.strftime("%d-%m_%H-%M"))
-        degree = 3
+        # now = datetime.datetime.now()
+        # dir_out= 'output/T0_meshes/{}_full_run'.format(now.strftime("%d-%m_%H-%M"))
+        dir_out = prm['save_T0_mesh']
 
         #test to see if above statements could be used in definition
 
-        # self.T0.infarct_T0(self,u,degree,dir_out)
-        
-        
-        # t= prm['t']
-
+        self.T0=infarct_T0(self,u,dir_out)
+        # print("dir out: {}".format(dir_out))
         save_to_xdmf(self.T0,dir_out)
-        print("T0 = {}".format(self.T0))
-
 
 
         # Term for the length dependence.
