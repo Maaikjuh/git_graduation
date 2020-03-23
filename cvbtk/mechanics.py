@@ -431,52 +431,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         self._lc = lc_cond*lc + ls_cond*self.ls
         self._lc_old = lc_old
 
-    def infarct_T0(self,u,dir_out):
-        """
-        Define value of T0 for nodes to express level of active stress
-
-        Args:
-            u: The displacement unknown.
-            degree: degree of the expression for ellipsoidal coordinates
-            dir_out: output directory for the xdmf file of T0
-            **kwargs: Arbitrary keyword arguments for user-defined parameters.
-        
-        TODO  get definition working (**kwargs in particular) 
-        make dictionairy with infarct parameters in main to be passed 
-        """
-
-        # self.parameters.update(kwargs)
-        phi_min = self.parameters['phimin']
-        phi_max = self.parameters['phimax']
-        thetar = self.parameters['thetar']
-        ximin = self.parameters['ximin']
-
-        focus = self.parameters['focus']
-
-        degree = 3
-
-        Q = vector_space_to_scalar_space(u.ufl_function_space())
-
-        # calculate spherical nodal coordinates of the mesh
-        phi = compute_coordinate_expression(degree, Q.ufl_element(),'phi',focus)
-        theta = compute_coordinate_expression(degree, Q.ufl_element(),'theta',focus)
-        xi = compute_coordinate_expression(degree, Q.ufl_element(),'xi',focus)
-
-        # expression to check if coordinates are within infarct area
-        cpp_exp_Ta0_phi = "phi <= {phimax} && phi>= {phimin}".format(phimin=phi_min, phimax = phi_max)
-        cpp_exp_Ta0_theta = "fabs(theta) < {thetar}".format(thetar=thetar )
-        cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
-
-        # if in infarct area: T0 = 0.
-        # else: T0 = Ta0
-        cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? 0. : {Ta0}".format(Ta0=250., exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
-
-        # expression for T0 with for all nodes the value of T0
-        T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
-
-        self.T0.interpolate(T0expression)
-
-        return self.T0
+    
 
     @staticmethod
     def default_parameters():
@@ -541,47 +496,49 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         """
         prm = self.parameters
 
-        Q = vector_space_to_scalar_space(u.ufl_function_space())
+        # Q = vector_space_to_scalar_space(u.ufl_function_space())
 
 
-        phimin = prm['phi_min']
-        phimax = prm['phi_max']
-        thetar = prm['thetar']
-        ximin = prm['ximin']
-        Ta0 = prm['Ta0']
-        focus = prm['focus']
+        # phimin = prm['phi_min']
+        # phimax = prm['phi_max']
+        # thetar = prm['thetar']
+        # ximin = prm['ximin']
+        # Ta0 = prm['Ta0']
+        # focus = prm['focus']
 
-        print_once("phimin: {}".format(phimin))
-        print_once("phimax: {}".format(phimax))
-        print_once("thetar: {}".format(thetar))
-        print_once("ximin: {}".format(ximin))
-        print_once("Ta0: {}".format(Ta0))
+        # print_once("phimin: {}".format(phimin))
+        # print_once("phimax: {}".format(phimax))
+        # print_once("thetar: {}".format(thetar))
+        # print_once("ximin: {}".format(ximin))
+        # print_once("Ta0: {}".format(Ta0))
 
 
-        phi = compute_coordinate_expression(3, Q.ufl_element(),'phi',focus)
-        theta = compute_coordinate_expression(3, Q.ufl_element(),'theta',focus)
-        xi = compute_coordinate_expression(3, Q.ufl_element(),'xi',focus)
+        # phi = compute_coordinate_expression(3, Q.ufl_element(),'phi',focus)
+        # theta = compute_coordinate_expression(3, Q.ufl_element(),'theta',focus)
+        # xi = compute_coordinate_expression(3, Q.ufl_element(),'xi',focus)
 
-        #working
-        cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=Ta0, phimin=phimin, phimax = phimax, thetar=thetar, ximin=ximin) 
-        #
-        #test min and max theta
-        #cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && (theta) > {mintheta} && (theta) < {maxtheta} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 1.5708, mintheta=1.5708, maxtheta=2.3562, ximin=0.5) 
-        #test without theta
-        #cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 1.5708, ximin=0.5) 
+        # #working
+        # cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=Ta0, phimin=phimin, phimax = phimax, thetar=thetar, ximin=ximin) 
+        # #
+        # #test min and max theta
+        # #cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && (theta) > {mintheta} && (theta) < {maxtheta} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 1.5708, mintheta=1.5708, maxtheta=2.3562, ximin=0.5) 
+        # #test without theta
+        # #cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 1.5708, ximin=0.5) 
 
-        T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
+        # T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
         
-        #T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, xi=xi)
-        self.T0.interpolate(T0expression)
+        # #T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, xi=xi)
+        # self.T0.interpolate(T0expression)
 
         # now = datetime.datetime.now()
         # dir_out= 'output/T0_meshes/{}_full_run'.format(now.strftime("%d-%m_%H-%M"))
         dir_out = prm['save_T0_mesh']
 
         #test to see if above statements could be used in definition
+        self.infarct_T0(u,dir_out)
+        # self.T0.interpolate(T0expression)
 
-        self.T0=infarct_T0(self,u,dir_out)
+        # self.infarct_T0(self,u,dir_out)
         # print("dir out: {}".format(dir_out))
         save_to_xdmf(self.T0,dir_out)
 
@@ -609,6 +566,54 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         # Assemble into the scalar value and return.
         p = f_iso*f_twitch*prm['Ea']*(self.ls - self.lc)
         return p
+
+    def infarct_T0(self,u,dir_out):
+        """
+        Define value of T0 for nodes to express level of active stress
+
+        Args:
+            u: The displacement unknown.
+            degree: degree of the expression for ellipsoidal coordinates
+            dir_out: output directory for the xdmf file of T0
+            **kwargs: Arbitrary keyword arguments for user-defined parameters.
+        
+        TODO  get definition working (**kwargs in particular) 
+        make dictionairy with infarct parameters in main to be passed 
+        """
+
+        # self.parameters.update(kwargs)
+        phi_min = self.parameters['phi_min']
+        phi_max = self.parameters['phi_max']
+        thetar = self.parameters['thetar']
+        ximin = self.parameters['ximin']
+
+        focus = self.parameters['focus']
+
+        degree = 3
+
+        Q = vector_space_to_scalar_space(u.ufl_function_space())
+
+        # calculate spherical nodal coordinates of the mesh
+        phi = compute_coordinate_expression(degree, Q.ufl_element(),'phi',focus)
+        theta = compute_coordinate_expression(degree, Q.ufl_element(),'theta',focus)
+        xi = compute_coordinate_expression(degree, Q.ufl_element(),'xi',focus)
+
+        # expression to check if coordinates are within infarct area
+        cpp_exp_Ta0_phi = "phi <= {phimax} && phi>= {phimin}".format(phimin=phi_min, phimax = phi_max)
+        cpp_exp_Ta0_theta = "fabs(theta) < {thetar}".format(thetar=thetar )
+        cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
+
+        # if in infarct area: T0 = 0.
+        # else: T0 = Ta0
+        cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? 0. : {Ta0}".format(Ta0=250., exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
+
+        # expression for T0 with for all nodes the value of T0
+        T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
+
+        self.T0.interpolate(T0expression)
+
+        return self.T0
+        # return T0expression
 
     @property
     def lc(self):
