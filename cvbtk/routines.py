@@ -116,7 +116,7 @@ def create_materials(model, inputs):
     if active_stress_model == 'ArtsBovendeerdActiveStress':
         act = ArtsBovendeerdActiveStress(u, fsn, **inputs['active_stress'])
     elif active_stress_model == 'ArtsKerckhoffsActiveStress':
-        act = ArtsKerckhoffsActiveStress(u, fsn, **inputs['active_stress'])
+        act = ArtsKerckhoffsActiveStress(u, fsn, **inputs['active_stress'] ,**inputs['infarct'])
     elif active_stress_model is None:
         act = None
     else:
