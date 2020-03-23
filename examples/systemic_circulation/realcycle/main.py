@@ -16,7 +16,7 @@ import os
 import matplotlib.pyplot as plt
 
 # Change the number of cycles and active stress ('new' or 'old') here:
-NUM_CYCLES = 1
+NUM_CYCLES = 3
 ACT_STRESS = 'old'  # 'old' is Arts Kerckhoffs, 'new' is Arts Bovendeerd.
 
 # Use the following options if you want to reload a saved model state and continue
@@ -26,6 +26,9 @@ ACT_STRESS = 'old'  # 'old' is Arts Kerckhoffs, 'new' is Arts Bovendeerd.
 DIR_RELOAD = None  # Directory with output files of the model to reload.
 TIME_RELOAD = None  # The time (in ms) of the timestep to reload. Set to -1 for reloading the latest available timestep.
 
+# Set if Infarction should be included
+INFARCT = True
+
 # Use the following option if you want to load a set of inputs and start a new simulation using those inputs.
 # By specifying a path to an inputs.csv file, you can load the inputs from the file
 # instead of defining them in get_inputs(). If you do not want to load inputs from a
@@ -34,27 +37,27 @@ INPUTS_PATH = None #'inputs.csv'
 
 
 # Set mesh resololution. For the default mesh, chose 30, 40 or 50. 
-SET_MESH_RESOLUTION = 20.0
+SET_MESH_RESOLUTION = 30.0
 
 # Use the following option if you want to load an alternative mesh (that has already been created). 
 # By specifying a path to an .hdf5 file, you can load the mesh from the file
 # instead of the reference mesh. If you do not want to load an alternative mesh from a
 # file, but just use the reference lv mesh, set the below path to None.
-LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION))
+LOAD_ALTERNATIVE_MESH = None #'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION))
 #doofus code here
 # Specify output directory.
 
 now = datetime.datetime.now()
 
-DIR_OUT = 'output/{}_Ta0_tests'.format(now.strftime("%d-%m"))
+DIR_OUT = 'output/{}_infarct_parameter_dict'.format(now.strftime("%d-%m_%H-%M"))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
     if not os.path.exists(DIR_OUT):
         os.makedirs(DIR_OUT)
-#    else:
-#        DIR_OUT = DIR_OUT + "_v2"
-#        os.makedirs(DIR_OUT)
+    # else:
+    #     DIR_OUT = DIR_OUT + "_v2"
+    #     os.makedirs(DIR_OUT)
 print_once('Saving to output directory: {}'.format(DIR_OUT))
 
 # Synchronize.
@@ -92,6 +95,18 @@ def get_inputs(number_of_cycles, active_stress):
                         'venous_resting_volume': 3000.0}
 
     # TODO add option to attach LVAD.
+
+    # -------------------------------------------------------------------------- #
+    # Infarct: create a dictionary of inputs for the infarct geometry.           #
+    # -------------------------------------------------------------------------- #
+    if INFARCT == True:
+        infarct_prm = { 'phi_min': 0.,
+                        'phi_max': 1.5708,
+                        'thetar': 1.5708,
+                        'ximin': 0.5,
+                        'focus': 4.3}
+    else:
+        infarct_prm = None
 
     # -------------------------------------------------------------------------- #
     # LV: create a dictionary of inputs for LeftVentricle geometry.              #
@@ -229,7 +244,8 @@ def get_inputs(number_of_cycles, active_stress):
               'initial_conditions': initial_conditions,
               'time': time,
               'volume_solver': volume_solver,
-              'number_of_cycles': number_of_cycles}
+              'number_of_cycles': number_of_cycles,
+              'infarct': infarct_prm}
 
     # Add the proper active stress parameters:
     if active_stress == 'old':
