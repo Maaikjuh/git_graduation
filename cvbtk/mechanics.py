@@ -9,6 +9,7 @@ from ufl import Identity, as_tensor, det, dot, exp, grad, inv, sqrt
 
 from .utils import safe_project, vector_space_to_scalar_space, quadrature_function_space
 
+import datetime
 import os
 from dolfin.cpp.common import MPI, mpi_comm_world
 from dolfin.cpp.io import XDMFFile
@@ -29,11 +30,11 @@ __all__ = [
     'right_cauchy_green_deformation',
 ]
 
-def compute_coordinate_expression(degree,element,var =""):
+def compute_coordinate_expression(degree,element,var,focus):
     """
     19-03 Maaike
-    Expression for ellipsoidal coordinates
-    function obtained from Luca Barbarotta
+    Expression for ellipsoidal coordinates (alternative definition)
+    https://en.wikipedia.org/wiki/Prolate_spheroidal_coordinates
 
     Args:
         var : string of ellipsoidal coordinate to be calculated
@@ -42,9 +43,10 @@ def compute_coordinate_expression(degree,element,var =""):
 
     Returns:
         Expression for ellipsoidal coordinate
+    
+    TODO   get **kwargs working 
+           make dictionairy with infarct parameters in main to be passed 
     """
-
-    focus = 4.3
 
     rastr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]+{f})*(x[2]+{f}))".format(f=focus)
     rbstr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]-{f})*(x[2]-{f}))".format(f=focus)
@@ -53,8 +55,8 @@ def compute_coordinate_expression(degree,element,var =""):
     sigmastr="(1./(2.*{f})*({ra}+{rb}))".format(ra=rastr,rb=rbstr,f=focus)
 
     expressions_dict = {"phi": "atan2(x[2],x[0])",
-                            "xi": "acosh({sigma})".format(sigma=sigmastr),
-                            "theta": "acos({tau})".format(tau=taustr)} 
+                        "xi": "acosh({sigma})".format(sigma=sigmastr),
+                        "theta": "acos({tau})".format(tau=taustr)} 
     return Expression(expressions_dict[var],degree=degree,element=element)
 
 def save_to_xdmf(T0,dir_out):
@@ -396,20 +398,19 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         super(ArtsKerckhoffsActiveStress, self).__init__(u, fiber_vectors, **kwargs)
         prm = self.parameters
 
+        print('prm = {}'.format(prm))
+
         # This model requires lc (and lc_old) to be defined.
         Q = vector_space_to_scalar_space(u.ufl_function_space())
         lc_old = Function(Q)
         self._lc_old = lc_old
         lc = lc_old + self.dt*(prm['Ea']*(self.ls_old - lc_old) - 1)*prm['v0']
         
-        # 17-03, variable T0 to express the level of active stress generation
-        # 18-03 initialize T0
+        # Initialize variable T0 to express the level of active stress generation
+        # Initialize with all nodal points to default value of Ta0
        
         self.T0 = Function(Q)
         self.T0.assign(Constant(self.parameters['Ta0']))
-
-
- 
 
         if prm['restrict_lc']:
             # Upper bound: restrict lc to not be greater than ls.
@@ -431,6 +432,49 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         # Store lc and lc_old.
         self._lc = lc_cond*lc + ls_cond*self.ls
         self._lc_old = lc_old
+
+    def infarct_T0(self,u,degree,dir_out,**kwargs):
+        """
+        Define value of T0 for nodes to express level of active stress
+
+        Args:
+            u: The displacement unknown.
+            degree: degree of the expression for ellipsoidal coordinates
+            dir_out: output directory for the xdmf file of T0
+            **kwargs: Arbitrary keyword arguments for user-defined parameters.
+        
+        TODO  get definition working (**kwargs in particular) 
+        make dictionairy with infarct parameters in main to be passed 
+        """
+
+        # self.parameters.update(kwargs)
+        phi_min = self.parameters['phimin']
+        phi_max = self.parameters['phimax']
+        thetar = self.parameters['thetar']
+        ximin = self.parameters['ximin']
+
+        focus = self.parameters['focus']
+
+        Q = vector_space_to_scalar_space(u.ufl_function_space())
+
+        # calculate spherical nodal coordinates of the mesh
+        phi = compute_coordinate_expression(degree, Q.ufl_element(),'phi',focus)
+        theta = compute_coordinate_expression(degree, Q.ufl_element(),'theta',focus)
+        xi = compute_coordinate_expression(degree, Q.ufl_element(),'xi',focus)
+
+        # expression to check if coordinates are within infarct area
+        cpp_exp_Ta0_phi = "phi <= {phimax} && phi>= {phimin}".format(phimin=phi_min, phimax = phi_max)
+        cpp_exp_Ta0_theta = "fabs(theta) < {thetar}".format(thetar=thetar )
+        cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
+
+        # if in infarct area: T0 = 0.
+        # else: T0 = Ta0
+        cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? 0. : {Ta0}".format(Ta0=250., exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
+
+        # expression for T0 with for all nodes the value of T0
+        T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
+
+        self.T0.interpolate(T0expression)
 
     @staticmethod
     def default_parameters():
@@ -459,6 +503,17 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         prm.add('restrict_lc', False)
 
+        infarct_prm = Parameters('infarct_prm')
+
+        infarct_prm.add('phi_min', float())
+        infarct_prm.add('phi_max', float())
+        infarct_prm.add('thetar', float())
+        infarct_prm.add('ximin', float())
+        infarct_prm.add('focus', float())
+        infarct_prm.add('save_T0_mesh', "./")
+
+        prm.add(infarct_prm)
+
         return prm
 
     def active_stress_scalar(self, u):
@@ -476,17 +531,46 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         Q = vector_space_to_scalar_space(u.ufl_function_space())
 
-        phi = compute_coordinate_expression(3, Q.ufl_element(),'phi')
-        theta = compute_coordinate_expression(3, Q.ufl_element(),'theta')
-        xi = compute_coordinate_expression(3, Q.ufl_element(),'xi')
 
-        cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 1.5708, thetar=1.5708, ximin=0.5) 
-        #cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax =  1.5708, thetar= 1.5708) 
+        phimin = prm['infarct_prm']['phi_min']
+        phimax = prm['infarct_prm']['phi_max']
+        thetar = prm['infarct_prm']['thetar']
+        ximin = prm['infarct_prm']['ximin']
+        Ta0 = prm['Ta0']
+        focus = prm['infarct_prm']['focus']
+
+        phi = compute_coordinate_expression(3, Q.ufl_element(),'phi',focus)
+        theta = compute_coordinate_expression(3, Q.ufl_element(),'theta',focus)
+        xi = compute_coordinate_expression(3, Q.ufl_element(),'xi',focus)
+
+        #working
+        cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=Ta0, phimin=phimin, phimax = phimax, thetar=thetar, ximin=ximin) 
+        #
+        #test min and max theta
+        #cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && (theta) > {mintheta} && (theta) < {maxtheta} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 1.5708, mintheta=1.5708, maxtheta=2.3562, ximin=0.5) 
+        #test without theta
+        #cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 1.5708, ximin=0.5) 
 
         T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
-        self.T0.interpolate(T0expression)
         
-        dir_out= 'output/20-03_Ta0_tests_changed_cond_with_xi'
+        #T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, xi=xi)
+        self.T0.interpolate(T0expression)
+
+        # infarct_prm = { 'focus':4.3,
+        #                 'phimax': 1.5708,
+        #                 'phimin': 0.,
+        #                 'thetar': 1.5708,
+        #                 'ximin': 0.5}
+
+        now = datetime.datetime.now()
+        dir_out= 'output/T0_meshes/{}_full_run'.format(now.strftime("%d-%m_%H-%M"))
+        degree = 3
+
+        #test to see if above statements could be used in definition
+
+        # self.T0.infarct_T0(self,u,degree,dir_out)
+        
+        
         # t= prm['t']
 
         save_to_xdmf(self.T0,dir_out)
