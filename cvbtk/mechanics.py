@@ -496,50 +496,10 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         """
         prm = self.parameters
 
-        # Q = vector_space_to_scalar_space(u.ufl_function_space())
-
-
-        # phimin = prm['phi_min']
-        # phimax = prm['phi_max']
-        # thetar = prm['thetar']
-        # ximin = prm['ximin']
-        # Ta0 = prm['Ta0']
-        # focus = prm['focus']
-
-        # print_once("phimin: {}".format(phimin))
-        # print_once("phimax: {}".format(phimax))
-        # print_once("thetar: {}".format(thetar))
-        # print_once("ximin: {}".format(ximin))
-        # print_once("Ta0: {}".format(Ta0))
-
-
-        # phi = compute_coordinate_expression(3, Q.ufl_element(),'phi',focus)
-        # theta = compute_coordinate_expression(3, Q.ufl_element(),'theta',focus)
-        # xi = compute_coordinate_expression(3, Q.ufl_element(),'xi',focus)
-
-        # #working
-        # cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && fabs(theta) < {thetar} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=Ta0, phimin=phimin, phimax = phimax, thetar=thetar, ximin=ximin) 
-        # #
-        # #test min and max theta
-        # #cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && (theta) > {mintheta} && (theta) < {maxtheta} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 1.5708, mintheta=1.5708, maxtheta=2.3562, ximin=0.5) 
-        # #test without theta
-        # #cpp_exp_Ta0 = "( phi <= {phimax} && phi>= {phimin} && xi >= {ximin} )? 0. : {Ta0}".format(Ta0=250., phimin=0., phimax = 1.5708, ximin=0.5) 
-
-        # T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
-        
-        # #T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, xi=xi)
-        # self.T0.interpolate(T0expression)
-
-        # now = datetime.datetime.now()
-        # dir_out= 'output/T0_meshes/{}_full_run'.format(now.strftime("%d-%m_%H-%M"))
-        dir_out = prm['save_T0_mesh']
-
-        #test to see if above statements could be used in definition
+        # create infarct area
         self.infarct_T0(u,dir_out)
-        # self.T0.interpolate(T0expression)
-
-        # self.infarct_T0(self,u,dir_out)
-        # print("dir out: {}".format(dir_out))
+        # save infarct mesh
+        dir_out = prm['save_T0_mesh']
         save_to_xdmf(self.T0,dir_out)
 
 
@@ -573,12 +533,9 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         Args:
             u: The displacement unknown.
-            degree: degree of the expression for ellipsoidal coordinates
             dir_out: output directory for the xdmf file of T0
-            **kwargs: Arbitrary keyword arguments for user-defined parameters.
-        
-        TODO  get definition working (**kwargs in particular) 
-        make dictionairy with infarct parameters in main to be passed 
+
+        Return the interpolated values of T0 on the mesh
         """
 
         # self.parameters.update(kwargs)
@@ -589,6 +546,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         focus = self.parameters['focus']
 
+        # degree of the expression for ellipsoidal coordinates
         degree = 3
 
         Q = vector_space_to_scalar_space(u.ufl_function_space())
@@ -613,7 +571,6 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         self.T0.interpolate(T0expression)
 
         return self.T0
-        # return T0expression
 
     @property
     def lc(self):
