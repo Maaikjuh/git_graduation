@@ -104,7 +104,8 @@ def get_inputs(number_of_cycles, active_stress):
                         'phi_max': 1.5708,
                         'thetar': 1.5708,
                         'ximin': 0.5,
-                        'focus': 4.3}
+                        'focus': 4.3,
+                        'save_T0_mesh': DIR_OUT}
     else:
         infarct_prm = None
 
