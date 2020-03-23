@@ -80,9 +80,14 @@ class ConstitutiveModel(object):
         u: The displacement unknown.
         fiber_vectors: Basis vectors (ef, es, en) defining the fiber field.
         **kwargs: Arbitrary keyword arguments for user-defined parameters.
+
+    TODO better statement to check if infarct should be included
     """
     def __init__(self, u, fiber_vectors, **kwargs):
-        self._parameters = self.default_parameters()
+        if 'phi_min' in kwargs:
+            self._parameters = self.default_infarct_parameters()
+        else:
+            self._parameters = self.default_parameters()
         self._parameters.update(kwargs)
         
         try:
@@ -460,28 +465,46 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         prm.add('restrict_lc', False)
 
+        prm.add('infarct_bool', False)
+
+        return prm
+
+    @staticmethod
+    def default_infarct_parameters():
+        """
+        Return a set of default parameters for this model + for the infarcted area.
+        """
+        prm = Parameters('active_stress')
+
+        prm.add('infarct_bool', True)
+
+        prm.add('Ta0', float())
+        prm.add('Ea', float())
+        prm.add('al', float())
+
+        prm.add('lc0', float())
+        prm.add('ls0', float())
+
+        prm.add('taur', float())
+        prm.add('taud', float())
+
+        prm.add('b', float())
+        prm.add('ld', float())
+
+        prm.add('beta', 0.0)
+
+        prm.add('v0', float())
+        prm.add('tdep', float())
+
+        prm.add('restrict_lc', False)
+
         prm.add('phi_min', float())
         prm.add('phi_max', float())
         prm.add('thetar', float())
         prm.add('ximin', float())
         prm.add('focus', float())
         prm.add('save_T0_mesh', "./")
-
-        # prm.add(infarct_prm)
-
         return prm
-
-    @staticmethod
-    def default_infarct_parameters():
-        infarct_prm = Parameters('infarct_prm')
-
-        infarct_prm.add('phi_min', float())
-        infarct_prm.add('phi_max', float())
-        infarct_prm.add('thetar', float())
-        infarct_prm.add('ximin', float())
-        infarct_prm.add('focus', float())
-        # infarct_prm.add('save_T0_mesh', False)
-        return infarct_prm
 
     def active_stress_scalar(self, u):
         """
@@ -496,12 +519,12 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         """
         prm = self.parameters
 
-        # create infarct area
-        self.infarct_T0(u,dir_out)
-        # save infarct mesh
-        dir_out = prm['save_T0_mesh']
-        save_to_xdmf(self.T0,dir_out)
-
+        if prm['infarct_bool']==True: 
+            # create infarct area
+            self.infarct_T0(u)                
+            dir_out = prm['save_T0_mesh']
+            # save infarct mesh
+            save_to_xdmf(self.T0,dir_out)
 
         # Term for the length dependence.
         #iso_term = prm['T0']*(tanh(prm['al']*(self.lc - prm['lc0'])))**2
@@ -527,13 +550,12 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         p = f_iso*f_twitch*prm['Ea']*(self.ls - self.lc)
         return p
 
-    def infarct_T0(self,u,dir_out):
+    def infarct_T0(self,u):
         """
         Define value of T0 for nodes to express level of active stress
 
         Args:
             u: The displacement unknown.
-            dir_out: output directory for the xdmf file of T0
 
         Return the interpolated values of T0 on the mesh
         """
