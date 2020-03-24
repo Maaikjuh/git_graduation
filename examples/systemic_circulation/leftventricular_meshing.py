@@ -19,7 +19,7 @@ info_once(LeftVentricleGeometry.default_parameters(), True)
 # ik heb zelf alleen nog maar 'mesh resolution' aangepast, ik heb nog niet gekeken wat de andere parameters precies deden
 geometry_inputs = {
     'focus_height': 4.3,  
-    'mesh_resolution': 20.,
+    'mesh_resolution': 30.,
     'inner_eccentricity': 0.934819,   
     'mesh_segments': 1,  
     'outer_eccentricity': 0.807075,  
@@ -44,6 +44,12 @@ print_once('Mesh created in {} s.'.format(time.time()-t0))
 # Get the mesh coordinates. These are only printed to check the output and aren't stored (yet)
 mesh_points=lv_mesh.coordinates()
 print_once('coordinates: {} /n'.format(mesh_points))
+
+# Save the mesh coordinates in a csv file
+with open("mesh_coordinates.csv",'a',newline='') as outfile:
+    writer = csv.writer(outfile)
+    for row in mesh_points:
+            writer.writerow([row])
 
 # Get the order of degrees of freedom of functions from functions spaces over the mesh
 # ik weet nog niet precies hoe dit precies werkt, of de 'CG' wel klopt en wat de dof mij precies zeggen 

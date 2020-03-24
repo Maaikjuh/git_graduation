@@ -16,7 +16,7 @@ import os
 import matplotlib.pyplot as plt
 
 # Change the number of cycles and active stress ('new' or 'old') here:
-NUM_CYCLES = 3
+NUM_CYCLES = 2
 ACT_STRESS = 'old'  # 'old' is Arts Kerckhoffs, 'new' is Arts Bovendeerd.
 
 # Use the following options if you want to reload a saved model state and continue
@@ -43,13 +43,13 @@ SET_MESH_RESOLUTION = 30.0
 # By specifying a path to an .hdf5 file, you can load the mesh from the file
 # instead of the reference mesh. If you do not want to load an alternative mesh from a
 # file, but just use the reference lv mesh, set the below path to None.
-LOAD_ALTERNATIVE_MESH = None #'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION))
+LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION))
 #doofus code here
 # Specify output directory.
 
 now = datetime.datetime.now()
 
-DIR_OUT = 'output/{}_infarct_parameter_dict'.format(now.strftime("%d-%m_%H-%M"))
+DIR_OUT = 'output/{}_infarct_xi_10'.format(now.strftime("%d-%m_%H-%M"))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
@@ -102,9 +102,11 @@ def get_inputs(number_of_cycles, active_stress):
     if INFARCT == True:
         infarct_prm = { 'phi_min': 0.,
                         'phi_max': 1.5708,
-                        'thetar': 1.5708,
-                        'ximin': 0.5,
+                        'theta_min': 2.,
+                        'theta_max': 2.8,
+                        'ximin': 10., #0.5,
                         'focus': 4.3,
+                        'Ta0_infarct': 100.,
                         'save_T0_mesh': DIR_OUT}
     else:
         infarct_prm = None
