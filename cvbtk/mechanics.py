@@ -51,21 +51,21 @@ def compute_coordinate_expression(degree,element,var,focus):
     rastr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]+{f})*(x[2]+{f}))".format(f=focus)
     rbstr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]-{f})*(x[2]-{f}))".format(f=focus)
 
-    taustr= "(1./(2.*{f})*({ra}-{rb}))".format(ra=rastr,rb=rbstr,f=focus)
+    taustr= "(1./(2.*{f})*({ra}-{rb}))".format(f=focus,ra=rastr,rb=rbstr)
     sigmastr="(1./(2.*{f})*({ra}+{rb}))".format(ra=rastr,rb=rbstr,f=focus)
 
-    expressions_dict = {"phi": "atan2(x[2],x[0])",
+    expressions_dict = {"phi": "atan2(x[1],x[0])",
                         "xi": "acosh({sigma})".format(sigma=sigmastr),
                         "theta": "acos({tau})".format(tau=taustr)} 
     return Expression(expressions_dict[var],degree=degree,element=element)
 
-def save_to_xdmf(T0,dir_out):
+def save_to_xdmf(T0,dir_out,var):
     if MPI.rank(mpi_comm_world()) == 0:
         if not os.path.exists(dir_out):
             os.makedirs(dir_out)
     xdmf_files = {}
-    filename = os.path.join(dir_out,'T0.xdmf')
-    xdmf_files['T0']= XDMFFile(filename)
+    filename = os.path.join(dir_out, var + ".xdmf")
+    xdmf_files[var]= XDMFFile(filename)
 
     with XDMFFile(filename) as f:
         f.write(T0)
@@ -500,9 +500,11 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         prm.add('phi_min', float())
         prm.add('phi_max', float())
-        prm.add('thetar', float())
+        prm.add('theta_min', float())
+        prm.add('theta_max', float())
         prm.add('ximin', float())
         prm.add('focus', float())
+        prm.add('Ta0_infarct', float())
         prm.add('save_T0_mesh', "./")
         return prm
 
@@ -524,7 +526,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             self.infarct_T0(u)                
             dir_out = prm['save_T0_mesh']
             # save infarct mesh
-            save_to_xdmf(self.T0,dir_out)
+            save_to_xdmf(self.T0,dir_out,'T0')
 
         # Term for the length dependence.
         #iso_term = prm['T0']*(tanh(prm['al']*(self.lc - prm['lc0'])))**2
@@ -563,8 +565,11 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         # self.parameters.update(kwargs)
         phi_min = self.parameters['phi_min']
         phi_max = self.parameters['phi_max']
-        thetar = self.parameters['thetar']
+        theta_min = self.parameters['theta_min']
+        theta_max = self.parameters['theta_max']
         ximin = self.parameters['ximin']
+        Ta0_infarct = self.parameters['Ta0_infarct']
+        Ta0 = self.parameters['Ta0']
 
         focus = self.parameters['focus']
 
@@ -580,12 +585,46 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         # expression to check if coordinates are within infarct area
         cpp_exp_Ta0_phi = "phi <= {phimax} && phi>= {phimin}".format(phimin=phi_min, phimax = phi_max)
-        cpp_exp_Ta0_theta = "fabs(theta) < {thetar}".format(thetar=thetar )
+        # cpp_exp_Ta0_theta = "fabs(theta) < {thetar}".format(thetar=thetar )
+        cpp_exp_Ta0_theta = "theta> {thetamin} && theta < {thetamax}".format(thetamin=theta_min, thetamax=theta_max)
+        # cpp_exp_Ta0_theta = "(theta)>{thetamin} ".format(thetamin=0.99)
         cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
 
         # if in infarct area: T0 = 0.
         # else: T0 = Ta0
-        cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? 0. : {Ta0}".format(Ta0=250., exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
+        cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
+
+        dir_out = self.parameters['save_T0_mesh']
+        # save infarct mesh
+        # ptphi = project(phi,Q)
+        # save_to_xdmf(ptphi,dir_out,'phi_coord')
+
+        # ptheta = project(theta,Q)
+        # save_to_xdmf(ptheta,dir_out,'theta_coord')
+
+        # ptxi = project(xi,Q)
+        # save_to_xdmf(ptxi,dir_out,'xi_coord')
+
+        # phifun = Function(Q)
+        # phifun.assign(Constant(self.parameters['Ta0']))
+        # cpp_exp_Ta0_phi = "({exp_phi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0,exp_phi=cpp_exp_Ta0_phi)
+        # phiexpression = Expression(cpp_exp_Ta0_phi, element=Q.ufl_element(), phi=phi)
+        # phifun.interpolate(phiexpression)
+        # save_to_xdmf(phifun,dir_out,'phi_expr')
+
+        # thetafun = Function(Q)
+        # thetafun.assign(Constant(self.parameters['Ta0']))
+        # cpp_exp_Ta0_theta = "({exp_theta})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0,exp_theta= cpp_exp_Ta0_theta)
+        # thetaexpression = Expression(cpp_exp_Ta0_theta, element=Q.ufl_element(), theta=theta)
+        # thetafun.interpolate(thetaexpression)
+        # save_to_xdmf(thetafun,dir_out,'theta_expr')
+
+        # xifun = Function(Q)
+        # xifun.assign(Constant(self.parameters['Ta0']))
+        # cpp_exp_Ta0_xi = "({exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_xi=cpp_exp_Ta0_xi)
+        # xiexpression = Expression(cpp_exp_Ta0_xi, element=Q.ufl_element(), xi=xi)
+        # xifun.interpolate(xiexpression)
+        # save_to_xdmf(xifun,dir_out,'xi_expr')
 
         # expression for T0 with for all nodes the value of T0
         T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
