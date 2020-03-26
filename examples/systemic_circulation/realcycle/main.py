@@ -49,7 +49,7 @@ LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RE
 
 now = datetime.datetime.now()
 
-DIR_OUT = 'output/{}_infarct_xi_10'.format(now.strftime("%d-%m_%H-%M"))
+DIR_OUT = 'output/{}_infarct_small_area_lower_ta0'.format(now.strftime("%d-%m_%H-%M"))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
@@ -102,11 +102,11 @@ def get_inputs(number_of_cycles, active_stress):
     if INFARCT == True:
         infarct_prm = { 'phi_min': 0.,
                         'phi_max': 1.5708,
-                        'theta_min': 2.,
-                        'theta_max': 2.8,
-                        'ximin': 10., #0.5,
+                        'theta_min': 1.5708,
+                        'theta_max': 3.1416,
+                        'ximin': 0., #0.5,
                         'focus': 4.3,
-                        'Ta0_infarct': 100.,
+                        'Ta0_infarct': 50.,
                         'save_T0_mesh': DIR_OUT}
     else:
         infarct_prm = None
