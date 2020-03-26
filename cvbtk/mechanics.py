@@ -13,6 +13,7 @@ import datetime
 import os
 from dolfin.cpp.common import MPI, mpi_comm_world
 from dolfin.cpp.io import XDMFFile
+import csv
 
 __all__ = [
     'ActiveStressModel',
@@ -572,6 +573,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         Ta0 = self.parameters['Ta0']
 
         focus = self.parameters['focus']
+        dir_out = self.parameters['save_T0_mesh']
 
         # degree of the expression for ellipsoidal coordinates
         degree = 3
@@ -585,17 +587,33 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         # expression to check if coordinates are within infarct area
         cpp_exp_Ta0_phi = "phi <= {phimax} && phi>= {phimin}".format(phimin=phi_min, phimax = phi_max)
-        # cpp_exp_Ta0_theta = "fabs(theta) < {thetar}".format(thetar=thetar )
+        # # cpp_exp_Ta0_theta = "fabs(theta) < {thetar}".format(thetar=thetar )
         cpp_exp_Ta0_theta = "theta> {thetamin} && theta < {thetamax}".format(thetamin=theta_min, thetamax=theta_max)
-        # cpp_exp_Ta0_theta = "(theta)>{thetamin} ".format(thetamin=0.99)
+        # # cpp_exp_Ta0_theta = "(theta)>{thetamin} ".format(thetamin=0.99)
         cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
 
-        # if in infarct area: T0 = 0.
-        # else: T0 = Ta0
+        #luca
+        # phi0=1.5708 #0.5*pi
+        # drop_exp = Expression("-0.4857*pow(theta,4)+3.4472*pow(theta,3)-8.9954*pow(theta,2)+11.1*theta-5.6448", degree=3, theta=theta)
+        # Ta0_exp = Expression("(theta>=0.5*pi && fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp))? {Ta0_infarcted}: {Ta0}".format(Ta0_infarcted=Ta0_infarct, Ta0=Ta0, phi0=phi0), degree=3, theta=theta, phi=phi, drop_exp=drop_exp)
+
+        # phi_fun = "-0.4857*{theta}^4 + 3.4472*{theta}^3 - 8.9954*{theta}^2 + 11.1*{theta} - 5.6448".format(theta = theta)
+        # phi_fun = Expression("-0.4857*pow({theta},4) + 3.4472*pow({theta},3) - 8.9954*pow({theta},2) + 11.1*{theta} - 5.6448",theta=theta, degree=3)
+        # phifun = Function(Q)
+        # phifun.assign(Constant(self.parameters['Ta0']))
+        # cpp_exp_Ta0_phi = "(theta == {theta_val} && phi <= -0.4857*pow({theta_val},4) + 3.4472*pow({theta_val},3) - 8.9954*pow({theta_val},2) + 11.1*{theta_val} - 5.6448)? {Ta0_infarct} : {Ta0}".format(theta_val=theta_val, Ta0_infarct=Ta0_infarct,Ta0=Ta0)
+        # phiexpression = Expression(cpp_exp_Ta0_phi, element=Q.ufl_element(), theta= theta, phi=phi)
+        # phifun.interpolate(phiexpression)
+        # save_to_xdmf(phifun,dir_out,'phi_plus_expr')
+
+        # print("phi_fun: {}".format(phifun))
+
+        ## if in infarct area: T0 = 0.
+        ## else: T0 = Ta0
         cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
 
-        dir_out = self.parameters['save_T0_mesh']
-        # save infarct mesh
+        
+        ## save infarct mesh
         # ptphi = project(phi,Q)
         # save_to_xdmf(ptphi,dir_out,'phi_coord')
 
@@ -607,10 +625,10 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         # phifun = Function(Q)
         # phifun.assign(Constant(self.parameters['Ta0']))
-        # cpp_exp_Ta0_phi = "({exp_phi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0,exp_phi=cpp_exp_Ta0_phi)
+        # cpp_exp_Ta0_phi = "(phi < {exp_phi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=0.,Ta0=Ta0,exp_phi=phi_fun)
         # phiexpression = Expression(cpp_exp_Ta0_phi, element=Q.ufl_element(), phi=phi)
         # phifun.interpolate(phiexpression)
-        # save_to_xdmf(phifun,dir_out,'phi_expr')
+        # save_to_xdmf(phifun,dir_out,'phi_plus_expr')
 
         # thetafun = Function(Q)
         # thetafun.assign(Constant(self.parameters['Ta0']))
@@ -626,10 +644,11 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         # xifun.interpolate(xiexpression)
         # save_to_xdmf(xifun,dir_out,'xi_expr')
 
-        # expression for T0 with for all nodes the value of T0
+        ## expression for T0 with for all nodes the value of T0
         T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
 
         self.T0.interpolate(T0expression)
+        # self.T0.interpolate(Ta0_exp)
 
         return self.T0
 
