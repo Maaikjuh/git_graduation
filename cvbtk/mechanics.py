@@ -563,57 +563,72 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         Return the interpolated values of T0 on the mesh
         """
 
-        # self.parameters.update(kwargs)
-        phi_min = self.parameters['phi_min']
-        phi_max = self.parameters['phi_max']
-        theta_min = self.parameters['theta_min']
-        theta_max = self.parameters['theta_max']
-        ximin = self.parameters['ximin']
-        Ta0_infarct = self.parameters['Ta0_infarct']
-        Ta0 = self.parameters['Ta0']
+        infarct_type = 'droplet'
 
-        focus = self.parameters['focus']
-        dir_out = self.parameters['save_T0_mesh']
+        if infarct_type == 'droplet':
+            Ta0_infarct = self.parameters['Ta0_infarct']
+            Ta0 = self.parameters['Ta0']
+            focus = self.parameters['focus']
 
-        # degree of the expression for ellipsoidal coordinates
-        degree = 3
+            # degree of the expression for ellipsoidal coordinates
+            degree = 3
 
-        Q = vector_space_to_scalar_space(u.ufl_function_space())
+            Q = vector_space_to_scalar_space(u.ufl_function_space())
 
-        # calculate spherical nodal coordinates of the mesh
-        phi = compute_coordinate_expression(degree, Q.ufl_element(),'phi',focus)
-        theta = compute_coordinate_expression(degree, Q.ufl_element(),'theta',focus)
-        xi = compute_coordinate_expression(degree, Q.ufl_element(),'xi',focus)
+            # calculate spherical nodal coordinates of the mesh
+            # transmural, so no expression for xi needed
+            phi = compute_coordinate_expression(degree, Q.ufl_element(),'phi',focus)
+            theta = compute_coordinate_expression(degree, Q.ufl_element(),'theta',focus)
 
-        # expression to check if coordinates are within infarct area
-        cpp_exp_Ta0_phi = "phi <= {phimax} && phi>= {phimin}".format(phimin=phi_min, phimax = phi_max)
-        # # cpp_exp_Ta0_theta = "fabs(theta) < {thetar}".format(thetar=thetar )
-        cpp_exp_Ta0_theta = "theta> {thetamin} && theta < {thetamax}".format(thetamin=theta_min, thetamax=theta_max)
-        # # cpp_exp_Ta0_theta = "(theta)>{thetamin} ".format(thetamin=0.99)
-        cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
+            # point of origin for phi
+            phi0=1.5708 #0.5*pi
 
-        #luca
-        # phi0=1.5708 #0.5*pi
-        # drop_exp = Expression("-0.4857*pow(theta,4)+3.4472*pow(theta,3)-8.9954*pow(theta,2)+11.1*theta-5.6448", degree=3, theta=theta)
-        # Ta0_exp = Expression("(theta>=0.5*pi && fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp))? {Ta0_infarcted}: {Ta0}".format(Ta0_infarcted=Ta0_infarct, Ta0=Ta0, phi0=phi0), degree=3, theta=theta, phi=phi, drop_exp=drop_exp)
+            # formula to describe one half of the droplet shape for phi
+            drop_exp = Expression("-0.4857*pow(theta,4)+3.4472*pow(theta,3)-8.9954*pow(theta,2)+11.1*theta-5.6448", degree=3, theta=theta)
+            Ta0_exp = Expression("(theta>=0.5*pi && fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp))? {Ta0_infarcted}: {Ta0}".format(Ta0_infarcted=Ta0_infarct, Ta0=Ta0, phi0=phi0), degree=3, theta=theta, phi=phi, drop_exp=drop_exp)
 
-        # phi_fun = "-0.4857*{theta}^4 + 3.4472*{theta}^3 - 8.9954*{theta}^2 + 11.1*{theta} - 5.6448".format(theta = theta)
-        # phi_fun = Expression("-0.4857*pow({theta},4) + 3.4472*pow({theta},3) - 8.9954*pow({theta},2) + 11.1*{theta} - 5.6448",theta=theta, degree=3)
-        # phifun = Function(Q)
-        # phifun.assign(Constant(self.parameters['Ta0']))
-        # cpp_exp_Ta0_phi = "(theta == {theta_val} && phi <= -0.4857*pow({theta_val},4) + 3.4472*pow({theta_val},3) - 8.9954*pow({theta_val},2) + 11.1*{theta_val} - 5.6448)? {Ta0_infarct} : {Ta0}".format(theta_val=theta_val, Ta0_infarct=Ta0_infarct,Ta0=Ta0)
-        # phiexpression = Expression(cpp_exp_Ta0_phi, element=Q.ufl_element(), theta= theta, phi=phi)
-        # phifun.interpolate(phiexpression)
-        # save_to_xdmf(phifun,dir_out,'phi_plus_expr')
-
-        # print("phi_fun: {}".format(phifun))
-
-        ## if in infarct area: T0 = 0.
-        ## else: T0 = Ta0
-        cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
-
+            self.T0.interpolate(Ta0_exp)
         
+        else:
+            phi_min = self.parameters['phi_min']
+            phi_max = self.parameters['phi_max']
+            theta_min = self.parameters['theta_min']
+            theta_max = self.parameters['theta_max']
+            ximin = self.parameters['ximin']
+            Ta0_infarct = self.parameters['Ta0_infarct']
+            Ta0 = self.parameters['Ta0']
+
+            focus = self.parameters['focus']
+
+            # degree of the expression for ellipsoidal coordinates
+            degree = 3
+
+            Q = vector_space_to_scalar_space(u.ufl_function_space())
+
+            # calculate spherical nodal coordinates of the mesh
+            phi = compute_coordinate_expression(degree, Q.ufl_element(),'phi',focus)
+            theta = compute_coordinate_expression(degree, Q.ufl_element(),'theta',focus)
+            xi = compute_coordinate_expression(degree, Q.ufl_element(),'xi',focus)
+
+            # expression to check if coordinates are within infarct area
+            cpp_exp_Ta0_phi = "phi <= {phimax} && phi>= {phimin}".format(phimin=phi_min, phimax = phi_max)
+            cpp_exp_Ta0_theta = "theta> {thetamin} && theta < {thetamax}".format(thetamin=theta_min, thetamax=theta_max)
+            cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
+
+            # if in infarct area: T0 = 0.
+            # else: T0 = Ta0
+            cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
+
+            # expression for T0 with for all nodes the value of T0
+            T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
+
+            infarct_perc = min(T0expression)
+            print("min T0 expr: {}".format(infarct_perc))
+            self.T0.interpolate(T0expression)
+       
         ## save infarct mesh
+        #dir_out = self.parameters['save_T0_mesh']
+
         # ptphi = project(phi,Q)
         # save_to_xdmf(ptphi,dir_out,'phi_coord')
 
@@ -643,12 +658,6 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         # xiexpression = Expression(cpp_exp_Ta0_xi, element=Q.ufl_element(), xi=xi)
         # xifun.interpolate(xiexpression)
         # save_to_xdmf(xifun,dir_out,'xi_expr')
-
-        ## expression for T0 with for all nodes the value of T0
-        T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
-
-        self.T0.interpolate(T0expression)
-        # self.T0.interpolate(Ta0_exp)
 
         return self.T0
 
