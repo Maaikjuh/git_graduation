@@ -24,7 +24,7 @@ plt.close('all')
 
 # Specify the results.csv file (which contains the hemodynamic data) directly:
 #csv = r'E:\Graduation Project\FEniCS\PycharmProject\output\sepran_simulation\sepran_simulation_res_30\results.csv'
-csv = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\24-03_14-07_infarct_xi_10\results.csv'
+csv = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\25-03_21-49_infarct_droplet_shape_lower_ta0\results.csv'
 
 ## OR specify heart condition and find csv file automatically:
 #hc = 1
