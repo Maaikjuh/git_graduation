@@ -15,6 +15,7 @@ from dolfin.cpp.common import MPI, mpi_comm_world
 from dolfin.cpp.io import XDMFFile
 import csv
 
+
 __all__ = [
     'ActiveStressModel',
     'ArtsBovendeerdActiveStress',
@@ -568,6 +569,9 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         if infarct_type == 'droplet':
             Ta0_infarct = self.parameters['Ta0_infarct']
             Ta0 = self.parameters['Ta0']
+            phi_max = self.parameters['phi_max']
+            theta_min = self.parameters['theta_min']
+            theta_max = self.parameters['theta_max']
             focus = self.parameters['focus']
 
             # degree of the expression for ellipsoidal coordinates
@@ -584,10 +588,31 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             phi0=1.5708 #0.5*pi
 
             # formula to describe one half of the droplet shape for phi
-            drop_exp = Expression("-0.4857*pow(theta,4)+3.4472*pow(theta,3)-8.9954*pow(theta,2)+11.1*theta-5.6448", degree=3, theta=theta)
-            Ta0_exp = Expression("(theta>=0.5*pi && fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp))? {Ta0_infarcted}: {Ta0}".format(Ta0_infarcted=Ta0_infarct, Ta0=Ta0, phi0=phi0), degree=3, theta=theta, phi=phi, drop_exp=drop_exp)
+
+            #slope : (phi_max-phi_min)/(theta_max-theta_min)
+            slope = (phi_max)/(theta_max-theta_min)
+            drop_exp = Expression("{slope}*(theta-{theta_min})".format(slope=slope,theta_min=theta_min), degree=3, theta=theta)
+            Ta0_exp = Expression("(theta>={theta_min} && theta<= {theta_max}&& fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp))? {Ta0_infarcted}: {Ta0}".format(theta_min = theta_min, theta_max = theta_max,Ta0_infarcted=Ta0_infarct, Ta0=Ta0, phi0=phi0), degree=3, theta=theta, phi=phi, drop_exp=drop_exp)
+
+            # drop_exp = Expression("-0.4857*pow(theta,4)+3.4472*pow(theta,3)-8.9954*pow(theta,2)+11.1*theta-5.6448", degree=3, theta=theta)
+            # Ta0_exp = Expression("(theta>=0.5*pi && fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp))? {Ta0_infarcted}: {Ta0}".format(Ta0_infarcted=Ta0_infarct, Ta0=Ta0, phi0=phi0), degree=3, theta=theta, phi=phi, drop_exp=drop_exp)
+
+            # print("min Ta0: {}".format(Ta0_exp.array().min()))
+
+            # dir_out = self.parameters['save_T0_mesh']
+            # save_to_xdmf(Ta0_exp,dir_out,"Ta0_expression")
 
             self.T0.interpolate(Ta0_exp)
+            # print("min T0: {}".format(self.T0.vector().min()))
+
+            # print("min Ta0: {}".format(Ta0_exp.array().min()))
+
+            # print("calculating min interp T0")
+            # infarct_perc = min(Ta0_exp)
+            # print("min T0 inter: {}".format(infarct_perc))
+            # print("calculating min Ta0 exp")
+            # infarct_perc = min(Ta0_exp)
+            # print("min T0_exp: {}".format(infarct_perc))
         
         else:
             phi_min = self.parameters['phi_min']
@@ -622,8 +647,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             # expression for T0 with for all nodes the value of T0
             T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
 
-            infarct_perc = min(T0expression)
-            print("min T0 expr: {}".format(infarct_perc))
+            
             self.T0.interpolate(T0expression)
        
         ## save infarct mesh
