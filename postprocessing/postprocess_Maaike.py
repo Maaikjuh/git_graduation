@@ -2,25 +2,10 @@ import sys
 sys.path.append(r'C:\Users\Maaike\Documents\Master\Graduation_project\git_graduation_project\cvbtk')
 sys.path.append(r'C:\Users\Maaike\Documents\Master\Graduation_project\git_graduation_project\postprocessing')
 import os
-from dataset import Dataset
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
-# Specify the results.csv file (which contains the hemodynamic data) directly:
-csv = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\05-03_2cycles_default\results.csv'
-
-# load results
-results = Dataset(filename= csv)
-
-# The last cycle is selected for postprocessing
-# Select other cycle if you want to analyse a different cycle
-cycle = max(results['cycle']) - 1
-#cycle =3
-
-# Data from the selected cycle
-data_cycle = results[results['cycle']==cycle]
-key = data_cycle.keys()
 
 class HemodynamicsPlot(object):
     """
@@ -91,8 +76,8 @@ class HemodynamicsPlot(object):
 
         # Make the volume-time plot.
         self._ax['vt'].plot(time, df['vlv'], label='Cavity')
-        # self._ax['vt'].plot(df['time'], df['vven'], label='Venous')
-        # self._ax['vt'].plot(df['time'], df['vart'], label='Arterial')
+#        self._ax['vt'].plot(df['time'], df['vven'], label='Venous')
+#        self._ax['vt'].plot(df['time'], df['vart'], label='Arterial')
 
         # Make the flowrate-time plot.
         self._ax['qt'].plot(time, df['qmv'], label='Mitral')
@@ -232,7 +217,3 @@ def plot_results(results, dir_out='.', cycle=None):
     #simulation_plot.plot_function()
     plt.savefig(os.path.join(dir_out, 'lv_function.png'), dpi=300)
     
-
-hemo_sum = hemodynamic_summary(data_cycle)
-print_hemodynamic_summary(hemo_sum,cycle)
-plot_results(results, dir_out=os.path.dirname(csv), cycle=cycle)
