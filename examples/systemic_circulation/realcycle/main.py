@@ -37,7 +37,7 @@ INPUTS_PATH = None #'inputs.csv'
 
 
 # Set mesh resololution. For the default mesh, chose 30, 40 or 50. 
-SET_MESH_RESOLUTION = 30.0
+SET_MESH_RESOLUTION = 20.0
 
 # Use the following option if you want to load an alternative mesh (that has already been created). 
 # By specifying a path to an .hdf5 file, you can load the mesh from the file
@@ -49,7 +49,7 @@ LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RE
 
 now = datetime.datetime.now()
 
-DIR_OUT = 'output/{}_infarct_droplet_tao_20'.format(now.strftime("%d-%m_%H-%M"))
+DIR_OUT = 'output/{}_infarct_droplet_tao_20_meshres_20'.format(now.strftime("%d-%m_%H-%M"))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
