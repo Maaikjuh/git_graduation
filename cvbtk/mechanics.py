@@ -572,6 +572,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             phi_max = self.parameters['phi_max']
             theta_min = self.parameters['theta_min']
             theta_max = self.parameters['theta_max']
+            ximin = self.parameters['ximin']
             focus = self.parameters['focus']
 
             # degree of the expression for ellipsoidal coordinates
@@ -583,16 +584,31 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             # transmural, so no expression for xi needed
             phi = compute_coordinate_expression(degree, Q.ufl_element(),'phi',focus)
             theta = compute_coordinate_expression(degree, Q.ufl_element(),'theta',focus)
+            xi = compute_coordinate_expression(degree, Q.ufl_element(),'xi',focus)
 
             # point of origin for phi
             phi0=1.5708 #0.5*pi
 
             # formula to describe one half of the droplet shape for phi
 
-            #slope : (phi_max-phi_min)/(theta_max-theta_min)
+            #slope from zero to max value of phi in the droplet
             slope = (phi_max)/(theta_max-theta_min)
+            #expression for the phi values for the right side of the droplet shape 
             drop_exp = Expression("{slope}*(theta-{theta_min})".format(slope=slope,theta_min=theta_min), degree=3, theta=theta)
-            Ta0_exp = Expression("(theta>={theta_min} && theta<= {theta_max}&& fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp))? {Ta0_infarcted}: {Ta0}".format(theta_min = theta_min, theta_max = theta_max,Ta0_infarcted=Ta0_infarct, Ta0=Ta0, phi0=phi0), degree=3, theta=theta, phi=phi, drop_exp=drop_exp)
+
+            #check if phi is smaller than the right side of the droplet and bigger than the left side
+            cpp_exp_Ta0_phi = "fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp)".format(phi0=phi0)
+            #check if theta is within the specified theta range
+            cpp_exp_Ta0_theta = "theta> {thetamin} && theta < {thetamax}".format(thetamin=theta_min, thetamax=theta_max)
+            #check if xi is greater than the smallest specified ellipsoid
+            cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
+
+            # if in infarct area: T0 = specified Ta0 for the infarct
+            # else: T0 = Ta0
+            cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
+
+            Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp)
+            # Ta0_exp = Expression("xi >= {ximin} && (theta>={theta_min} && theta<= {theta_max}&& fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp))? {Ta0_infarcted}: {Ta0}".format(ximin=ximin,theta_min = theta_min, theta_max = theta_max,Ta0_infarcted=Ta0_infarct, Ta0=Ta0, phi0=phi0), degree=3, theta=theta, phi=phi, drop_exp=drop_exp)
 
             # drop_exp = Expression("-0.4857*pow(theta,4)+3.4472*pow(theta,3)-8.9954*pow(theta,2)+11.1*theta-5.6448", degree=3, theta=theta)
             # Ta0_exp = Expression("(theta>=0.5*pi && fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp))? {Ta0_infarcted}: {Ta0}".format(Ta0_infarcted=Ta0_infarct, Ta0=Ta0, phi0=phi0), degree=3, theta=theta, phi=phi, drop_exp=drop_exp)
