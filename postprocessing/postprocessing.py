@@ -899,6 +899,7 @@ def hemodynamic_summary(data,cycle=None):
     
     if 'qart' in data.keys():
         # LifeTec data (arterial flow in LV simulations is 'qao').
+        data = data[data['cycle']==cycle]
         time = data['time'].values*1000  # ms                  
         plv = data['plv'].values  # mmHg
         part = data['part'].values  # mmHg
@@ -908,6 +909,7 @@ def hemodynamic_summary(data,cycle=None):
     
     elif 'plv' in data.keys():
         # LV results.
+        data = data[data['cycle']==cycle]
         time = data['time'].values  # ms
         plv = kPa_to_mmHg(data['plv'].values)
         part = kPa_to_mmHg(data['part'].values)
@@ -925,6 +927,7 @@ def hemodynamic_summary(data,cycle=None):
         
     elif 'pcav_s' in data.keys():
         # BiV results.
+        data = data[data['cycle']==cycle]
         time = data['time'].values  # ms
         plv = kPa_to_mmHg(data['pcav_s'].values)
         part = kPa_to_mmHg(data['part_s'].values)
