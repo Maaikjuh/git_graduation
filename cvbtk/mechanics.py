@@ -14,6 +14,8 @@ import os
 from dolfin.cpp.common import MPI, mpi_comm_world
 from dolfin.cpp.io import XDMFFile
 import csv
+import time
+import math
 
 
 __all__ = [
@@ -62,15 +64,19 @@ def compute_coordinate_expression(degree,element,var,focus):
     return Expression(expressions_dict[var],degree=degree,element=element)
 
 def save_to_xdmf(T0,dir_out,var):
+    save = True
     if MPI.rank(mpi_comm_world()) == 0:
         if not os.path.exists(dir_out):
-            os.makedirs(dir_out)
-    xdmf_files = {}
-    filename = os.path.join(dir_out, var + ".xdmf")
-    xdmf_files[var]= XDMFFile(filename)
+            print_once("T0 mesh not saved")
+            save = False
+    
+    if save == True:
+        xdmf_files = {}
+        filename = os.path.join(dir_out, var + ".xdmf")
+        xdmf_files[var]= XDMFFile(filename)
 
-    with XDMFFile(filename) as f:
-        f.write(T0)
+        with XDMFFile(filename) as f:
+            f.write(T0)
 
 
 class ConstitutiveModel(object):
@@ -412,8 +418,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         lc = lc_old + self.dt*(prm['Ea']*(self.ls_old - lc_old) - 1)*prm['v0']
         
         # Initialize variable T0 to express the level of active stress generation
-        # Initialize with all nodal points to default value of Ta0
-       
+        # Initialize with all nodal points to default value of Ta0       
         self.T0 = Function(Q)
         self.T0.assign(Constant(self.parameters['Ta0']))
 
@@ -525,10 +530,13 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         if prm['infarct_bool']==True: 
             # create infarct area
+            t0 = time.time()
+            print_once("*** creating T0 mesh... ***")
             self.infarct_T0(u)                
             dir_out = prm['save_T0_mesh']
             # save infarct mesh
             save_to_xdmf(self.T0,dir_out,'T0')
+            print_once("*** T0 mesh created in {} s ***".format(time.time()-t0))
 
         # Term for the length dependence.
         #iso_term = prm['T0']*(tanh(prm['al']*(self.lc - prm['lc0'])))**2
@@ -587,48 +595,57 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             xi = compute_coordinate_expression(degree, Q.ufl_element(),'xi',focus)
 
             # point of origin for phi
-            phi0=1.5708 #0.5*pi
+            phi0=0 #1.5708 #0.5*pi
 
             # formula to describe one half of the droplet shape for phi
-
             #slope from zero to max value of phi in the droplet
             slope = (phi_max)/(theta_max-theta_min)
             #expression for the phi values for the right side of the droplet shape 
             drop_exp = Expression("{slope}*(theta-{theta_min})".format(slope=slope,theta_min=theta_min), degree=3, theta=theta)
 
+            # borderzone of the infarct
+            slope = (phi_max+1/4*math.pi)/(math.pi-1/15*math.pi-(theta_min-1/15*math.pi))
+            drop_exp_border = Expression("{slope}*(theta-{theta_min})".format(slope=slope,theta_min=theta_min-1/15*math.pi), degree=3, theta=theta)
+
+
             #check if phi is smaller than the right side of the droplet and bigger than the left side
             cpp_exp_Ta0_phi = "fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp)".format(phi0=phi0)
+            cpp_exp_Ta0_phi_border = "fabs(phi-{phi0}) <=drop_exp_border && fabs(phi-{phi0}) >=-1*(drop_exp_border)".format(phi0=phi0)
+            
             #check if theta is within the specified theta range
-            cpp_exp_Ta0_theta = "theta> {thetamin} && theta < {thetamax}".format(thetamin=theta_min, thetamax=theta_max)
+            cpp_exp_Ta0_theta = "theta> {thetamin} && theta < ({thetamax}-0.2094)".format(thetamin=theta_min, thetamax=theta_max)
+            cpp_exp_Ta0_theta_border = "theta> {thetamin} && theta < {thetamax}".format(thetamin=theta_min-1/15*math.pi, thetamax=math.pi)
+            # cpp_exp_Ta0_theta_border_apex = "theta > ({thetamax}-0.2094) && {cpp_exp_Ta0_phi_border}".format(thetamax = theta_max, cpp_exp_Ta0_phi_border=cpp_exp_Ta0_phi_border)
+            
             #check if xi is greater than the smallest specified ellipsoid
             cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
 
             # if in infarct area: T0 = specified Ta0 for the infarct
             # else: T0 = Ta0
-            cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
+            # cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
+            
+            cpp_exp_Ta0_border = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct+50,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi_border, exp_theta=cpp_exp_Ta0_theta_border, exp_xi=cpp_exp_Ta0_xi)
+            cpp_exp_Ta0_infarct = "{exp_phi} && {exp_theta} && {exp_xi}".format(exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
+           
+            # cpp_exp_Ta0= "({cpp_exp_Ta0_theta_border_apex})? {Ta0_infarct} : {cpp_exp_Ta0_infarct}".format(Ta0_infarct=Ta0_infarct+50,cpp_exp_Ta0_theta_border_apex=cpp_exp_Ta0_theta_border_apex,cpp_exp_Ta0_infarct=cpp_exp_Ta0_infarct)
+            
+            cpp_exp_Ta0 = "({exp_infarct})? {Ta0_infarct} : {exp_border}".format(Ta0_infarct=Ta0_infarct,exp_infarct=cpp_exp_Ta0_infarct,exp_border=cpp_exp_Ta0_border)
 
-            Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp)
+            Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp,drop_exp_border=drop_exp_border)
             # Ta0_exp = Expression("xi >= {ximin} && (theta>={theta_min} && theta<= {theta_max}&& fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp))? {Ta0_infarcted}: {Ta0}".format(ximin=ximin,theta_min = theta_min, theta_max = theta_max,Ta0_infarcted=Ta0_infarct, Ta0=Ta0, phi0=phi0), degree=3, theta=theta, phi=phi, drop_exp=drop_exp)
 
             # drop_exp = Expression("-0.4857*pow(theta,4)+3.4472*pow(theta,3)-8.9954*pow(theta,2)+11.1*theta-5.6448", degree=3, theta=theta)
             # Ta0_exp = Expression("(theta>=0.5*pi && fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp))? {Ta0_infarcted}: {Ta0}".format(Ta0_infarcted=Ta0_infarct, Ta0=Ta0, phi0=phi0), degree=3, theta=theta, phi=phi, drop_exp=drop_exp)
 
-            # print("min Ta0: {}".format(Ta0_exp.array().min()))
-
-            # dir_out = self.parameters['save_T0_mesh']
-            # save_to_xdmf(Ta0_exp,dir_out,"Ta0_expression")
-
+            # V= u.ufl_function_space()
+            # mesh = V.ufl_domain().ufl_cargo()
+            # CR = FunctionSpace(mesh, "CR", 1)
+            # CR = Function(CR)
+            # Ta0_exp = interpolate(Ta0,CR)
+            # CR = interpolate(Ta0_exp,CR)
             self.T0.interpolate(Ta0_exp)
-            # print("min T0: {}".format(self.T0.vector().min()))
-
-            # print("min Ta0: {}".format(Ta0_exp.array().min()))
-
-            # print("calculating min interp T0")
-            # infarct_perc = min(Ta0_exp)
-            # print("min T0 inter: {}".format(infarct_perc))
-            # print("calculating min Ta0 exp")
-            # infarct_perc = min(Ta0_exp)
-            # print("min T0_exp: {}".format(infarct_perc))
+            # self.T0.interpolate(CR)
+            # self.T0.smooth(20)
         
         else:
             phi_min = self.parameters['phi_min']
