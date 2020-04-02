@@ -14,6 +14,7 @@ import cvbtk.resources
 import datetime
 import os
 import matplotlib.pyplot as plt
+import math
 
 # Change the number of cycles and active stress ('new' or 'old') here:
 NUM_CYCLES = 2
@@ -49,7 +50,7 @@ LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RE
 
 now = datetime.datetime.now()
 
-DIR_OUT = 'output/{}_infarct_droplet_tao_20_meshres_20'.format(now.strftime("%d-%m_%H-%M"))
+DIR_OUT = 'output/{}_infarct_droplet_tao_20_meshres_{}'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
@@ -106,7 +107,7 @@ def get_inputs(number_of_cycles, active_stress):
                         'theta_max': 3.1416,
                         'ximin': 0., #0.5,
                         'focus': 4.3,
-                        'Ta0_infarct': 20.,
+                        'Ta0_infarct': 0., #20.,
                         'save_T0_mesh': DIR_OUT}
     else:
         infarct_prm = None
