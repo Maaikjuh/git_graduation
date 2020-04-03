@@ -3,7 +3,8 @@
 This module provides classes and functions related to mechanics.
 """
 from dolfin import (And, Constant, interpolate, Expression, DOLFIN_PI, Function, conditional, ge, gt, le,
-                    lt, sin, tanh, project, VectorElement, parameters, FunctionSpace)
+                    lt, sin, tanh, project, VectorElement, parameters, FunctionSpace, vertices)
+from dolfin import *
 from dolfin.cpp.common import Parameters
 from ufl import Identity, as_tensor, det, dot, exp, grad, inv, sqrt
 
@@ -536,6 +537,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             dir_out = prm['save_T0_mesh']
             # save infarct mesh
             save_to_xdmf(self.T0,dir_out,'T0')
+
             print_once("*** T0 mesh created in {} s ***".format(time.time()-t0))
 
         # Term for the length dependence.
@@ -599,12 +601,12 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
             # formula to describe one half of the droplet shape for phi
             #slope from zero to max value of phi in the droplet
-            slope = (phi_max)/(theta_max-theta_min)
+            slope = (phi_max-1/15*math.pi)/(theta_max-1/10*math.pi-(theta_min+1/15*math.pi))
             #expression for the phi values for the right side of the droplet shape 
-            drop_exp = Expression("{slope}*(theta-{theta_min})".format(slope=slope,theta_min=theta_min), degree=3, theta=theta)
+            drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=theta_min+1/15*math.pi), degree=3, theta=theta)
 
             # borderzone of the infarct
-            slope = (phi_max+1/4*math.pi)/(math.pi-1/15*math.pi-(theta_min-1/15*math.pi))
+            slope = (phi_max+1/4*math.pi)/(math.pi-(theta_min-1/15*math.pi))
             drop_exp_border = Expression("{slope}*(theta-{theta_min})".format(slope=slope,theta_min=theta_min-1/15*math.pi), degree=3, theta=theta)
 
 
@@ -613,7 +615,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             cpp_exp_Ta0_phi_border = "fabs(phi-{phi0}) <=drop_exp_border && fabs(phi-{phi0}) >=-1*(drop_exp_border)".format(phi0=phi0)
             
             #check if theta is within the specified theta range
-            cpp_exp_Ta0_theta = "theta> {thetamin} && theta < ({thetamax}-0.2094)".format(thetamin=theta_min, thetamax=theta_max)
+            cpp_exp_Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax}-0.3142)".format(thetamin=theta_min+1/15*math.pi, thetamax=theta_max-1/15*math.pi)
             cpp_exp_Ta0_theta_border = "theta> {thetamin} && theta < {thetamax}".format(thetamin=theta_min-1/15*math.pi, thetamax=math.pi)
             # cpp_exp_Ta0_theta_border_apex = "theta > ({thetamax}-0.2094) && {cpp_exp_Ta0_phi_border}".format(thetamax = theta_max, cpp_exp_Ta0_phi_border=cpp_exp_Ta0_phi_border)
             
@@ -637,15 +639,12 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             # drop_exp = Expression("-0.4857*pow(theta,4)+3.4472*pow(theta,3)-8.9954*pow(theta,2)+11.1*theta-5.6448", degree=3, theta=theta)
             # Ta0_exp = Expression("(theta>=0.5*pi && fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp))? {Ta0_infarcted}: {Ta0}".format(Ta0_infarcted=Ta0_infarct, Ta0=Ta0, phi0=phi0), degree=3, theta=theta, phi=phi, drop_exp=drop_exp)
 
-            # V= u.ufl_function_space()
-            # mesh = V.ufl_domain().ufl_cargo()
-            # CR = FunctionSpace(mesh, "CR", 1)
-            # CR = Function(CR)
-            # Ta0_exp = interpolate(Ta0,CR)
-            # CR = interpolate(Ta0_exp,CR)
+            
+
             self.T0.interpolate(Ta0_exp)
-            # self.T0.interpolate(CR)
-            # self.T0.smooth(20)
+
+
+
         
         else:
             phi_min = self.parameters['phi_min']
@@ -683,38 +682,22 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             
             self.T0.interpolate(T0expression)
        
-        ## save infarct mesh
-        #dir_out = self.parameters['save_T0_mesh']
+        V= u.ufl_function_space()
+        mesh = V.ufl_domain().ufl_cargo()
+          
+        infarct_volume = 0
 
-        # ptphi = project(phi,Q)
-        # save_to_xdmf(ptphi,dir_out,'phi_coord')
+        for cell_idx in range(mesh.num_cells()):
+            T0_val = self.T0.vector()[cell_idx]
+            if T0_val < 60.:
+                cell = Cell(mesh,cell_idx)
+                infarct_volume += cell.volume()
 
-        # ptheta = project(theta,Q)
-        # save_to_xdmf(ptheta,dir_out,'theta_coord')
+        tot_volume = assemble(Constant(1)*dx(domain=mesh))
+        infarct_area = infarct_volume/tot_volume *100
 
-        # ptxi = project(xi,Q)
-        # save_to_xdmf(ptxi,dir_out,'xi_coord')
-
-        # phifun = Function(Q)
-        # phifun.assign(Constant(self.parameters['Ta0']))
-        # cpp_exp_Ta0_phi = "(phi < {exp_phi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=0.,Ta0=Ta0,exp_phi=phi_fun)
-        # phiexpression = Expression(cpp_exp_Ta0_phi, element=Q.ufl_element(), phi=phi)
-        # phifun.interpolate(phiexpression)
-        # save_to_xdmf(phifun,dir_out,'phi_plus_expr')
-
-        # thetafun = Function(Q)
-        # thetafun.assign(Constant(self.parameters['Ta0']))
-        # cpp_exp_Ta0_theta = "({exp_theta})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0,exp_theta= cpp_exp_Ta0_theta)
-        # thetaexpression = Expression(cpp_exp_Ta0_theta, element=Q.ufl_element(), theta=theta)
-        # thetafun.interpolate(thetaexpression)
-        # save_to_xdmf(thetafun,dir_out,'theta_expr')
-
-        # xifun = Function(Q)
-        # xifun.assign(Constant(self.parameters['Ta0']))
-        # cpp_exp_Ta0_xi = "({exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_xi=cpp_exp_Ta0_xi)
-        # xiexpression = Expression(cpp_exp_Ta0_xi, element=Q.ufl_element(), xi=xi)
-        # xifun.interpolate(xiexpression)
-        # save_to_xdmf(xifun,dir_out,'xi_expr')
+        area = MPI.max(mpi_comm_world(), infarct_area)
+        print("infarct area: {}%".format(area))
 
         return self.T0
 
