@@ -188,6 +188,7 @@ class HemodynamicsPlot(object):
 
         # Make the volume-time plot.
         self._ax['vt'].plot(time, df['vlv'], 'b', label='Cavity')
+#        self._ax['vt'].plot(time, (df['vlv']+df['vart']+df['vven']), 'b', label='Vtot')
 #        self._ax['vt'].plot(df['time'], df['vven'], label='Venous')
 #        self._ax['vt'].plot(df['time'], df['vart'], label='Arterial')
 
