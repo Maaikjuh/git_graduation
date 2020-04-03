@@ -639,12 +639,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             # drop_exp = Expression("-0.4857*pow(theta,4)+3.4472*pow(theta,3)-8.9954*pow(theta,2)+11.1*theta-5.6448", degree=3, theta=theta)
             # Ta0_exp = Expression("(theta>=0.5*pi && fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp))? {Ta0_infarcted}: {Ta0}".format(Ta0_infarcted=Ta0_infarct, Ta0=Ta0, phi0=phi0), degree=3, theta=theta, phi=phi, drop_exp=drop_exp)
 
-            
-
             self.T0.interpolate(Ta0_exp)
-
-
-
         
         else:
             phi_min = self.parameters['phi_min']
@@ -682,22 +677,43 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             
             self.T0.interpolate(T0expression)
        
+        # for all cells in the mesh, check if their T0 value is low enough
+        # to be in the infarct area. If so, calculate that cell volume and
+        # add it to the total infarct volume
+
         V= u.ufl_function_space()
         mesh = V.ufl_domain().ufl_cargo()
           
-        infarct_volume = 0
+        infarct_volume = 0       
 
         for cell_idx in range(mesh.num_cells()):
+            # get T0 value of a cell
             T0_val = self.T0.vector()[cell_idx]
+            # check if cell is within infarct area
             if T0_val < 60.:
                 cell = Cell(mesh,cell_idx)
+                # get volume of the cell and add it to total infarct volume
                 infarct_volume += cell.volume()
 
+        # get volume of the total mesh (with infarct)
         tot_volume = assemble(Constant(1)*dx(domain=mesh))
+        # calculate percentage of infarct area
         infarct_area = infarct_volume/tot_volume *100
 
+        # code runs in parallel: evaluate process which contains the area
+        # by finding the max area of all processes 
         area = MPI.max(mpi_comm_world(), infarct_area)
+        rank =  MPI.max(mpi_comm_world(), infarct_area)
+
         print("infarct area: {}%".format(area))
+
+        dir_out = self.parameters['save_T0_mesh']
+        filename = os.path.join(dir_out, 'inputs.csv')
+        if MPI.rank(mpi_comm_world()) == 0:
+            with open(filename, 'a') as f:
+                writer = csv.writer(f)
+                writer.writerow(['infarct area (%)', area ])
+
 
         return self.T0
 
