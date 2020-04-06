@@ -577,6 +577,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         infarct_type = 'droplet'
 
         if infarct_type == 'droplet':
+            print("generating droplet infarct area")
             Ta0_infarct = self.parameters['Ta0_infarct']
             Ta0 = self.parameters['Ta0']
             phi_max = self.parameters['phi_max']
@@ -601,7 +602,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
             # formula to describe one half of the droplet shape for phi
             #slope from zero to max value of phi in the droplet
-            slope = (phi_max-1/15*math.pi)/(theta_max-1/10*math.pi-(theta_min+1/15*math.pi))
+            slope = (phi_max-1/10*math.pi)/(theta_max-1/10*math.pi-(theta_min+1/15*math.pi))
             #expression for the phi values for the right side of the droplet shape 
             drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=theta_min+1/15*math.pi), degree=3, theta=theta)
 
@@ -615,7 +616,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             cpp_exp_Ta0_phi_border = "fabs(phi-{phi0}) <=drop_exp_border && fabs(phi-{phi0}) >=-1*(drop_exp_border)".format(phi0=phi0)
             
             #check if theta is within the specified theta range
-            cpp_exp_Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax}-0.3142)".format(thetamin=theta_min+1/15*math.pi, thetamax=theta_max-1/15*math.pi)
+            cpp_exp_Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=theta_min+1/15*math.pi, thetamax=theta_max-1/9*math.pi)
             cpp_exp_Ta0_theta_border = "theta> {thetamin} && theta < {thetamax}".format(thetamin=theta_min-1/15*math.pi, thetamax=math.pi)
             # cpp_exp_Ta0_theta_border_apex = "theta > ({thetamax}-0.2094) && {cpp_exp_Ta0_phi_border}".format(thetamax = theta_max, cpp_exp_Ta0_phi_border=cpp_exp_Ta0_phi_border)
             
@@ -642,6 +643,8 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             self.T0.interpolate(Ta0_exp)
         
         else:
+            print("generating arbitrary infarct area")
+
             phi_min = self.parameters['phi_min']
             phi_max = self.parameters['phi_max']
             theta_min = self.parameters['theta_min']
@@ -671,50 +674,39 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             # else: T0 = Ta0
             cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
 
+            # cpp_exp_Ta0_phi = "phi <= 4 && phi>= -4"
+            # cpp_exp_Ta0_theta = "theta> 0 && theta < 4"
+            # cpp_exp_Ta0_xi = "xi >= 0"
+
             # expression for T0 with for all nodes the value of T0
             T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
 
             
             self.T0.interpolate(T0expression)
-       
-        # for all cells in the mesh, check if their T0 value is low enough
-        # to be in the infarct area. If so, calculate that cell volume and
-        # add it to the total infarct volume
-
+    
         V= u.ufl_function_space()
         mesh = V.ufl_domain().ufl_cargo()
-          
-        infarct_volume = 0       
-
-        for cell_idx in range(mesh.num_cells()):
-            # get T0 value of a cell
-            T0_val = self.T0.vector()[cell_idx]
-            # check if cell is within infarct area
-            if T0_val < 60.:
-                cell = Cell(mesh,cell_idx)
-                # get volume of the cell and add it to total infarct volume
-                infarct_volume += cell.volume()
 
         # get volume of the total mesh (with infarct)
-        tot_volume = assemble(Constant(1)*dx(domain=mesh))
-        # calculate percentage of infarct area
-        infarct_area = infarct_volume/tot_volume *100
+        
 
-        # code runs in parallel: evaluate process which contains the area
-        # by finding the max area of all processes 
-        area = MPI.max(mpi_comm_world(), infarct_area)
-        rank =  MPI.max(mpi_comm_world(), infarct_area)
-
-        print("infarct area: {}%".format(area))
-
+        # # code runs in parallel: evaluate process which contains the area
+        # # by finding the max area of all processes 
+        # area = MPI.max(mpi_comm_world(), infarct_area) 
+        # print("infarct area: {}%".format(area))  
+        # 
+        
         dir_out = self.parameters['save_T0_mesh']
         filename = os.path.join(dir_out, 'inputs.csv')
         if MPI.rank(mpi_comm_world()) == 0:
+            tot_volume = assemble(Constant(1)*dx(domain=mesh))
+            infarct_size = assemble(conditional(lt(self.T0, 60), 1., 0.)*dx(domain=mesh), form_compiler_parameters={'quadrature_degree': 2}) 
+            area = infarct_size/tot_volume*100
+            print("infarct area: {}%".format(area)
             with open(filename, 'a') as f:
                 writer = csv.writer(f)
                 writer.writerow(['infarct area (%)', area ])
-
-
+       
         return self.T0
 
     @property
