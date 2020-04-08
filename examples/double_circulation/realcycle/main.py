@@ -33,6 +33,8 @@ TIME_RELOAD = None  # The time (in ms) of the timestep to reload. Set to -1 for 
 # file and you want to define the inputs in get_inputs(), set the below path to None.
 INPUTS_PATH = None #'inputs.csv'
 
+INFARCT = False
+
 # Specify output directory.
 DIR_OUT = 'output/LVAD/biventricle'
 
@@ -63,6 +65,21 @@ def get_inputs(number_of_cycles, active_stress):
     # Total blood volume.
     total_volume = 5000.0
 
+    # -------------------------------------------------------------------------- #
+    # Infarct: create a dictionary of inputs for the infarct geometry.           #
+    # -------------------------------------------------------------------------- #
+    if INFARCT == True:
+        infarct_prm = { 'phi_min': 0.,
+                        'phi_max': 1.5708,
+                        'theta_min': 1.5708,
+                        'theta_max': 3.1416,
+                        'ximin': 0., #0.5,
+                        'focus': 4.3,
+                        'Ta0_infarct': 20., #20.,
+                        'save_T0_mesh': DIR_OUT}
+    else:
+        infarct_prm = None
+
     # Windkessel inputs from Pluijmert et al. (2017) are used.
     # -------------------------------------------------------------------------- #
     # SYSTEMIC circulation: create a dictionary of inputs for WindkesselModel.   #
@@ -91,7 +108,7 @@ def get_inputs(number_of_cycles, active_stress):
     # -------------------------------------------------------------------------- #
     # Specify whether to add an LVAD to the windkessel model or not
     # by setting attach_lvad to True or False.
-    attach_lvad = True
+    attach_lvad = False
     lvad_model = {'frequency': float(9.5), # [krpm]
                    'lvad_volume': 66.0,
                    'alpha_slope': 0.0091,
@@ -159,7 +176,7 @@ def get_inputs(number_of_cycles, active_stress):
     # NOTE: tdep is actually the reset time: active stress is assumed zero and
     # state variables are reset when t_act exceeds tcycle-tdep.
 
-    active_stress_arts_kerckhoffs = {'T0': 160.0,
+    active_stress_arts_kerckhoffs = {'Ta0': 160.0,
                                      'Ea': 20.0,
                                      'al': 2.0,
                                      'lc0': 1.5,
@@ -173,7 +190,7 @@ def get_inputs(number_of_cycles, active_stress):
                                      'tdep': active_stress_tdep,
                                      'restrict_lc': True}
 
-    active_stress_arts_bovendeerd = {'T0': 160.0,
+    active_stress_arts_bovendeerd = {'Ta0': 160.0,
                                      'ar': 100.0,
                                      'ad': 400.0,
                                      'ca': 1.2,
@@ -247,7 +264,8 @@ def get_inputs(number_of_cycles, active_stress):
               'total_volume': total_volume,
               'form_compiler': form_compiler,
               'volume_solver': volume_solver,
-              'number_of_cycles': number_of_cycles}
+              'number_of_cycles': number_of_cycles,
+              'infarct': infarct_prm}
 
     # Add the proper active stress parameters:
     if active_stress == 'old':
