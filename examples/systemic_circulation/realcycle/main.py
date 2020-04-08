@@ -38,19 +38,21 @@ INPUTS_PATH = None #'inputs.csv'
 
 
 # Set mesh resololution. For the default mesh, chose 30, 40 or 50. 
-SET_MESH_RESOLUTION = 20.0
+SET_MESH_RESOLUTION = 30.0
 
 # Use the following option if you want to load an alternative mesh (that has already been created). 
 # By specifying a path to an .hdf5 file, you can load the mesh from the file
 # instead of the reference mesh. If you do not want to load an alternative mesh from a
 # file, but just use the reference lv mesh, set the below path to None.
-LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION))
+# LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION))
+LOAD_ALTERNATIVE_MESH = 'mesh_leftventricle_30.hdf5'
 #doofus code here
 # Specify output directory.
 
 now = datetime.datetime.now()
 
-DIR_OUT = 'output/{}_infarct_droplet_tao_20_meshres_{}'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
+# DIR_OUT = 'output/{}_fiber_reorientation_meshres_{}'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
+DIR_OUT = 'output/{}_fiber_reorentated_default_mesh_infarct_no_fiber_reorientation'.format(now.strftime("%d-%m_%H-%M"))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
@@ -107,7 +109,7 @@ def get_inputs(number_of_cycles, active_stress):
                         'theta_max': 3.1416,
                         'ximin': 0., #0.5,
                         'focus': 4.3,
-                        'Ta0_infarct': 0., #20.,
+                        'Ta0_infarct': 20., #20.,
                         'save_T0_mesh': DIR_OUT}
     else:
         infarct_prm = None

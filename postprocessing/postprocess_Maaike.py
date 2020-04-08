@@ -237,7 +237,7 @@ class HemodynamicsPlot(object):
             self._ax['pv'].legend(loc=2, fontsize=7, title='Cycle')
             self._ax['pv'].get_legend().get_title().set_fontsize('7') 
             
-    def compare_against(self, dataset):
+    def compare_against(self, dataset,cycle):
         """
         Draw additional curves on the existing figure for visual comparison.
 
@@ -247,7 +247,7 @@ class HemodynamicsPlot(object):
             **kwargs: Arbitrary keyword arguments for plotting parameters.
         """
         # TODO Check that a plot has been already created.
-        cycle = max(dataset['cycle']) - 1
+#        cycle = max(dataset['cycle']) - 1
         dataset = dataset[dataset['cycle']==cycle]
         df = self._df[self._df['cycle'] == int(cycle)]
         
@@ -400,20 +400,20 @@ def print_hemodynamic_summary(hemo,cycle):
         print('CVP: {:10.2f} mmHg'.format(hemo['CVP']))  
     print('\n')
 
-def plot_results(results,results_infarct=None, dir_out='.', cycle=None):
+def plot_results(results, dir_out='.', cycle=None):
             # LV only.
 #    simulation_plot = HemodynamicsPlot(results)
 #        
 #    simulation_plot.plot(cycle=cycle) #, cycle=NUM_CYCLES)
-    if results_infarct != None:
-        simulation_plot = HemodynamicsPlot(results_infarct)
-        simulation_plot.plot(cycle=cycle) #, cycle=NUM_CYCLES)
-        simulation_plot.compare_against(results)
-    else:
-        simulation_plot = HemodynamicsPlot(results)
-        simulation_plot.plot(cycle=cycle) #, cycle=NUM_CYCLES)
+    simulation_plot = HemodynamicsPlot(results)
+    simulation_plot.plot(cycle=cycle) #, cycle=NUM_CYCLES)
     simulation_plot.save(os.path.join(dir_out, 'hemodynamics_cycle_{}.png'.format(cycle)))
        
     #simulation_plot.plot_function()
-    plt.savefig(os.path.join(dir_out, 'lv_function.png'), dpi=300)
     
+    
+def plot_compare_results(results,results_infarct, dir_out='.', cycle=None):
+    simulation_plot = HemodynamicsPlot(results_infarct)
+    simulation_plot.plot(cycle=cycle) #, cycle=NUM_CYCLES)
+    simulation_plot.compare_against(results,cycle)
+    plt.savefig(os.path.join(dir_out, 'lv_function_compared.png'), dpi=300)
