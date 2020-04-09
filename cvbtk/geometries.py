@@ -653,6 +653,17 @@ class LeftVentricleGeometry(BaseGeometry):
         # Compute (estimate) and return the required eccentricity.
         return scipy.optimize.newton(func, 0.9)
 
+    def save_vector_fiber(self, V, dir_out='.'):
+        fiber_vectors = self.fiber_vectors()
+        mesh = V.ufl_function_space().mesh()
+        V_q = FunctionSpace(mesh, VectorElement(family="Quadrature",
+                                                 cell = mesh.ufl_cell(),
+                                                 degree = parameters['form_compiler']['quadrature_degree'],
+                                                 quad_scheme="default"))
+        # Q_q = vector_space_to_scalar_space(V_q)
+
+        save_to_disk(project(fiber_vectors[0].to_function(V_q), V), os.path.join(dir_out, 'ef.xdmf'))
+
 
 class BiventricleGeometry(BaseGeometry):
     """
