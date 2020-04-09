@@ -98,6 +98,7 @@ class ConstitutiveModel(object):
         try:
             self._parameters = self.default_infarct_parameters()
             self._parameters.update(kwargs)
+            print('infarct parameters')
         except:
             self._parameters = self.default_parameters()
             self._parameters.update(kwargs)
@@ -456,6 +457,8 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         """
         prm = Parameters('active_stress')
 
+        prm.add('infarct', False)
+
         prm.add('Ta0', float())
         prm.add('Ea', float())
         prm.add('al', float())
@@ -487,7 +490,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         """
         prm = Parameters('active_stress')
 
-        prm.add('infarct_bool', True)
+        prm.add('infarct', True)
 
         prm.add('Ta0', float())
         prm.add('Ea', float())
@@ -532,7 +535,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         """
         prm = self.parameters
 
-        if prm['infarct_bool']==True: 
+        if prm['infarct']==True: 
             # create infarct area
             t0 = time.time()
             print_once("*** creating T0 mesh... ***")
@@ -589,7 +592,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             ximin = self.parameters['ximin']
             focus = self.parameters['focus']
 
-            border = True
+            border = False
 
             # degree of the expression for ellipsoidal coordinates
             degree = 3
@@ -600,6 +603,17 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             phi = compute_coordinate_expression(degree, Q.ufl_element(),'phi',focus)
             theta = compute_coordinate_expression(degree, Q.ufl_element(),'theta',focus)
             xi = compute_coordinate_expression(degree, Q.ufl_element(),'xi',focus)
+
+            dir_out = self.parameters['save_T0_mesh']
+
+            ptphi = project(phi,Q)
+            save_to_xdmf(ptphi,dir_out,'phi_coord')
+
+            ptheta = project(theta,Q)
+            save_to_xdmf(ptheta,dir_out,'theta_coord')
+
+            ptxi = project(xi,Q)
+            save_to_xdmf(ptxi,dir_out,'xi_coord')
 
             # point of origin for phi
             phi0=0 
