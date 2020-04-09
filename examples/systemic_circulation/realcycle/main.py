@@ -38,21 +38,21 @@ INPUTS_PATH = None #'inputs.csv'
 
 
 # Set mesh resololution. For the default mesh, chose 30, 40 or 50. 
-SET_MESH_RESOLUTION = 30.0
+SET_MESH_RESOLUTION = 20.0
 
 # Use the following option if you want to load an alternative mesh (that has already been created). 
 # By specifying a path to an .hdf5 file, you can load the mesh from the file
 # instead of the reference mesh. If you do not want to load an alternative mesh from a
 # file, but just use the reference lv mesh, set the below path to None.
-# LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION))
-LOAD_ALTERNATIVE_MESH = 'mesh_leftventricle_30.hdf5'
+LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION))
+# LOAD_ALTERNATIVE_MESH = 'mesh_leftventricle_30.hdf5'
 #doofus code here
 # Specify output directory.
 
 now = datetime.datetime.now()
 
 # DIR_OUT = 'output/{}_fiber_reorientation_meshres_{}'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
-DIR_OUT = 'output/{}_save_coord_test'.format(now.strftime("%d-%m_%H-%M"))
+DIR_OUT = 'output/{}_big_border_meshres_20'.format(now.strftime("%d-%m_%H-%M"))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
@@ -326,6 +326,9 @@ def main():
     # Save inputs to a csv file (as we might later wonder what inputs we have used).
     print_once('Saving inputs to {} ...'.format(os.path.join(DIR_OUT, 'inputs.csv')))
     save_dict_to_csv(inputs, os.path.join(DIR_OUT, 'inputs.csv'))
+
+    lv.geometry.save_vector_fiber(lv.u.ufl_function_space(),
+                                                     dir_out=os.path.join(DIR_OUT, 'geometry'))
 
     # Setup a VolumeSolver with a custom NewtonSolver (optional).
     #  Here, a custom Newton solver is used which detects divergence and saves residuals.
