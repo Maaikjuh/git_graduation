@@ -52,7 +52,7 @@ LOAD_ALTERNATIVE_MESH = 'mesh_leftventricle_30.hdf5'
 now = datetime.datetime.now()
 
 # DIR_OUT = 'output/{}_fiber_reorientation_meshres_{}'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
-DIR_OUT = 'output/{}_fiber_reorentated_default_mesh_infarct_no_fiber_reorientation'.format(now.strftime("%d-%m_%H-%M"))
+DIR_OUT = 'output/{}_save_coord_test'.format(now.strftime("%d-%m_%H-%M"))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
@@ -103,7 +103,8 @@ def get_inputs(number_of_cycles, active_stress):
     # Infarct: create a dictionary of inputs for the infarct geometry.           #
     # -------------------------------------------------------------------------- #
     if INFARCT == True:
-        infarct_prm = { 'phi_min': 0.,
+        infarct_prm = { 'infarct': INFARCT,
+                        'phi_min': 0.,
                         'phi_max': 1.5708,
                         'theta_min': 1.5708,
                         'theta_max': 3.1416,
