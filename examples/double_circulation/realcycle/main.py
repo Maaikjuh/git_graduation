@@ -14,6 +14,7 @@ from cvbtk import save_dict_to_csv, HemodynamicsPlotDC, \
     simulate, preprocess_biv, ReloadState, read_dict_from_csv
 
 import os
+import datetime
 
 
 # Change the number of cycles and active stress ('new' or 'old') here:
@@ -33,10 +34,11 @@ TIME_RELOAD = None  # The time (in ms) of the timestep to reload. Set to -1 for 
 # file and you want to define the inputs in get_inputs(), set the below path to None.
 INPUTS_PATH = None #'inputs.csv'
 
-INFARCT = False
+INFARCT = True
 
 # Specify output directory.
-DIR_OUT = 'output/LVAD/biventricle'
+now = datetime.datetime.now()
+DIR_OUT = 'output/{}_save_coord_test'.format(now.strftime("%d-%m_%H-%M"))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
