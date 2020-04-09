@@ -180,6 +180,7 @@ class HemodynamicsPlot(object):
             time = df['time'] - min(df['time'])
         else:
             df = self._df
+            time = df['time'] - min(df['time'])
 
         # Make the pressure-time plot.
         self._ax['pt'].plot(time, (df['plv']),'b', label='Cavity')
@@ -248,8 +249,12 @@ class HemodynamicsPlot(object):
         """
         # TODO Check that a plot has been already created.
 #        cycle = max(dataset['cycle']) - 1
-        dataset = dataset[dataset['cycle']==cycle]
-        df = self._df[self._df['cycle'] == int(cycle)]
+        if cycle:
+            dataset = dataset[dataset['cycle']==cycle]
+            df = self._df[self._df['cycle'] == int(cycle)]
+
+        else:
+            df = self._df
         
         center_phase = 3
         index = (dataset['phase'] == center_phase).idxmax()
