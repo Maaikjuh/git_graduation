@@ -647,17 +647,17 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
                 # Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp,drop_exp_border=drop_exp_border)
         
-                min_theta = 1/2*pi + 1/15*pi
-                max_theta = pi -1/5*pi
+                min_theta = 1/2*pi + 1/15*math.pi
+                max_theta = math.pi -1/5*math.pi
     
-                max_phi = 1/3*pi
+                max_phi = 1/3*math.pi
 
-                min_theta_border = 1/2*pi-1/12*pi
+                min_theta_border = 1/2*math.pi-1/12*math.pi
                 max_theta_border = math.pi
-                max_phi_border = max_phi+1/2*math.pi
+                max_phi_border = max_phi+1/4*math.pi
 
-                min_theta_border_2 = 0
-                max_phi_border_2 = math.pi 
+                min_theta_border_2 = 1/3*math.pi
+                max_phi_border_2 = max_phi_border +1/6*math.pi
 
                 slope = max_phi/(math.pi-min_theta)
                 slope_border = max_phi_border/(math.pi-min_theta_border)
@@ -676,7 +676,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
                 Ta0_theta_border_2 = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=min_theta_border_2, thetamax=max_theta_border)
              
                 Ta0_border_2 = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct+90,Ta0=Ta0, exp_phi=Ta0_phi_border_2, exp_theta=Ta0_theta_border_2)
-                Ta0_border = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {border_2}".format(Ta0_infarct=Ta0_infarct+50,border_2=Ta0_border_2, exp_phi=Ta0_phi_border, exp_theta=Ta0_theta_border)
+                Ta0_border = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {border_2}".format(Ta0_infarct=Ta0_infarct+40,border_2=Ta0_border_2, exp_phi=Ta0_phi_border, exp_theta=Ta0_theta_border)
                 Ta0_infarct = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {border}".format(Ta0_infarct=Ta0_infarct,border=Ta0_border, exp_phi=Ta0_phi, exp_theta=Ta0_theta)
     
                 Ta0_exp = Expression(Ta0_infarct, element=Q.ufl_element(), phi=phi, theta=theta, drop_exp=drop_exp,drop_exp_border=drop_exp_border,drop_exp_border_2=drop_exp_border_2)
@@ -756,7 +756,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         tot_volume = assemble(Constant(1)*dx(domain=mesh))
 
         # get infarcted area (Ta0 below 60)
-        infarct_size = assemble(conditional(lt(self.T0, 60), 1., 0.)*dx(domain=mesh), form_compiler_parameters={'quadrature_degree': 2}) 
+        infarct_size = assemble(conditional(lt(self.T0, 100), 1., 0.)*dx(domain=mesh), form_compiler_parameters={'quadrature_degree': 2}) 
         area = infarct_size/tot_volume*100
         area = round(area,1)
         print_once("infarct area: {}%".format(area))
