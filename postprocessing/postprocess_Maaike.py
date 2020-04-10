@@ -5,119 +5,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
-
-#class CompareAgainst(object):
-#    def __init__(self, dataset_normal, dataset_infarct):
-#        # Store the dataset.
-#        self._normal = dataset_normal
-#        self._infarct = dataset_infarct
-#
-#        # Create an empty figure for plotting.
-#        self._fig = plt.figure()
-#
-#        # Create a set of empty axes for plotting.
-#        gs = GridSpec(3, 2)
-#        _pt = plt.subplot(gs[0, 0])
-#        _vt = plt.subplot(gs[1, 0], sharex=_pt)
-#        _qt = plt.subplot(gs[2, 0], sharex=_pt)
-#        _pv = plt.subplot(gs[:, 1])
-#        self._ax = {'pt': _pt, 'vt': _vt, 'qt': _qt, 'pv': _pv}
-#
-#        # Remove vertical spacing from the three individual axes.
-#        gs.update(hspace=0.15, wspace=0.30)
-#
-#        # Remove x-axis labels and ticks from redundant axes.
-#        self._ax['pt'].xaxis.set_visible(False)
-#        self._ax['vt'].xaxis.set_visible(False)
-#
-#        # Set axis labels.
-#        self._ax['qt'].set_xlabel('Time [ms]')
-#        self._ax['qt'].set_ylabel('Flowrate [ml/s]')
-#        self._ax['pt'].set_ylabel('Pressure [mmHg]')
-#        self._ax['vt'].set_ylabel('Volume [ml]')
-#
-#        self._ax['pv'].set_xlabel('Volume [ml]')
-#        self._ax['pv'].set_ylabel('Pressure [mmHg]')
-#
-#        # Set the global title.
-#        self._fig.suptitle('Hemodynamic Relations')
-#
-#        # Remove the right and top spines.
-#        [ax.spines['top'].set_visible(False) for _, ax in self._ax.items()]
-#        [ax.spines['right'].set_visible(False) for _, ax in self._ax.items()]
-#        
-#    def plotAgainst(self, cycle=None, legend=True):
-#        """
-#        Plot the defined hemodynamic relations for output.
-#
-#        Args:
-#            cycle (optional): Filter and plot results for this specific cycle.
-#            legend (optional): Enables (default) or disables the legend.
-#        """
-#        # The cycle keyword argument can filter the results to a specific cycle.
-#        if cycle == None:
-#            cycle = max(self._normal['cycle']) - 1
-#            
-#        normal = self._normal[self._normal['cycle'] == int(cycle)]
-#        time = normal['time'] - min(normal['time'])
-#        infarct = self._infarct[self._infarct['cycle'] == int(cycle)]
-#        time_inf = infarct['time'] - min(infarct['time'])
-#
-#
-#        # Make the pressure-time plot.
-#        self._ax['pt'].plot(time, kPa_to_mmHg(df['plv']), label='Cavity')
-#        self._ax['pt'].plot(time, kPa_to_mmHg(df['pven']), label='Venous')
-#        self._ax['pt'].plot(time, kPa_to_mmHg(df['part']), label='Arterial')
-#
-#        # Make the volume-time plot.
-#        self._ax['vt'].plot(time, df['vlv'], label='Cavity')
-##        self._ax['vt'].plot(df['time'], df['vven'], label='Venous')
-##        self._ax['vt'].plot(df['time'], df['vart'], label='Arterial')
-#
-#        # Make the flowrate-time plot.
-#        self._ax['qt'].plot(time, df['qmv'], label='Mitral')
-#        self._ax['qt'].plot(time, df['qao'], label='Aortic')
-#        self._ax['qt'].plot(time, df['qper'], label='Peripheral')
-#        if 'qlvad' in df.keys():
-#            self._ax['qt'].plot(time, df['qlvad'], label='LVAD')
-#
-#        # Make the pressure-volume plot.
-#        # Each cycle (if multiple) will get its own color.
-#        for c in df['cycle'].unique():
-#            _df = df[df['cycle'] == int(c)]
-#            self._ax['pv'].plot(_df['vlv'], kPa_to_mmHg(_df['plv']), label=str(c))
-#
-#        # Add the legends for the three individual plots, if needed to.
-#        if legend:
-#            self._ax['pt'].legend(loc=2, fontsize=7) #, title='Pressure')
-#            self._ax['pt'].get_legend().get_title().set_fontsize('7')
-#            self._ax['vt'].legend(loc=2, fontsize=7) #, title='Volume')
-#            self._ax['vt'].get_legend().get_title().set_fontsize('7')
-#            self._ax['qt'].legend(loc=2, fontsize=7) #, title='Flowrate')
-#            self._ax['qt'].get_legend().get_title().set_fontsize('7')
-#
-#        # The pressure-volume loop always has a legend if multiple are plotted.
-#        if not cycle and len(df['cycle'].unique()) > 1:
-#            self._ax['pv'].legend(loc=2, fontsize=7, title='Cycle')
-#            self._ax['pv'].get_legend().get_title().set_fontsize('7')  
-#            
-#    def save(self, filename, dpi=300, bbox_inches='tight'):
-#        """
-#        Write the currently drawn figure to file.
-#
-#        Args:
-#            filename: Name (or path) to save the figure as/to.
-#            dpi (optional): Override the default dpi (300) for quality control.
-#            bbox_inches (optional): Override the bounding box ('tight') value.
-#        """
-#        # TODO Add check for whether or not a plot has been created.
-#        try:
-#            self._fig.savefig(filename, dpi=dpi, bbox_inches=bbox_inches)
-#
-#        except FileNotFoundError:
-#            import os
-#            os.mkdir('/'.join(filename.split('/')[:-1]))
-#            self.save(filename, dpi=dpi, bbox_inches=bbox_inches)
+import plotly.graph_objects as go
+import pandas as pd
 
 class HemodynamicsPlot(object):
     """
@@ -267,7 +156,7 @@ class HemodynamicsPlot(object):
         
         time = dataset['time']-min(dataset['time'])+offset
         
-        print('infarct data centered around phase {} at {}ms with offset {}ms'.format(center_phase,phase_time_df,offset))
+        print('\n infarct data centered around phase {} at {}ms with offset {}ms'.format(center_phase,phase_time_df,offset))
         # Make the pressure-time plot.
         self._ax['pt'].plot(time, (dataset['plv']), '--b')
         self._ax['pt'].plot(time, (dataset['pven']), '--r')
@@ -364,19 +253,58 @@ def hemodynamic_summary(data_cycle):
             'ESV':ESV,
             'CO': CO,
             'qao': np.mean(qao),
-            'SV': SV,
-            'SV_new': SV_new,
-            'EF': SV/EDV*100,
-            'EF_new': SV_new/EDV*100,
+            'SV_old': SV,
+            'SV': SV_new,
+            'EF_old': SV/EDV*100,
+            'EF': SV_new/EDV*100,
             'MAP': np.mean(part),
             'SAP': max(part),
             'DAP': min(part),
             'PP': max(part) - min(part),
             'plv_max': max(plv),
             'W': - np.trapz(mmHg_to_kPa(plv), vlv/1000),
-            'dpdt_max': max(np.diff(plv)/np.diff(time/1000)),
+            'dpdt_max': max(np.diff(plv)/np.diff(time/1000))
             }
      return hemo
+ 
+def percentages(ref,var):
+    change = (var-ref)/ref
+    return change
+ 
+def procentual_change_hemodynamics(ref,data):
+    hemo_ref = hemodynamic_summary(ref)
+    hemo_data = hemodynamic_summary(data)
+    
+    perc_change = {
+            'HR': percentages(hemo_ref['HR'],hemo_data['HR']),
+            'EDV': percentages(hemo_ref['EDV'],hemo_data['EDV']),
+            'ESV':percentages(hemo_ref['ESV'],hemo_data['ESV']),
+            'SV': percentages(hemo_ref['SV'],hemo_data['SV']),
+            'EF': percentages(hemo_ref['EF'],hemo_data['EF']),
+            'CO': percentages(hemo_ref['CO'],hemo_data['CO']),
+            'MAP': percentages(hemo_ref['MAP'],hemo_data['MAP']),
+            'SAP': percentages(hemo_ref['SAP'],hemo_data['SAP']),
+            'DAP': percentages(hemo_ref['DAP'],hemo_data['DAP']),
+            'PP': percentages(hemo_ref['PP'],hemo_data['PP']),
+            'plv_max': percentages(hemo_ref['plv_max'],hemo_data['plv_max']),
+            'dpdt_max': percentages(hemo_ref['dpdt_max'],hemo_data['dpdt_max']),
+            'W': percentages(hemo_ref['W'],hemo_data['W'])}
+    
+    hemo_ref = pd.DataFrame(hemo_ref,index=[0])
+    hemo_data = pd.DataFrame(hemo_data,index=[0])
+    perc_change = pd.DataFrame(perc_change,index=[0])
+    
+    print("\n{:<8} {:>10} {:>10} {:>10}".format('','reference','ischemic','change'))
+    hemo_sum = pd.DataFrame(columns=['reference', 'ischemic','change (%)'])
+    for key in perc_change.keys():
+        print("{:<8} {:=10.2f} {:=10.2f} {:10.1%}".format(key, hemo_ref[key][0], hemo_data[key][0],perc_change[key][0]))
+        var1 = round(hemo_ref[key][0],2)
+        var2 = round(hemo_data[key][0],2)
+        var3 = float(round(perc_change[key][0]*100,2))
+        
+        hemo_sum.loc[key] = [var1, var2, var3]
+    
+    return  hemo_sum    
 
 def print_hemodynamic_summary(hemo,cycle):    
     print('\nSYSTEMIC CIRCULATION:')
@@ -397,7 +325,7 @@ def print_hemodynamic_summary(hemo,cycle):
           'plv_max: {:6.2f} mmHg\n' +
           'dp/dt_max: {:.0f} mmHg/s\n' +
           'W: {:12.2f} J').format(
-                  hemo['HR'], hemo['EDV'], hemo['ESV'], hemo['SV'], hemo['SV_new'],hemo['EF'],hemo['EF_new'],
+                  hemo['HR'], hemo['EDV'], hemo['ESV'], hemo['SV_old'], hemo['SV'],hemo['EF_old'],hemo['EF'],
                   hemo['qao'], hemo['CO'], hemo['MAP'], 
                   hemo['SAP'], hemo['DAP'], hemo['PP'],
                   hemo['plv_max'], hemo['dpdt_max'], hemo['W']))
