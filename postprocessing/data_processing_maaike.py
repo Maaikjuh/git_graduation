@@ -15,45 +15,54 @@ from dataset import Dataset
 from postprocess_Maaike import *
 import os
 import matplotlib.pyplot as plt
-plt.close('all')
+#plt.close('all')
 
 # Specify the results.csv file (which contains the hemodynamic data) directly:
 #csv_normal = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\24-03_14-07_infarct_xi_10\results.csv'
 #csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\31-03_16-15_infarct_droplet_tao_20_meshres_30\results.csv'
 
-csv_normal = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\24-03_14-07_infarct_xi_10\results.csv'
-csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\10-04_09-24_infarct_15_meshres_20\results.csv'
+#csv_ref = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\24-03_14-07_infarct_xi_10\results.csv'
+#csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\09-04_15-25_big_border_meshres_20\results.csv'
+
+csv_ref = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\27_02_default_inputs\results.csv'
+csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\Biventricular model\default\results.csv'
+
+#csv_ref = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\Biventricular model\default\results.csv'
+#csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\Biventricular model\08-04_15-16_save_coord_test\results.csv'
 
 
-ANALYZE = 'infarct'
 COMPARE = True
 
-# Load results.
-results_normal = Dataset(filename=csv_normal)
-results_infarct = Dataset(filename=csv_infarct)
+#if the datasets should not be compared, select which dataset should be analyzed
+if COMPARE == False:
+    ANALYZE = 'normal'
 
 # Take the last cycle, or specify the cycle directly
-cycle = max(results_normal['cycle']) - 1
 #cycle=10
+#cycle = cycle = max(results_normal['cycle']) - 1
 
-
-results_normal = results_normal[results_normal['cycle']==cycle]
-results_infarct = results_infarct[results_infarct['cycle']==cycle]
-
-# Data from the selected cycle
-if ANALYZE == 'infarct':
-    data_cycle = results_infarct
-    pathname = csv_infarct
-else:
-    data_cycle = results_normal
-    pathname = csv_normal
-
+# Load results
+[results_ref, cycle_ref] = load_reduced_dataset(csv_ref)
+[results_infarct, cycle_inf] = load_reduced_dataset(csv_infarct)
 
 
 if COMPARE == True:
-    hemo_sum = procentual_change_hemodynamics(results_normal,results_infarct)
-    plot_compare_results(results_normal,results_infarct, dir_out=os.path.dirname(csv_infarct), cycle=None)
+#    if cycle_ref != cycle_inf:
+#        print('infarct and normal data not of same length, continuing with cycle {}'.format(min(cycle_ref,cycle_inf)))
+#        [results_normal, cycle_ref] = load_reduced_dataset(csv_ref, min(cycle_ref,cycle_inf) )
+#        [results_infarct, cycle_inf] = load_reduced_dataset(csv_infarct, min(cycle_ref,cycle_inf))
+    hemo_sum = procentual_change_hemodynamics(results_ref,results_infarct)
+    plot_compare_results(results_ref,results_infarct, dir_out=os.path.dirname(csv_infarct), cycle=None)
 else:
+    # Data from the selected cycle
+    if ANALYZE == 'infarct':
+        data_cycle = results_infarct
+        pathname = csv_infarct
+        cycle = cycle_inf
+    else:
+        data_cycle = results_ref
+        pathname = csv_ref
+        cycle = cycle_ref
     hemo_sum = hemodynamic_summary(data_cycle)
     print_hemodynamic_summary(hemo_sum,cycle)
     plot_results(data_cycle,dir_out=os.path.dirname(pathname), cycle=cycle)

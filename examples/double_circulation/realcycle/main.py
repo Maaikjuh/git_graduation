@@ -71,7 +71,8 @@ def get_inputs(number_of_cycles, active_stress):
     # Infarct: create a dictionary of inputs for the infarct geometry.           #
     # -------------------------------------------------------------------------- #
     if INFARCT == True:
-        infarct_prm = { 'phi_min': 0.,
+        infarct_prm = { 'infarct': INFARCT,
+                        'phi_min': 0.,
                         'phi_max': 1.5708,
                         'theta_min': 1.5708,
                         'theta_max': 3.1416,
@@ -80,7 +81,7 @@ def get_inputs(number_of_cycles, active_stress):
                         'Ta0_infarct': 20., #20.,
                         'save_T0_mesh': DIR_OUT}
     else:
-        infarct_prm = None
+        infarct_prm = False
 
     # Windkessel inputs from Pluijmert et al. (2017) are used.
     # -------------------------------------------------------------------------- #
