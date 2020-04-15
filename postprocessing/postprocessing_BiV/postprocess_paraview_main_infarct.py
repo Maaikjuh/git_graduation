@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Nov  9 11:39:27 2018
+Created on Wed Apr 15 17:18:51 2020
 
-@author: Hermans
+@author: Maaike
 """
 
-from postprocessing_paraview import common_start, postprocess_paraview
+
+from postprocessing_paraview_maaike import common_dir, postprocess_paraview
 
 import matplotlib.pyplot as plt
 import os
@@ -15,7 +16,6 @@ import os
 # --------------------------------------------------------------------------- #
 # Specify two directories in which the paraview data can be found for two states (e.g. initial and adapted state).
 directory_1 = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\Biventricular model\default\cycle_5_stress_free_ref\paraview_data'
-directory_2 = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\Biventricular model\default\cycle_5_stress_free_ref\paraview_data'  
 
 # Specify corresponding labels for the two directories above.
 dir_labels = ['init', 'adap']
@@ -32,7 +32,6 @@ linewidth = 2
 common_dir = common_start(directory_1, directory_2)
 
 post_1 = postprocess_paraview(directory_1, name='init', **inputs)
-post_2 = postprocess_paraview(directory_2, name='adap', **inputs)
 
 post_1.show_regions(projection = '3d', fontsize=fontsize, skip=None)
 

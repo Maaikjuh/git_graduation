@@ -7,6 +7,18 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import plotly.graph_objects as go
 import pandas as pd
+from dataset import Dataset
+
+def load_reduced_dataset(filename, cycle=None):
+    """
+    Load the given CSV file and reduce it to the final cycle (default).
+    """
+    full = Dataset(filename=filename)    
+    if cycle is None:
+        cycle = int(max(full['cycle']) - 1)
+    
+    reduced = full[full['cycle'] == cycle].copy(deep=True)
+    return reduced, cycle
 
 class HemodynamicsPlot(object):
     """
@@ -70,62 +82,122 @@ class HemodynamicsPlot(object):
         else:
             df = self._df
             time = df['time'] - min(df['time'])
+        
+        if 'plv' in df.keys():
+            #lv
 
-        # Make the pressure-time plot.
-        self._ax['pt'].plot(time, (df['plv']),'b', label='Cavity')
-        self._ax['pt'].plot(time, (df['pven']),'r', label='Venous')
-        self._ax['pt'].plot(time, (df['part']),'g', label='Arterial')
-
-        # Make the volume-time plot.
-        self._ax['vt'].plot(time, df['vlv'], 'b', label='Cavity')
-#        self._ax['vt'].plot(time, (df['vlv']+df['vart']+df['vven']), 'b', label='Vtot')
-#        self._ax['vt'].plot(df['time'], df['vven'], label='Venous')
-#        self._ax['vt'].plot(df['time'], df['vart'], label='Arterial')
-
-        # Make the flowrate-time plot.
-        self._ax['qt'].plot(time, df['qmv'], 'b', label='Mitral')
-        self._ax['qt'].plot(time, df['qao'], 'r', label='Aortic')
-        self._ax['qt'].plot(time, df['qper'], 'g', label='Peripheral')
-        if 'qlvad' in df.keys():
-            self._ax['qt'].plot(time, df['qlvad'], label='LVAD')
+            # Make the pressure-time plot.
+            self._ax['pt'].plot(time, (df['plv']),'b', label='Cavity')
+            self._ax['pt'].plot(time, (df['pven']),'r', label='Venous')
+            self._ax['pt'].plot(time, (df['part']),'g', label='Arterial')
+    
+            # Make the volume-time plot.
+            self._ax['vt'].plot(time, df['vlv'], 'b', label='Cavity')
+    #        self._ax['vt'].plot(time, (df['vlv']+df['vart']+df['vven']), 'b', label='Vtot')
+    #        self._ax['vt'].plot(df['time'], df['vven'], label='Venous')
+    #        self._ax['vt'].plot(df['time'], df['vart'], label='Arterial')
+    
+            # Make the flowrate-time plot.
+            self._ax['qt'].plot(time, df['qmv'], 'b', label='Mitral')
+            self._ax['qt'].plot(time, df['qao'], 'r', label='Aortic')
+            self._ax['qt'].plot(time, df['qper'], 'g', label='Peripheral')
+                
+            # Mark the beginning of each phase            
+            for i in range(2,5):
+                index = (df['phase'] == i).idxmax()
+                phase_time = df['time'][index]- min(df['time'])
+                self._ax['pt'].plot([phase_time, phase_time], [min(df['plv']), max(df['plv'])],'--k')
+                self._ax['vt'].plot([phase_time, phase_time], [min(df['vlv']), max(df['vlv'])],'--k')
+                self._ax['qt'].plot([phase_time, phase_time], [min(df['qao']), max(df['qao'])],'--k')
             
-        # Mark the beginning of each phase            
-        for i in range(2,5):
-            index = (df['phase'] == i).idxmax()
-            phase_time = df['time'][index]- min(df['time'])
-            self._ax['pt'].plot([phase_time, phase_time], [min(df['plv']), max(df['plv'])],'--k')
-            self._ax['vt'].plot([phase_time, phase_time], [min(df['vlv']), max(df['vlv'])],'--k')
-            self._ax['qt'].plot([phase_time, phase_time], [min(df['qao']), max(df['qao'])],'--k')
-        
-        # Add label to each phase
-        phase2 = df['time'][(df['phase'] == 2).idxmax()]- min(df['time'])
-        phase3 = df['time'][(df['phase'] == 3).idxmax()]- min(df['time'])
-        phase4 = df['time'][(df['phase'] == 4).idxmax()]- min(df['time'])
-        
-        self._ax['pt'].text(phase2/2,max(df['plv'])+2,'d',fontsize=13,horizontalalignment='center')
-        self._ax['pt'].text((phase2+phase3)/2,max(df['plv'])+2,'ic',fontsize=13,horizontalalignment='center')
-        self._ax['pt'].text((phase3+phase4)/2,max(df['plv'])+2,'e',fontsize=13,horizontalalignment='center')
-        self._ax['pt'].text((phase4+(max(df['time'])-min(df['time'])))/2,max(df['plv'])+2,'ir',fontsize=13,horizontalalignment='center')
-
-        # Make the pressure-volume plot.
-        # Each cycle (if multiple) will get its own color.
-        for c in df['cycle'].unique():
-            _df = df[df['cycle'] == int(c)]
-            self._ax['pv'].plot(_df['vlv'], kPa_to_mmHg(_df['plv']), 'b',label=str(c))
-
-        # Add the legends for the three individual plots, if needed to.
-        if legend:
-            self._ax['pt'].legend(loc=2, fontsize=7) #, title='Pressure')
-            self._ax['pt'].get_legend().get_title().set_fontsize('7')
-            self._ax['vt'].legend(loc=2, fontsize=7) #, title='Volume')
-            self._ax['vt'].get_legend().get_title().set_fontsize('7')
-            self._ax['qt'].legend(loc=2, fontsize=7) #, title='Flowrate')
-            self._ax['qt'].get_legend().get_title().set_fontsize('7')
-
-        # The pressure-volume loop always has a legend if multiple are plotted.
-        if not cycle and len(df['cycle'].unique()) > 1:
-            self._ax['pv'].legend(loc=2, fontsize=7, title='Cycle')
-            self._ax['pv'].get_legend().get_title().set_fontsize('7') 
+            # Add label to each phase
+            phase2 = df['time'][(df['phase'] == 2).idxmax()]- min(df['time'])
+            phase3 = df['time'][(df['phase'] == 3).idxmax()]- min(df['time'])
+            phase4 = df['time'][(df['phase'] == 4).idxmax()]- min(df['time'])
+            
+            self._ax['pt'].text(phase2/2,max(df['plv'])+2,'d',fontsize=13,horizontalalignment='center')
+            self._ax['pt'].text((phase2+phase3)/2,max(df['plv'])+2,'ic',fontsize=13,horizontalalignment='center')
+            self._ax['pt'].text((phase3+phase4)/2,max(df['plv'])+2,'e',fontsize=13,horizontalalignment='center')
+            self._ax['pt'].text((phase4+(max(df['time'])-min(df['time'])))/2,max(df['plv'])+2,'ir',fontsize=13,horizontalalignment='center')
+    
+            # Make the pressure-volume plot.
+            # Each cycle (if multiple) will get its own color.
+            for c in df['cycle'].unique():
+                _df = df[df['cycle'] == int(c)]
+                self._ax['pv'].plot(_df['vlv'], kPa_to_mmHg(_df['plv']), 'b',label=str(c))
+    
+            # Add the legends for the three individual plots, if needed to.
+            if legend:
+                self._ax['pt'].legend(loc=2, fontsize=7) #, title='Pressure')
+                self._ax['pt'].get_legend().get_title().set_fontsize('7')
+                self._ax['vt'].legend(loc=2, fontsize=7) #, title='Volume')
+                self._ax['vt'].get_legend().get_title().set_fontsize('7')
+                self._ax['qt'].legend(loc=2, fontsize=7) #, title='Flowrate')
+                self._ax['qt'].get_legend().get_title().set_fontsize('7')
+    
+            # The pressure-volume loop always has a legend if multiple are plotted.
+            if not cycle and len(df['cycle'].unique()) > 1:
+                self._ax['pv'].legend(loc=2, fontsize=7, title='Cycle')
+                self._ax['pv'].get_legend().get_title().set_fontsize('7')
+                
+                
+        elif 'pcav_s' in df.keys():
+            #BiV
+            
+            # Make the pressure-time plot.
+            self._ax['pt'].plot(time, (df['pcav_s']),'b', label='Cavity')
+            self._ax['pt'].plot(time, (df['pven_s']),'r', label='Venous')
+            self._ax['pt'].plot(time, (df['part_s']),'g', label='Arterial')
+    
+            # Make the volume-time plot.
+            self._ax['vt'].plot(time, df['vcav_s'], 'b', label='Cavity')
+    #        self._ax['vt'].plot(time, (df['vlv']+df['vart']+df['vven']), 'b', label='Vtot')
+    #        self._ax['vt'].plot(df['time'], df['vven'], label='Venous')
+    #        self._ax['vt'].plot(df['time'], df['vart'], label='Arterial')
+    
+            # Make the flowrate-time plot.
+            self._ax['qt'].plot(time, df['qven_s'], 'b', label='Mitral')
+            self._ax['qt'].plot(time, df['qart_s'], 'r', label='Aortic')
+            self._ax['qt'].plot(time, df['qper_s'], 'g', label='Peripheral')
+                
+            # Mark the beginning of each phase            
+            for i in range(2,5):
+                index = (df['phase_s'] == i).idxmax()
+                phase_time = df['time'][index]- min(df['time'])
+                self._ax['pt'].plot([phase_time, phase_time], [min(df['pcav_s']), max(df['pcav_s'])],'--k')
+                self._ax['vt'].plot([phase_time, phase_time], [min(df['vcav_s']), max(df['vcav_s'])],'--k')
+                self._ax['qt'].plot([phase_time, phase_time], [min(df['qart_s']), max(df['qart_s'])],'--k')
+            
+            # Add label to each phase
+            phase2 = df['time'][(df['phase_s'] == 2).idxmax()]- min(df['time'])
+            phase3 = df['time'][(df['phase_s'] == 3).idxmax()]- min(df['time'])
+            phase4 = df['time'][(df['phase_s'] == 4).idxmax()]- min(df['time'])
+            
+            self._ax['pt'].text(phase2/2,max(df['pcav_s'])+2,'d',fontsize=13,horizontalalignment='center')
+            self._ax['pt'].text((phase2+phase3)/2,max(df['pcav_s'])+2,'ic',fontsize=13,horizontalalignment='center')
+            self._ax['pt'].text((phase3+phase4)/2,max(df['pcav_s'])+2,'e',fontsize=13,horizontalalignment='center')
+            self._ax['pt'].text((phase4+(max(df['time'])-min(df['time'])))/2,max(df['pcav_s'])+2,'ir',fontsize=13,horizontalalignment='center')
+    
+            # Make the pressure-volume plot.
+            # Each cycle (if multiple) will get its own color.
+            for c in df['cycle'].unique():
+                _df = df[df['cycle'] == int(c)]
+                self._ax['pv'].plot(_df['vcav_s'], kPa_to_mmHg(_df['pcav_s']), 'b',label=str(c))
+    
+            # Add the legends for the three individual plots, if needed to.
+            if legend:
+                self._ax['pt'].legend(loc=2, fontsize=7) #, title='Pressure')
+                self._ax['pt'].get_legend().get_title().set_fontsize('7')
+                self._ax['vt'].legend(loc=2, fontsize=7) #, title='Volume')
+                self._ax['vt'].get_legend().get_title().set_fontsize('7')
+                self._ax['qt'].legend(loc=2, fontsize=7) #, title='Flowrate')
+                self._ax['qt'].get_legend().get_title().set_fontsize('7')
+    
+            # The pressure-volume loop always has a legend if multiple are plotted.
+            if not cycle and len(df['cycle'].unique()) > 1:
+                self._ax['pv'].legend(loc=2, fontsize=7, title='Cycle')
+                self._ax['pv'].get_legend().get_title().set_fontsize('7')
+            
             
     def compare_against(self, dataset,cycle):
         """
@@ -138,53 +210,119 @@ class HemodynamicsPlot(object):
         """
         # TODO Check that a plot has been already created.
 #        cycle = max(dataset['cycle']) - 1
-        if cycle:
-            dataset = dataset[dataset['cycle']==cycle]
-            df = self._df[self._df['cycle'] == int(cycle)]
-
-        else:
-            df = self._df
+#        if cycle:
+#            dataset = dataset[dataset['cycle']==cycle]
+#            df = dataset[dataset['cycle'] == int(cycle)]
+#
+#        else:
+#            df = dataset
+        df = self._df
+            
+        if 'plv' in dataset.keys():
         
-        center_phase = 3
-        index = (dataset['phase'] == center_phase).idxmax()
-        indexdf = (df['phase'] == center_phase).idxmax()
+            center_phase = 3
+            index = (dataset['phase'] == center_phase).idxmax()
+            
+            if 'plv' in df.keys():
+                indexdf = (df['phase'] == center_phase).idxmax()
+            elif 'pcav_s' in df.keys():
+                indexdf = (df['phase_s'] == center_phase).idxmax()
+            
+            phase_time = dataset['time'][index]- min(dataset['time'])
+            phase_time_df = df['time'][indexdf]- min(df['time'])
+            
+            offset = phase_time_df-phase_time
+            
+            time = dataset['time']-min(dataset['time'])+offset
+            
+            print('\n infarct data centered around phase {} at {}ms with offset {}ms'.format(center_phase,phase_time_df,offset))
+            # Make the pressure-time plot.
+            self._ax['pt'].plot(time, (dataset['plv']), '--b')
+            self._ax['pt'].plot(time, (dataset['pven']), '--r')
+            self._ax['pt'].plot(time, (dataset['part']), '--g')
+    
+            # Make the volume-time plot.
+            self._ax['vt'].plot(time, dataset['vlv'], '--b')
+            # self._ax['vt'].plot(dataset['time'], dataset['vven'], *args, **kwargs)
+            # self._ax['vt'].plot(dataset['time'], dataset['vart'], *args, **kwargs)
+    
+            # Make the flowrate-time plot.
+            self._ax['qt'].plot(time, dataset['qmv'], '--b')
+            self._ax['qt'].plot(time, dataset['qao'], '--r')
+            self._ax['qt'].plot(time, dataset['qper'], '--g')
+            
+            for i in range(2,5):
+                index = (dataset['phase'] == i).idxmax()
+                phase_time = dataset['time'][index]- min(dataset['time'])+offset
+    
+                self._ax['pt'].plot([phase_time, phase_time], [min((dataset['plv'])), max((dataset['plv']))],'--y')
+                self._ax['vt'].plot([phase_time, phase_time], [min(dataset['vlv']), max(dataset['vlv'])],'--y')
+                self._ax['qt'].plot([phase_time, phase_time], [min(dataset['qao']), max(dataset['qao'])],'--y')
+    
+            # Make the pressure-volume plot.
+            # Each cycle (if multiple) will get its own color.
+            for c in dataset['cycle'].unique():
+                _df = dataset[dataset['cycle'] == int(c)]
+                self._ax['pv'].plot(_df['vlv'], kPa_to_mmHg(_df['plv']), '--b')
+                
+            if 'pcav_s' in df.keys():
+                self._ax['pv'].legend(['BiV','Lv'])
+            else:
+                self._ax['pv'].legend(['ischemic','reference'])
+                
+        if 'pcav_s' in dataset.keys():
         
-        phase_time = dataset['time'][index]- min(dataset['time'])
-        phase_time_df = df['time'][indexdf]- min(df['time'])
-        
-        offset = phase_time_df-phase_time
-        
-        time = dataset['time']-min(dataset['time'])+offset
-        
-        print('\n infarct data centered around phase {} at {}ms with offset {}ms'.format(center_phase,phase_time_df,offset))
-        # Make the pressure-time plot.
-        self._ax['pt'].plot(time, (dataset['plv']), '--b')
-        self._ax['pt'].plot(time, (dataset['pven']), '--r')
-        self._ax['pt'].plot(time, (dataset['part']), '--g')
-
-        # Make the volume-time plot.
-        self._ax['vt'].plot(time, dataset['vlv'], '--b')
-        # self._ax['vt'].plot(dataset['time'], dataset['vven'], *args, **kwargs)
-        # self._ax['vt'].plot(dataset['time'], dataset['vart'], *args, **kwargs)
-
-        # Make the flowrate-time plot.
-        self._ax['qt'].plot(time, dataset['qmv'], '--b')
-        self._ax['qt'].plot(time, dataset['qao'], '--r')
-        self._ax['qt'].plot(time, dataset['qper'], '--g')
-        
-        for i in range(2,5):
-            index = (dataset['phase'] == i).idxmax()
-            phase_time = dataset['time'][index]- min(dataset['time'])+offset
-
-            self._ax['pt'].plot([phase_time, phase_time], [min((dataset['plv'])), max((dataset['plv']))],'--y')
-            self._ax['vt'].plot([phase_time, phase_time], [min(dataset['vlv']), max(dataset['vlv'])],'--y')
-            self._ax['qt'].plot([phase_time, phase_time], [min(dataset['qao']), max(dataset['qao'])],'--y')
-
-        # Make the pressure-volume plot.
-        # Each cycle (if multiple) will get its own color.
-        for c in dataset['cycle'].unique():
-            _df = dataset[dataset['cycle'] == int(c)]
-            self._ax['pv'].plot(_df['vlv'], kPa_to_mmHg(_df['plv']), '--b')
+            center_phase = 3
+            index = (dataset['phase_s'] == center_phase).idxmax()
+            
+            if 'plv' in df.keys():
+                indexdf = (df['phase'] == center_phase).idxmax()
+            elif 'pcav_s' in df.keys():
+                indexdf = (df['phase_s'] == center_phase).idxmax()
+            
+            phase_time = dataset['time'][index]- min(dataset['time'])
+            phase_time_df = df['time'][indexdf]- min(df['time'])
+            
+            offset = phase_time_df-phase_time
+            
+            time = dataset['time']-min(dataset['time'])+offset
+            
+            print('\n infarct data centered around phase {} at {}ms with offset {}ms'.format(center_phase,phase_time_df,offset))
+            # Make the pressure-time plot.
+            self._ax['pt'].plot(time, (dataset['pcav_s']), '--b')
+            self._ax['pt'].plot(time, (dataset['pven_s']), '--r')
+            self._ax['pt'].plot(time, (dataset['part_s']), '--g')
+    
+            # Make the volume-time plot.
+            self._ax['vt'].plot(time, dataset['vcav_s'], '--b')
+            # self._ax['vt'].plot(dataset['time'], dataset['vven'], *args, **kwargs)
+            # self._ax['vt'].plot(dataset['time'], dataset['vart'], *args, **kwargs)
+    
+            # Make the flowrate-time plot.
+            self._ax['qt'].plot(time, dataset['qven_s'], '--b')
+            self._ax['qt'].plot(time, dataset['qart_s'], '--r')
+            self._ax['qt'].plot(time, dataset['qper_s'], '--g')
+            
+            for i in range(2,5):
+                index = (dataset['phase_s'] == i).idxmax()
+                phase_time = dataset['time'][index]- min(dataset['time'])+offset
+    
+                self._ax['pt'].plot([phase_time, phase_time], [min((dataset['pcav_s'])), max((dataset['pcav_s']))],'--y')
+                self._ax['vt'].plot([phase_time, phase_time], [min(dataset['vcav_s']), max(dataset['vcav_s'])],'--y')
+                self._ax['qt'].plot([phase_time, phase_time], [min(dataset['qart_s']), max(dataset['qart_s'])],'--y')
+    
+            # Make the pressure-volume plot.
+            # Each cycle (if multiple) will get its own color.
+            for c in dataset['cycle'].unique():
+                _df = dataset[dataset['cycle'] == int(c)]
+                self._ax['pv'].plot(_df['vcav_s'], kPa_to_mmHg(_df['pcav_s']), '--b')
+            
+#             self._ax['pv'].text(max(dataset['vcav_s']),max(dataset['pcav_s']))
+                
+            if 'pcav_s' in df.keys():
+                self._ax['pv'].legend(['BiV ischemic','BiV reference'])
+            else:
+                self._ax['pv'].legend(['Lv','BiV'])
 
             
     def save(self, filename, dpi=300, bbox_inches='tight'):
@@ -232,22 +370,35 @@ def mmHg_to_kPa(p_mmHg):
     return p_mmHg/1000*conversion_factor
 
 def hemodynamic_summary(data_cycle):
-     time = data_cycle['time'].values  # ms
-     plv = kPa_to_mmHg(data_cycle['plv'].values)
-     part = kPa_to_mmHg(data_cycle['part'].values)
-     pven = kPa_to_mmHg(data_cycle['pven'].values)
-     qao = data_cycle['qao'].values*60/1000  # ml/s -> l/min
-     vlv = data_cycle['vlv'].values  # ml
+    if 'plv' in data_cycle.keys():
+        #LV results
+        time = data_cycle['time'].values  # ms
+        plv = kPa_to_mmHg(data_cycle['plv'].values)
+        part = kPa_to_mmHg(data_cycle['part'].values)
+        pven = kPa_to_mmHg(data_cycle['pven'].values)
+        qao = data_cycle['qao'].values*60/1000  # ml/s -> l/min
+        vlv = data_cycle['vlv'].values  # ml
      
+    elif 'pcav_s' in data_cycle.keys():
+        # BiV results.
+        time = data_cycle['time'].values  # ms
+        plv = kPa_to_mmHg(data_cycle['pcav_s'].values)
+        part = kPa_to_mmHg(data_cycle['part_s'].values)
+        pven = kPa_to_mmHg(data_cycle['pven_s'].values)
+        qao = data_cycle['qart_s'].values*60/1000  # ml/s -> l/min
+        vlv = data_cycle['vcav_s'].values  # ml
+        
+    else:
+        raise ValueError('Unexpected keys in data dictionary.')
+         
+    HR = round(60000/(max(time)-min(time)))
+    EDV =  max(vlv)
+    ESV = min(vlv)
+    SV = np.mean(qao)/HR * 1000
+    SV_new = EDV - ESV
+    CO = np.mean(qao)
      
-     HR = round(60000/(max(time)-min(time)))
-     EDV =  max(vlv)
-     ESV = min(vlv)
-     SV = np.mean(qao)/HR * 1000
-     SV_new = EDV - ESV
-     CO = np.mean(qao)
-     
-     hemo = {    
+    hemo = {    
             'HR': HR,
             'EDV': EDV,
             'ESV':ESV,
@@ -265,7 +416,7 @@ def hemodynamic_summary(data_cycle):
             'W': - np.trapz(mmHg_to_kPa(plv), vlv/1000),
             'dpdt_max': max(np.diff(plv)/np.diff(time/1000))
             }
-     return hemo
+    return hemo
  
 def percentages(ref,var):
     change = (var-ref)/ref

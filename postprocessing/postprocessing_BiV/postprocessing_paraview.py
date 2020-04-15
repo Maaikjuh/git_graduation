@@ -252,14 +252,27 @@ class postprocess_paraview(object):
         
     def extract_rv_idx(self):
         # Extract points RV.
+        # h = self.column_headers
+        # data = self.all_data[:, :, 0]
+        # mask_cut_off_low = data[:, h[':2']] >= self.parameters['cut_off_low']
+        # mask_cut_off_high = data[:, h[':2']] <= self.parameters['cut_off_high']
+        # mask_cut_off_left = np.sqrt(data[:, h[':0']]**2/self.parameters['R_2sep']**2 + data[:, h[':1']]**2/self.parameters['R_2']**2 + data[:, h[':2']]**2/self.parameters['Z_2']**2) > 1.05
+        # mask_cut_off_left2 = data[:, h[':0']] < 0.
+        # mask_cut_off_slice = abs(data[:, h[':1']]) <= self.parameters['slice_thickness']/2 
+        # mask_tot = mask_cut_off_low*mask_cut_off_high*mask_cut_off_left*mask_cut_off_left2*mask_cut_off_slice
+        
         h = self.column_headers
         data = self.all_data[:, :, 0]
         mask_cut_off_low = data[:, h[':2']] >= self.parameters['cut_off_low']
         mask_cut_off_high = data[:, h[':2']] <= self.parameters['cut_off_high']
-        mask_cut_off_left = np.sqrt(data[:, h[':0']]**2/self.parameters['R_2sep']**2 + data[:, h[':1']]**2/self.parameters['R_2']**2 + data[:, h[':2']]**2/self.parameters['Z_2']**2) > 1.05
-        mask_cut_off_left2 = data[:, h[':0']] < 0.
-        mask_cut_off_slice = abs(data[:, h[':1']]) <= self.parameters['slice_thickness']/2 
-        mask_tot = mask_cut_off_low*mask_cut_off_high*mask_cut_off_left*mask_cut_off_left2*mask_cut_off_slice
+        mask_cut_off_right = data[:, h[':0']] >= 0.
+        mask_cut_off_line_left = -2.37/1.73*data[:, h[':1']] -  self.parameters['slice_thickness']/2 >=data[:, h[':0']]
+        mask_cut_off_line_right = -2.37/1.73*data[:, h[':1']] +  self.parameters['slice_thickness']/2 <=data[:, h[':0']]
+
+        mask_tot = mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
+         
+        
+        
         return np.where(mask_tot)[0]  
     
     def extract_sep_idx(self):
@@ -822,14 +835,16 @@ class postprocess_paraview(object):
         # Plot the regions.
         fig = plt.figure()
         if projection == '3d':
-            ax = fig.add_subplot(111, projection='3d', aspect='equal')
+            # ax = fig.add_subplot(111, projection='3d', aspect='equal')
+            ax = fig.add_subplot(111, projection='3d')
         else:
             ax = fig.add_subplot(111)
                         
         col = ['C7', 'C0', 'C1', 'C2']
+        # col = ['w', 'g', 'r', 'c']
         if projection == '2d':
             # Only select nodes from slice.
-            region0 = np.where(abs(self.all_data[:, h[':1'], 0]) <= self.parameters['slice_thickness']/2)[0]
+            region0 = np.where(abs(self.all_data[:, h[':2'], 0]) <= self.parameters['slice_thickness']/2)[0]
         else:
             # Select all nodes.
             region0 = np.arange(len(self.all_data[:, h[':1'], 0]))
@@ -853,7 +868,7 @@ class postprocess_paraview(object):
             y = self.all_data[idx, h[':1'], 0]
             z = self.all_data[idx, h[':2'], 0]
             if projection == '3d':
-                ax.scatter(x, z, y, color=col[ii], label=region_labels[ii])
+                ax.scatter3D(x, z, y, color=col[ii], label=region_labels[ii])
             else:
                 ax.scatter(x, z, color=col[ii], label=region_labels[ii])
         plt.legend(frameon=False, fontsize=fontsize)
