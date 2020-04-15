@@ -1247,6 +1247,7 @@ class Export(object):
         # Default set of variables.
         variables = ['u',
                     'ls',
+                    'ef',
                     'lc',
                     'active_stress',
                     'von_mises',
