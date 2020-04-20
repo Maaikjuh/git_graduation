@@ -844,7 +844,7 @@ class postprocess_paraview(object):
         # col = ['w', 'g', 'r', 'c']
         if projection == '2d':
             # Only select nodes from slice.
-            region0 = np.where(abs(self.all_data[:, h[':2'], 0]) <= self.parameters['slice_thickness']/2)[0]
+            region0 = np.where(abs(self.all_data[:, h[':1'], 0]) <= self.parameters['slice_thickness']/2)[0]
         else:
             # Select all nodes.
             region0 = np.arange(len(self.all_data[:, h[':1'], 0]))

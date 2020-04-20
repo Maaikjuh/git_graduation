@@ -21,7 +21,7 @@ directory_2 = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\
 dir_labels = ['init', 'adap']
 
 inputs = {'slice_thickness': 1,  # Specify the thickness of the cube (thick longitudinal slice) with to be included nodes [cm].
-          'load_pickle_file': False}  # Reload the data from a temporary pickle file if available for fatser loading.
+          'load_pickle_file': True}  # Reload the data from a temporary pickle file if available for fatser loading.
 
 # Plot options
 fontsize = 13
