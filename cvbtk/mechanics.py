@@ -423,7 +423,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         
         # Initialize variable T0 to express the level of active stress generation
         # Initialize with all nodal points to default value of Ta0       
-        self.T0 = Function(Q)
+        self.T0 = Function(Q, name='T0')
         self.T0.assign(Constant(self.parameters['Ta0']))
 
         if prm['restrict_lc']:
@@ -538,7 +538,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             # create infarct area
             t0 = time.time()
             print_once("*** creating T0 mesh... ***")
-            self.infarct_T0(u)                
+            self.T0 = self.infarct_T0(u)                
             dir_out = prm['save_T0_mesh']
             # save infarct mesh
             save_to_xdmf(self.T0,dir_out,'T0')
@@ -591,7 +591,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             ximin = self.parameters['ximin']
             focus = self.parameters['focus']
 
-            border = True
+            border = False
 
             # degree of the expression for ellipsoidal coordinates
             degree = 3
