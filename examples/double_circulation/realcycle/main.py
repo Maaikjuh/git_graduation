@@ -18,7 +18,7 @@ import datetime
 
 
 # Change the number of cycles and active stress ('new' or 'old') here:
-NUM_CYCLES = 5
+NUM_CYCLES = 2
 ACT_STRESS = 'old'  # 'old' is Arts Kerckhoffs, 'new' is Arts Bovendeerd.
 
 # Use the following options if you want to reload a saved model state and continue
@@ -34,11 +34,11 @@ TIME_RELOAD = None  # The time (in ms) of the timestep to reload. Set to -1 for 
 # file and you want to define the inputs in get_inputs(), set the below path to None.
 INPUTS_PATH = None #'inputs.csv'
 
-INFARCT = True
+INFARCT = False
 
 # Specify output directory.
 now = datetime.datetime.now()
-DIR_OUT = 'output/{}_save_coord_test'.format(now.strftime("%d-%m_%H-%M"))
+DIR_OUT = 'output/{}_ADAPTED_BAYER_2cyc_no_infarct'.format(now.strftime("%d-%m_%H-%M"))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
@@ -340,9 +340,9 @@ def main():
         wk, biv, results = preprocess_biv(inputs)
 
     # Save fiber and coordinate fields for visualization in paraview.
-    print_once('Saving fiber and coordinate fields to {} directory ...'.format(DIR_OUT))
-    biv.geometry.save_vectors_and_coordinate_systems(biv.u.ufl_function_space(),
-                                                     dir_out=os.path.join(DIR_OUT, 'geometry'))
+    # print_once('Saving fiber and coordinate fields to {} directory ...'.format(DIR_OUT))
+    # biv.geometry.save_vectors_and_coordinate_systems(biv.u.ufl_function_space(),
+    #                                                  dir_out=os.path.join(DIR_OUT, 'geometry'))
 
     # Save inputs to a csv file (as we might later wonder what inputs we have used).
     print_once('Saving inputs to {} ...'.format(os.path.join(DIR_OUT, 'inputs.csv')))

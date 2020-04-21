@@ -136,6 +136,7 @@ class postprocess_paraview_new(object):
     def default_parameters():
         #Todo change
         par = {}
+        par['infarct'] = False
         par['cut_off_low'] = -3.
         par['cut_off_high'] = -2.5
         par['slice_thickness'] = .5
@@ -316,9 +317,7 @@ class postprocess_paraview_new(object):
         x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],self.parameters['theta'], self.parameters['AM_phi'])
 
 
-        data_T0 = self.all_data[:, h['f_135'], 0]
-        
-        mask_tot_A = data_T0 >= 90
+
         
         
         mask_cut_off_low = data[:, h[':2']] >= z - self.parameters['slice_thickness']/2
@@ -330,9 +329,15 @@ class postprocess_paraview_new(object):
 
 
         # # mask_tot = mask_cut_off_line_low*mask_cut_off_line_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
-        mask_tot = mask_tot_A*mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
-
+        
         # mask_tot = mask_1 * mask_2 * mask_3 * mask_cut_off_right
+        if self.parameters['infarct'] == True:
+            data_T0 = self.all_data[:, h['f_137'], 0]
+            mask_T0 = data_T0 >= 90
+            mask_tot = mask_T0*mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
+        else:
+            mask_tot =mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
+
         return np.where(mask_tot)[0]  
         # return (np.array([2469,2345,3805]))
 
@@ -344,7 +349,7 @@ class postprocess_paraview_new(object):
 
         mask_cut_off_low = data[:, h[':2']] >= z - self.parameters['slice_thickness']/2
         mask_cut_off_high = data[:, h[':2']] <= z + self.parameters['slice_thickness']/2
-        if self.parameters['A_phi'] == 0:
+        if self.parameters['A_phi'] == 0.:
             mask_cut_off_right = data[:, h[':0']] >= 0.
             mask_cut_off_slice = abs(data[:, h[':1']]) <= self.parameters['slice_thickness']/2
         else:
@@ -363,17 +368,14 @@ class postprocess_paraview_new(object):
         data = self.all_data[:, :, 0]
         # mask_cut_off_low = data[:, h[':2']] >= self.parameters['cut_off_low']
         # mask_cut_off_high = data[:, h[':2']] <= self.parameters['cut_off_high']
-        if self.parameters['A_phi'] == 0:
+        if self.parameters['A_phi'] == 0.:
             mask_cut_off_right = data[:, h[':0']] >= 0.
         else:
             mask_cut_off_right = data[:, h[':1']] >= 0.
         
         x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], self.parameters['AL_phi'])
         x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],self.parameters['theta'], self.parameters['AL_phi'])
- 
-        data_T0 = self.all_data[:, h['f_135'], 0]
-        
-        mask_tot_A = data_T0 >= 90
+
         
         mask_cut_off_low = data[:, h[':2']] >= z - self.parameters['slice_thickness']/2
         mask_cut_off_high = data[:, h[':2']] <= z + self.parameters['slice_thickness']/2
@@ -382,13 +384,20 @@ class postprocess_paraview_new(object):
         # mask_cut_off_line_left = 1.73/2.37*data[:, h[':0']] -  self.parameters['slice_thickness']/2 <=data[:, h[':1']]
         # mask_cut_off_line_right = 1.73/2.37*data[:, h[':0']] +  self.parameters['slice_thickness']/2 >=data[:, h[':1']]
 
-        mask_tot = mask_tot_A*mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
+       
+        if self.parameters['infarct'] == True:
+            data_T0 = self.all_data[:, h['f_137'], 0]
+            mask_T0 = data_T0 >= 90
+            mask_tot = mask_T0*mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
+        else:
+            mask_tot =mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
+        
         return np.where(mask_tot)[0]
         # return (np.array([427,1417,1848]))
     
     def extract_T0_idx(self):
         h = self.column_headers
-        data_T0 = self.all_data[:, h['f_135'], 0]
+        data_T0 = self.all_data[:, h['f_137'], 0]
         return np.where(data_T0 <= 90)
         
     
@@ -439,7 +448,7 @@ class postprocess_paraview_new(object):
         plt.axis([40, 140, 0, 120])
         plt.title('Pressure-volume loops', fontsize=fontsize+2)
         
-    def plot_time_stress(self, *args, fig=None, fontsize=12,**kwargs):
+    def plot_time_stress(self, *args, fig=None, phase = True, fontsize=12,**kwargs):
         if fig is None:
             # Create new figure.
             fig = plt.figure()
@@ -472,6 +481,18 @@ class postprocess_paraview_new(object):
             plt.grid('on')
             plt.title(region_labels[ii], fontsize=fontsize+2) 
             plt.axis([t0, tend, 0, 80])
+            
+               
+            # Mark the beginning of each phase   
+            if phase == True:
+                for i in range(2,5):
+                    if 'phase_s' in results.keys():
+                        index = (results['phase_s'] == i).idxmax()
+                    else: 
+                        index = (results['phase'] == i).idxmax()
+                    phase_time = results['t_cycle'][index]
+                    plt.plot([phase_time, phase_time], [0, 80],'--k')
+
         
     def plot_stress_ls_l0(self, *args, fig=None, fontsize=12, 
                            reference='onset_shortening',
@@ -509,7 +530,9 @@ class postprocess_paraview_new(object):
             mean_lsl0 = np.mean(lsl0, axis=0)[:]
             mean_stress = np.mean(stress, axis=0)[:]       
             
-            plt.plot(mean_lsl0, mean_stress, *args, **kwargs)
+            av_stress = (self.all_data[idx[0], h['active_stress'], :]+self.all_data[idx[1], h['active_stress'], :]+self.all_data[idx[2], h['active_stress'], :])/3
+            # plt.plot(mean_lsl0, mean_stress, *args, **kwargs)
+            plt.plot(mean_lsl0,av_stress, *args, **kwargs)
 
             plt.xlabel('ls/ls0', fontsize=fontsize)
             plt.ylabel('Ta [kPa]', fontsize=fontsize)
@@ -562,9 +585,22 @@ class postprocess_paraview_new(object):
             # Compute mean strain and stress. Note, we do not include the 
             # first point, this one deviates from the rest.
             mean_strain = np.mean(strain, axis=0)[1:]
-            mean_stress = np.mean(stress, axis=0)[1:]       
+            # mean_stress = np.mean(stress, axis=0)[1:]    
+            mean_stress = np.average(stress, axis=0)[1:]  
             
             plt.plot(mean_strain, mean_stress, *args, **kwargs)
+            
+               
+            # Mark the beginning of each phase   
+            if phase == True:
+                for i in range(2,5):
+                    if 'phase_s' in results.keys():
+                        index = (results['phase_s'] == i).idxmax()
+                    else: 
+                        index = (results['phase'] == i).idxmax()
+                    phase_time = results['t_cycle'][index]
+                    plt.plot([phase_time, phase_time], [np.amin(self.all_data[idx, h['ls_old'], :]), np.amax(self.all_data[idx, h['ls_old'], :])],'--k')
+
 
             plt.xlabel('Natural myofiber strain $\epsilon_f$ [-]', fontsize=fontsize)
             plt.ylabel('Active myofiber Cauchy stress $\sigma_f$ [kPa]', fontsize=fontsize)
@@ -574,7 +610,7 @@ class postprocess_paraview_new(object):
             plt.title(region_labels[ii], fontsize=fontsize+2)    
             
     def plot_time_strain_ls(self, *args, fig=None, fontsize=12, 
-                         reference='onset_shortening', reorient_data=True,var='strain',
+                         reference='onset_shortening', phase = True, reorient_data=True,var='strain',
                          **kwargs):
         if fig is None:
             # Create new figure.
@@ -598,6 +634,8 @@ class postprocess_paraview_new(object):
         # Extract time array.
         results = self.results
         time = results['t_cycle']
+        
+        # ls = self.all_data[all_regions, h['ls_old'], :]
 
         for ii, idx in enumerate(regions):
 
@@ -621,8 +659,8 @@ class postprocess_paraview_new(object):
             mean_strain = np.mean(strain, axis=0)
             common_start
             # Reorient data.
-            if reorient_data:
-                mean_strain = self.reorient_data(results, mean_strain, time_axis=-1)
+            # if reorient_data:
+            #     mean_strain = self.reorient_data(results, mean_strain, time_axis=-1)
                 
             plt.plot(time, mean_strain, *args, **kwargs)
 
@@ -637,6 +675,16 @@ class postprocess_paraview_new(object):
                 # make these tick labels invisible
                 plt.setp(ax.get_yticklabels(), visible=False)
                 
+            # Mark the beginning of each phase   
+            if phase == True:
+                for i in range(2,5):
+                    if 'phase_s' in results.keys():
+                        index = (results['phase_s'] == i).idxmax()
+                    else: 
+                        index = (results['phase'] == i).idxmax()
+                    phase_time = results['t_cycle'][index]
+                    plt.plot([phase_time, phase_time], [1.8, 2.6],'--k')
+            plt.axis([min(time),max(time),1.8, 2.6])    
             plt.tick_params(labelsize=fontsize-2)
             plt.grid('on')
             plt.title(region_labels[ii], fontsize=fontsize+2)
@@ -679,43 +727,63 @@ class postprocess_paraview_new(object):
         
         return data_shifted
 
-    def show_regions_new(self, projection='2d', fontsize=12, skip=None):
+    def show_regions_new(self, fig = None, projection='2d', fontsize=12, skip=None):
         h = self.column_headers
         # Plot the regions.
-        fig = plt.figure()
+        if fig is None:
+            # Create new figure.
+            fig = plt.figure()
+        
+        # Make fig current.
+        plt.figure(fig.number)
+        
         if projection == '3d':
             ax = fig.add_subplot(111, projection='3d')
         else:
-            ax = fig.add_subplot(111)
+            ax1 = fig.add_subplot(121)
+            ax2 = fig.add_subplot(122)
                         
         col = [ 'C7','C5', 'C0', 'C1','C2']
         # col = ['g', 'r', 'c','w']
         if projection == '2d':
             # Only select nodes from slice.
-            region0 = np.where((self.all_data[:, h[':1'], 0]) >= 0.)
+            # region0 = np.where((self.all_data[:, h[':1'], 0]) >= 0.)
+            region0 = np.where((self.all_data[:, h[':1'], 0]) >= -4.)
         else:
             # Select all nodes.
-            region0 = self.all_data
+            # region0 = self.all_data
             region0 = np.where((self.all_data[:, h[':1'], 0]) >= -4.)
             # region0 = np.arange(len(self.all_data[:, h[':1'], 0]))
-            
-        regions = [region0,
-                   self.extract_T0_idx(),
-                   self.extract_AM_idx(), 
-                   self.extract_A_idx(), 
-                   self.extract_AL_idx()]
-        # regions = [region0,
-        #            np.array([2469, 4259,3805]),]
         
-        region_labels = [None,
-                         'T0',
-                        'AM', 
-                         'A', 
-                         'AL'
-                         
-                         ]
-        idx_tot =[]
-        idx_tot.extend(regions[1:5])
+        if self.parameters['infarct'] == True:
+            regions = [region0,
+                       self.extract_T0_idx(),
+                       self.extract_AM_idx(), 
+                       self.extract_A_idx(), 
+                       self.extract_AL_idx()]
+            # regions = [region0,
+            #            np.array([2469, 4259,3805]),]
+            
+            region_labels = [None,
+                             'T0',
+                            'AM', 
+                             'A', 
+                             'AL']
+        else:
+            regions = [region0,
+                       self.extract_AM_idx(), 
+                       self.extract_A_idx(), 
+                       self.extract_AL_idx()]
+            # regions = [region0,
+            #            np.array([2469, 4259,3805]),]
+            
+            region_labels = [None,
+                            'AM', 
+                             'A', 
+                             'AL']            
+            
+        # idx_tot =[]
+        # idx_tot.extend(regions[1:5])
 
         for ii, idx in enumerate(regions):
             if ii == 0 and skip is not None and skip != 0:
@@ -741,16 +809,31 @@ class postprocess_paraview_new(object):
             if projection == '3d':
                 # if ii ==0:
                 #     ax.scatter3D(x, z, y, color=col[ii], label=region_labels[ii],marker='.',zdir='y')
-                if ii != 0:
-                    ax.scatter3D(x, z, y, color=col[ii], label=region_labels[ii],zdir='y')
+                # if ii != 0:
+                ax.scatter3D(x, z, y, color=col[ii], label=region_labels[ii],zdir='y')
+                
+                plt.legend(frameon=False, fontsize=fontsize)
+                plt.title('Nodes included in local function analysis', fontsize=fontsize+2)
+
             else:
-                ax.scatter(x, z, color=col[ii], label=region_labels[ii])
+                # f = plt.figure() 
+                # f, axes = plt.subplots(nrows = 1, ncols = 2, sharex=True, sharey = True)
+                # axes.scatter(x, z)
+                ax1.scatter(x, z, color=col[ii], label=region_labels[ii])
+                ax1.axis('equal')
+                ax1.set_title('side view (x-z)')
+                ax1.legend(frameon=False, fontsize=fontsize)
+                plt.legend(frameon=False, fontsize=fontsize)
+                ax2.scatter(y, z, color=col[ii], label=region_labels[ii])
+                ax2.set_title('front view (y-z)')
+                ax2.axis('equal')
+                ax2.legend(frameon=False, fontsize=fontsize)
+                fig.suptitle('Nodes included in local function analysis', fontsize=16)
+                # plt.subplot(1, 2, 2)
+                # ax.scatter(y, z, color=col[ii], label=region_labels[ii])
         # if projection == '3d':
         #     ax.view_init(1, 1)
-            # ax.set_aspect('equal')
-        plt.legend(frameon=False, fontsize=fontsize)
-        plt.title('Nodes included in local function analysis', fontsize=fontsize+2)
-        # plt.axis('off')
+            # ax.set_aspect('equal')        # plt.axis('off')
  
         # Print some information on the number of nodes in the regions.
         regions[0] = (regions[0])[0]
