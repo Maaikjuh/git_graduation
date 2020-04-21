@@ -96,10 +96,13 @@ class ConstitutiveModel(object):
         # TODO improve check if ischemic area should be included
         # maybe design a better robust method
         try:
-            self._parameters = self.default_infarct_parameters()
-            self._parameters.update(kwargs)
-        except:
+            #normal parameters without infarct
             self._parameters = self.default_parameters()
+            self._parameters.update(kwargs)
+
+        except:
+            #infarct parameters
+            self._parameters = self.default_infarct_parameters()
             self._parameters.update(kwargs)
         
         try:
@@ -686,6 +689,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             else:
                 # formula to describe one half of the droplet shape for phi
                 # slope from zero to max value of phi in the droplet
+                print("phi_max: {}, theta_max: {}, theta_min: {}".format(phi_max, theta_max,theta_min))
                 slope = (phi_max)/(theta_max-(theta_min))
                 #expression for the phi values for the right side of the droplet shape 
                 drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=theta_min), degree=3, theta=theta)

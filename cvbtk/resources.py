@@ -122,7 +122,7 @@ def reference_biventricle(resolution=43, **kwargs):
     # We have 2 BiV meshed with reoriented fibers. Currently, the one I used in my thesis
     # (mesh_biventricle_43_REF_reoriented.hdf5) is loaded. However, one may prefer the
     # other fiber field in mesh_biventricle_43_ADAPTED_BAYER_reoriented.hdf5
-    meshfile = DATA_DIRECTORY + 'mesh_biventricle_{}_REF_reoriented.hdf5'
+    meshfile = DATA_DIRECTORY + 'mesh_biventricle_{}_ADAPTED_BAYER_reoriented.hdf5'
     meshfile = meshfile.format(int(resolution))
     datafile = pkg_resources.resource_filename(__name__, meshfile)
     return BiventricleGeometry(meshfile=datafile, **kwargs)

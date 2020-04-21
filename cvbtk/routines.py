@@ -116,11 +116,12 @@ def create_materials(model, inputs):
     if active_stress_model == 'ArtsBovendeerdActiveStress':
         act = ArtsBovendeerdActiveStress(u, fsn, **inputs['active_stress'])
     elif active_stress_model == 'ArtsKerckhoffsActiveStress':
-        if inputs['infarct'] == None or False:
-            act = ArtsKerckhoffsActiveStress(u, fsn, **inputs['active_stress'] )
-        else:
+        if inputs['infarct'] == False:
+            act = ArtsKerckhoffsActiveStress(u, fsn, **inputs['active_stress'])
+        elif inputs['infarct']['infarct'] ==True:
             act = ArtsKerckhoffsActiveStress(u, fsn, **inputs['active_stress'],**inputs['infarct'])
-            
+        else:
+            raise ValueError('Unknown infarct bool specified')    
     elif active_stress_model is None:
         act = None
     else:
