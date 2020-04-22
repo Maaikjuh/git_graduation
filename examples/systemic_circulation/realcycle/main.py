@@ -28,7 +28,7 @@ DIR_RELOAD = None  # Directory with output files of the model to reload.
 TIME_RELOAD = None  # The time (in ms) of the timestep to reload. Set to -1 for reloading the latest available timestep.
 
 # Set if Infarction should be included
-INFARCT = True
+INFARCT = False
 
 # Use the following option if you want to load a set of inputs and start a new simulation using those inputs.
 # By specifying a path to an inputs.csv file, you can load the inputs from the file
@@ -44,7 +44,7 @@ SET_MESH_RESOLUTION = 30.0
 # By specifying a path to an .hdf5 file, you can load the mesh from the file
 # instead of the reference mesh. If you do not want to load an alternative mesh from a
 # file, but just use the reference lv mesh, set the below path to None.
-LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION))
+LOAD_ALTERNATIVE_MESH = None # 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION))
 # LOAD_ALTERNATIVE_MESH = 'mesh_leftventricle_30.hdf5'
 #doofus code here
 # Specify output directory.
@@ -52,7 +52,7 @@ LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RE
 now = datetime.datetime.now()
 
 # DIR_OUT = 'output/{}_fiber_reorientation_meshres_{}'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
-DIR_OUT = 'output/{}_infarct_no_border_meshres_30'.format(now.strftime("%d-%m_%H-%M"))
+DIR_OUT = 'output/{}_no_fiber_reor_30'.format(now.strftime("%d-%m_%H-%M"))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:

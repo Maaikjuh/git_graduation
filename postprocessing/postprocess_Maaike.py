@@ -5,7 +5,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
-import plotly.graph_objects as go
+# import plotly.graph_objects as go
 import pandas as pd
 from dataset import Dataset
 

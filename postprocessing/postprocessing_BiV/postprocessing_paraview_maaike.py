@@ -139,13 +139,13 @@ class postprocess_paraview_new(object):
         par['infarct'] = False
         par['cut_off_low'] = -3.
         par['cut_off_high'] = -2.5
-        par['slice_thickness'] = .5
+        par['slice_thickness'] = .05
         par['theta'] = 7/10*math.pi
         par['AM_phi'] = 1/5*math.pi
         par['A_phi'] = 1/2*math.pi
         par['AL_phi'] = 4/5*math.pi
-        par['inner_e']= 0.934819
-        par['outer_e']= 0.807075
+        par['inner_e']= 0.3713
+        par['outer_e']= 0.6784
         par['focus']= 4.3
         par['ls0'] = 1.9
         par['name'] = ''
@@ -259,145 +259,238 @@ class postprocess_paraview_new(object):
             data.append(file_data)
         
         return np.dstack(data)
-
-   
-        
-    def extract_AM_idx(self):
-        #TODO ellipsoidal to cartesian
-        # Extract points AM
+    
+    def extract_wall_idx(self, phi_val= ''):
+        #select single point on epi, mid and endowall respectively
         h = self.column_headers
         data = self.all_data[:, :, 0]
-        # x = data[:, h[':0']]
-        # y = data[:, h[':1']]
-        # z = data[:, h[':2']]
-        # # mask_cut_off_low = data[:, h[':2']] >= self.parameters['cut_off_low']
-        # mask_cut_off_high = data[:, h[':2']] <= self.parameters['cut_off_high']
+
+        #check on which side (x-z or y-z) of the heart the points are located
+        #assumes that if A_phi ==0 on the y-z plane (with positive x) and otherwhise on the x-z plane (with positive y)
         if self.parameters['A_phi'] == 0:
             mask_cut_off_right = data[:, h[':0']] >= 0.
         else:
             mask_cut_off_right = data[:, h[':1']] >= 0.
-        
-        x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], self.parameters['AM_phi'])
-        
-        # pt1 = np.array([0,0,0])
-        # pt2 = np.array([px,py,pz])
-        # vec = np.subtract(pt2,pt1)
-        # contst =  self.parameters['slice_thickness']/2 * np.linalg.norm(vec)
-        
-        
-        # x1=[tel-pt1[0] for tel in x]
-        # y1=[tel-pt1[1] for tel in y]
-        # z1=[tel-pt1[2] for tel in z]
-        
-        # x2=[tel-pt2[0] for tel in x]
-        # y2=[tel-pt2[1] for tel in y]
-        # z2=[tel-pt2[2] for tel in z]
-        
-        
-        # points1 = np.array([x1,y1,z1])
-        # points2 = np.array([x2,y2,z2])
-        # mask_1 = np.dot(points1[:,0],vec)
-        # mask_2 = np.dot(points2[:,0],vec)
-        # mask_3 = np.linalg.norm(np.cross(points1[:,0], vec))
-        # for i in range(1,len(data)):
-        #     mask_1=np.append(mask_1,np.dot(points1[:,i],vec))
-        #     mask_2=np.append(mask_2,np.dot(points2[:,i],vec))
-        #     mask_3=np.append(mask_3,np.linalg.norm(np.cross(points1[:,i], vec)))
-        
-        # # mask_1 = [np.dot(tel,vec) for i in range(0,len(data)) for tel in points1[:,i]]
-
-        # # mask_1 = np.dot(points1, vec) >=0
-        # mask_1 = mask_1>=0
-        # mask_2 = mask_2>=0
-        # mask_3 = mask_3<=contst
-        # mask_tot = mask_1*mask_2*mask_3
-        # # mask_2 = np.dot(np.array([x,y,z])-pt2, vec) <=0
-        # # mask_3 = np.linalg.norm(np.cross(np.array([x,y,z])-pt1, vec)) <= contst
-        
-        x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],self.parameters['theta'], self.parameters['AM_phi'])
-
-
-
-        
-        
-        mask_cut_off_low = data[:, h[':2']] >= z - self.parameters['slice_thickness']/2
-        mask_cut_off_high = data[:, h[':2']] <= z + self.parameters['slice_thickness']/2
-        mask_cut_off_line_left = data[:, h[':1']] >= (x-x2)/(y-y2)*data[:, h[':0']] -  self.parameters['slice_thickness']/2 
-        mask_cut_off_line_right = data[:, h[':1']] <= (x-x2)/(y-y2)*data[:, h[':0']] +  self.parameters['slice_thickness']/2 
-        # mask_cut_off_line_high = data[:, h[':2']] <= z* abs(1-(y + x/y*data[:, h[':0']]))+  self.parameters['slice_thickness']/2 
-        # mask_cut_off_line_low = data[:, h[':2']] <= z* abs(1-(y + x/y*data[:, h[':0']]))-  self.parameters['slice_thickness']/2 
-
-
-        # # mask_tot = mask_cut_off_line_low*mask_cut_off_line_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
-        
-        # mask_tot = mask_1 * mask_2 * mask_3 * mask_cut_off_right
+            
+        #check if infarct is included and create mask such that points AM and AL are not located within the infarct
         if self.parameters['infarct'] == True:
-            data_T0 = self.all_data[:, h['f_137'], 0]
+            if 'T0' in h:
+                T0 = 'T0'
+            elif 'f_135' in h:
+                T0 = 'f_135'
+            elif 'f_137' in h:
+                T0 = 'f_137'
+            data_T0 = self.all_data[:, h[T0], 0]
             mask_T0 = data_T0 >= 90
-            mask_tot = mask_T0*mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
-        else:
-            mask_tot =mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
+        
+        #get coordinates on the outer and inner wall for phi
+        x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], self.parameters[phi_val])
+        x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],self.parameters['theta'], self.parameters[phi_val])
 
-        return np.where(mask_tot)[0]  
-        # return (np.array([2469,2345,3805]))
+        mask = {}
+        mask_tot = {}
+        coordname = ['x','y','z']
+        loc = ['epi','mid','endo']
+        mask_tot_loc = [False]
+        for wall in loc:
+            #creates masks for x, y and z for each point on the wall
+            #points must be within the the slice thickness boundary
+            #if no point within the boundary can be found, the slice thickness is increased
+            #until there is/are a point(s) that is within the boundary in the x, y and z direction
+            mask_tot_loc = [False]
+            slice_thickness =  self.parameters['slice_thickness']/2 
+            if wall == 'epi':
+                coord = [x,y,z]
+            elif wall == 'mid':
+                coord = [(x+x2)/2,(y+y2)/2,(z+z2)/2]
+            elif wall == 'endo':
+                coord = [x2,y2,z2]
+                
+            while True not in mask_tot_loc:            
+                for i in range(0,3):
+                    #create mask in the x, y and z direction for a point on the wall
+                    mask["mask_1_" + wall + str(coordname[i])] =  data[:, h[':'+str(i)]] >= coord[i] - slice_thickness 
+                    mask["mask_2_" + wall + str(coordname[i])] =  data[:, h[':'+str(i)]] <= coord[i] + slice_thickness
+                
+                #create total mask to check if there is/are a point(s) that lies in all boundaries in all the directions
+                mask_tot_loc_1 = mask["mask_1_" + wall + 'x'] * mask["mask_1_" + wall + 'y'] * mask["mask_1_" + wall + 'z']
+                mask_tot_loc_2 = mask["mask_2_" + wall + 'x'] * mask["mask_2_" + wall + 'y'] * mask["mask_2_" + wall + 'z']
+                if self.parameters['infarct'] == True and phi_val != 'A_phi':
+                    mask_tot_loc = mask_tot_loc_1 * mask_tot_loc_2 * mask_T0
+                else:
+                    mask_tot_loc = mask_tot_loc_1 * mask_tot_loc_2
+                    
+                #increase boundary width
+                slice_thickness = slice_thickness + 0.01
+                
+            mask_tot['mask_tot_' + wall] = mask_tot_loc  
+            
+        #only return one point per wall location (epi, mid or endo)
+        return (np.array([np.where(mask_tot['mask_tot_epi'])[0][0],np.where(mask_tot['mask_tot_mid'])[0][0],np.where(mask_tot['mask_tot_endo'])[0][0]]))
+        
+    def extract_AM_idx(self):
+        return self.extract_wall_idx(phi_val = 'AM_phi')
+        # Extract points AM
+        # h = self.column_headers
+        # data = self.all_data[:, :, 0]
+        # # x = data[:, h[':0']]
+        # # y = data[:, h[':1']]
+        # # z = data[:, h[':2']]
+        # # # mask_cut_off_low = data[:, h[':2']] >= self.parameters['cut_off_low']
+        # # mask_cut_off_high = data[:, h[':2']] <= self.parameters['cut_off_high']
+        # if self.parameters['A_phi'] == 0:
+        #     mask_cut_off_right = data[:, h[':0']] >= 0.
+        # else:
+        #     mask_cut_off_right = data[:, h[':1']] >= 0.
+        
+        # #cylinder method
+        
+        # # pt1 = np.array([0,0,0])
+        # # pt2 = np.array([px,py,pz])
+        # # vec = np.subtract(pt2,pt1)
+        # # contst =  self.parameters['slice_thickness']/2 * np.linalg.norm(vec)
+        
+        
+        # # x1=[tel-pt1[0] for tel in x]
+        # # y1=[tel-pt1[1] for tel in y]
+        # # z1=[tel-pt1[2] for tel in z]
+        
+        # # x2=[tel-pt2[0] for tel in x]
+        # # y2=[tel-pt2[1] for tel in y]
+        # # z2=[tel-pt2[2] for tel in z]
+        
+        
+        # # points1 = np.array([x1,y1,z1])
+        # # points2 = np.array([x2,y2,z2])
+        # # mask_1 = np.dot(points1[:,0],vec)
+        # # mask_2 = np.dot(points2[:,0],vec)
+        # # mask_3 = np.linalg.norm(np.cross(points1[:,0], vec))
+        # # for i in range(1,len(data)):
+        # #     mask_1=np.append(mask_1,np.dot(points1[:,i],vec))
+        # #     mask_2=np.append(mask_2,np.dot(points2[:,i],vec))
+        # #     mask_3=np.append(mask_3,np.linalg.norm(np.cross(points1[:,i], vec)))
+        
+        # # # mask_1 = [np.dot(tel,vec) for i in range(0,len(data)) for tel in points1[:,i]]
+
+        # # # mask_1 = np.dot(points1, vec) >=0
+        # # mask_1 = mask_1>=0
+        # # mask_2 = mask_2>=0
+        # # mask_3 = mask_3<=contst
+        # # mask_tot = mask_1*mask_2*mask_3
+        # # # mask_2 = np.dot(np.array([x,y,z])-pt2, vec) <=0
+        # # # mask_3 = np.linalg.norm(np.cross(np.array([x,y,z])-pt1, vec)) <= contst
+        
+        # if self.parameters['infarct'] == True:
+        #     if 'T0' in h:
+        #         T0 = 'T0'
+        #     elif 'f_135' in h:
+        #         T0 = 'f_135'
+        #     elif 'f_137' in h:
+        #         T0 = 'f_137'
+        #     data_T0 = self.all_data[:, h[T0], 0]
+        #     mask_T0 = data_T0 >= 90
+    
+        
+        # line method
+    
+        # mask_cut_off_low = data[:, h[':2']] >= z - self.parameters['slice_thickness']/2
+        # mask_cut_off_high = data[:, h[':2']] <= z + self.parameters['slice_thickness']/2
+        # mask_cut_off_line_left = data[:, h[':1']] >= (x-x2)/(y-y2)*data[:, h[':0']] -  self.parameters['slice_thickness']/2 
+        # mask_cut_off_line_right = data[:, h[':1']] <= (x-x2)/(y-y2)*data[:, h[':0']] +  self.parameters['slice_thickness']/2 
+        # # mask_cut_off_line_high = data[:, h[':2']] <= z* abs(1-(y + x/y*data[:, h[':0']]))+  self.parameters['slice_thickness']/2 
+        # # mask_cut_off_line_low = data[:, h[':2']] <= z* abs(1-(y + x/y*data[:, h[':0']]))-  self.parameters['slice_thickness']/2 
+
+
+        # # # mask_tot = mask_cut_off_line_low*mask_cut_off_line_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
+        
+        # # mask_tot = mask_1 * mask_2 * mask_3 * mask_cut_off_right
+        # if self.parameters['infarct'] == True:
+        #     if 'T0' in h:
+        #         T0 = 'T0'
+        #     elif 'f_135' in h:
+        #         T0 = 'f_135'
+        #     elif 'f_137' in h:
+        #         T0 = 'f_137'
+        #     data_T0 = self.all_data[:, h[T0], 0]
+        #     mask_T0 = data_T0 >= 90
+        #     mask_tot = mask_T0*mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
+        # else:
+        #     mask_tot =mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
+
+        # return np.where(mask_tot)[0]  
+        # # return (np.array([2469,2345,3805]))
 
     def extract_A_idx(self):
         # Extract points A
-        h = self.column_headers
-        data = self.all_data[:, :, 0]
-        x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], self.parameters['A_phi'])
+        # h = self.column_headers
+        # data = self.all_data[:, :, 0]
+        # x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], self.parameters['A_phi'])
 
-        mask_cut_off_low = data[:, h[':2']] >= z - self.parameters['slice_thickness']/2
-        mask_cut_off_high = data[:, h[':2']] <= z + self.parameters['slice_thickness']/2
-        if self.parameters['A_phi'] == 0.:
-            mask_cut_off_right = data[:, h[':0']] >= 0.
-            mask_cut_off_slice = abs(data[:, h[':1']]) <= self.parameters['slice_thickness']/2
-        else:
-            mask_cut_off_right = data[:, h[':1']] >= 0.
-            mask_cut_off_slice = abs(data[:, h[':0']]) <= self.parameters['slice_thickness']/2        
-        # mask_cut_off_line_left = data[:, h[':1']] >= x/y*data[:, h[':0']] -  self.parameters['slice_thickness']/2 
-        # mask_cut_off_line_right = data[:, h[':1']] <= x/y*data[:, h[':0']] +  self.parameters['slice_thickness']/2 
-        # mask_tot = mask_cut_off_low*mask_cut_off_high*mask_cut_off_right*mask_cut_off_line_left*mask_cut_off_line_right
-        mask_tot = mask_cut_off_low*mask_cut_off_high*mask_cut_off_right*mask_cut_off_slice
-        return np.where(mask_tot)[0]  
+        # mask_cut_off_low = data[:, h[':2']] >= z - self.parameters['slice_thickness']/2
+        # mask_cut_off_high = data[:, h[':2']] <= z + self.parameters['slice_thickness']/2
+        # if self.parameters['A_phi'] == 0.:
+        #     mask_cut_off_right = data[:, h[':0']] >= 0.
+        #     mask_cut_off_slice = abs(data[:, h[':1']]) <= self.parameters['slice_thickness']/2
+        # else:
+        #     mask_cut_off_right = data[:, h[':1']] >= 0.
+        #     mask_cut_off_slice = abs(data[:, h[':0']]) <= self.parameters['slice_thickness']/2        
+        # # mask_cut_off_line_left = data[:, h[':1']] >= x/y*data[:, h[':0']] -  self.parameters['slice_thickness']/2 
+        # # mask_cut_off_line_right = data[:, h[':1']] <= x/y*data[:, h[':0']] +  self.parameters['slice_thickness']/2 
+        # # mask_tot = mask_cut_off_low*mask_cut_off_high*mask_cut_off_right*mask_cut_off_line_left*mask_cut_off_line_right
+        # mask_tot = mask_cut_off_low*mask_cut_off_high*mask_cut_off_right*mask_cut_off_slice
+        # return np.where(mask_tot)[0]  
+        return self.extract_wall_idx(phi_val = 'A_phi')
         # return (np.array([2006,3950,3875]))
     
     def extract_AL_idx(self):
         # Extract points AL
-        h = self.column_headers
-        data = self.all_data[:, :, 0]
-        # mask_cut_off_low = data[:, h[':2']] >= self.parameters['cut_off_low']
-        # mask_cut_off_high = data[:, h[':2']] <= self.parameters['cut_off_high']
-        if self.parameters['A_phi'] == 0.:
-            mask_cut_off_right = data[:, h[':0']] >= 0.
-        else:
-            mask_cut_off_right = data[:, h[':1']] >= 0.
+        # h = self.column_headers
+        # data = self.all_data[:, :, 0]
+        # # mask_cut_off_low = data[:, h[':2']] >= self.parameters['cut_off_low']
+        # # mask_cut_off_high = data[:, h[':2']] <= self.parameters['cut_off_high']
+        # if self.parameters['A_phi'] == 0.:
+        #     mask_cut_off_right = data[:, h[':0']] >= 0.
+        # else:
+        #     mask_cut_off_right = data[:, h[':1']] >= 0.
         
-        x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], self.parameters['AL_phi'])
-        x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],self.parameters['theta'], self.parameters['AL_phi'])
+        # x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], self.parameters['AL_phi'])
+        # x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],self.parameters['theta'], self.parameters['AL_phi'])
 
         
-        mask_cut_off_low = data[:, h[':2']] >= z - self.parameters['slice_thickness']/2
-        mask_cut_off_high = data[:, h[':2']] <= z + self.parameters['slice_thickness']/2
-        mask_cut_off_line_left = data[:, h[':1']] >= (x-x2)/(y-y2)*data[:, h[':0']] -  self.parameters['slice_thickness']/2 
-        mask_cut_off_line_right = data[:, h[':1']] <= (x-x2)/(y-y2)*data[:, h[':0']] +  self.parameters['slice_thickness']/2 
-        # mask_cut_off_line_left = 1.73/2.37*data[:, h[':0']] -  self.parameters['slice_thickness']/2 <=data[:, h[':1']]
-        # mask_cut_off_line_right = 1.73/2.37*data[:, h[':0']] +  self.parameters['slice_thickness']/2 >=data[:, h[':1']]
+        # mask_cut_off_low = data[:, h[':2']] >= z - self.parameters['slice_thickness']/2
+        # mask_cut_off_high = data[:, h[':2']] <= z + self.parameters['slice_thickness']/2
+        # mask_cut_off_line_left = data[:, h[':1']] >= (x-x2)/(y-y2)*data[:, h[':0']] -  self.parameters['slice_thickness']/2 
+        # mask_cut_off_line_right = data[:, h[':1']] <= (x-x2)/(y-y2)*data[:, h[':0']] +  self.parameters['slice_thickness']/2 
+        # # mask_cut_off_line_left = 1.73/2.37*data[:, h[':0']] -  self.parameters['slice_thickness']/2 <=data[:, h[':1']]
+        # # mask_cut_off_line_right = 1.73/2.37*data[:, h[':0']] +  self.parameters['slice_thickness']/2 >=data[:, h[':1']]
 
        
-        if self.parameters['infarct'] == True:
-            data_T0 = self.all_data[:, h['f_137'], 0]
-            mask_T0 = data_T0 >= 90
-            mask_tot = mask_T0*mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
-        else:
-            mask_tot =mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
+        # if self.parameters['infarct'] == True:
+        #     if 'T0' in h:
+        #         T0 = 'T0'
+        #     elif 'f_135' in h:
+        #         T0 = 'f_135'
+        #     elif 'f_137' in h:
+        #         T0 = 'f_137'
+        #     data_T0 = self.all_data[:, h[T0], 0]
+        #     mask_T0 = data_T0 >= 90
+        #     mask_tot = mask_T0*mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
+        # else:
+        #     mask_tot =mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
         
-        return np.where(mask_tot)[0]
+        # return np.where(mask_tot)[0]
+        return self.extract_wall_idx(phi_val = 'AL_phi')
         # return (np.array([427,1417,1848]))
     
     def extract_T0_idx(self):
         h = self.column_headers
-        data_T0 = self.all_data[:, h['f_137'], 0]
+        if 'T0' in h:
+            T0 = 'T0'
+        elif 'f_135' in h:
+            T0 = 'f_135'
+        elif 'f_137' in h:
+            T0 = 'f_137'
+        data_T0 = self.all_data[:, h[T0], 0]
         return np.where(data_T0 <= 90)
         
     
@@ -465,8 +558,8 @@ class postprocess_paraview_new(object):
                 # Extract time array.
         results = self.results
         time = results['t_cycle']
-        t0 = min(time)
-        tend = max(time)
+        t0 = np.amin(time)
+        tend = np.amax(time)
         
         for ii, idx in enumerate(regions):
             plt.subplot(1, len(regions), ii+1)
@@ -483,15 +576,31 @@ class postprocess_paraview_new(object):
             plt.axis([t0, tend, 0, 80])
             
                
-            # Mark the beginning of each phase   
+            # Mark the beginning of each phase
+            phaselabel = ['d','ic','e','ir']
             if phase == True:
-                for i in range(2,5):
+                for i in range(1,5):
                     if 'phase_s' in results.keys():
                         index = (results['phase_s'] == i).idxmax()
                     else: 
                         index = (results['phase'] == i).idxmax()
                     phase_time = results['t_cycle'][index]
-                    plt.plot([phase_time, phase_time], [0, 80],'--k')
+                    plt.plot([phase_time, phase_time], [0, 80],'C7')
+                    
+                    #plot phase labels
+                    if i != 4:
+                        #get the begin time of the next phase
+                        if 'phase_s' in results.keys():
+                            next_index = (results['phase_s'] == i+1).idxmax()
+                        else: 
+                            next_index = (results['phase'] == i+1).idxmax()
+                        next_phase = results['t_cycle'][next_index]
+                        #plot label between the two phases
+                        plt.text((phase_time+next_phase)/2, 70, phaselabel[i-1],fontsize=13,horizontalalignment='center')
+                    elif i == 4:
+                        #plot the label of the last phase
+                        plt.text((phase_time+max(time))/2, 70, phaselabel[i-1],fontsize=13,horizontalalignment='center')
+      
 
         
     def plot_stress_ls_l0(self, *args, fig=None, fontsize=12, 
@@ -530,9 +639,7 @@ class postprocess_paraview_new(object):
             mean_lsl0 = np.mean(lsl0, axis=0)[:]
             mean_stress = np.mean(stress, axis=0)[:]       
             
-            av_stress = (self.all_data[idx[0], h['active_stress'], :]+self.all_data[idx[1], h['active_stress'], :]+self.all_data[idx[2], h['active_stress'], :])/3
-            # plt.plot(mean_lsl0, mean_stress, *args, **kwargs)
-            plt.plot(mean_lsl0,av_stress, *args, **kwargs)
+            plt.plot(mean_lsl0, mean_stress, *args, **kwargs)
 
             plt.xlabel('ls/ls0', fontsize=fontsize)
             plt.ylabel('Ta [kPa]', fontsize=fontsize)
@@ -591,15 +698,15 @@ class postprocess_paraview_new(object):
             plt.plot(mean_strain, mean_stress, *args, **kwargs)
             
                
-            # Mark the beginning of each phase   
-            if phase == True:
-                for i in range(2,5):
-                    if 'phase_s' in results.keys():
-                        index = (results['phase_s'] == i).idxmax()
-                    else: 
-                        index = (results['phase'] == i).idxmax()
-                    phase_time = results['t_cycle'][index]
-                    plt.plot([phase_time, phase_time], [np.amin(self.all_data[idx, h['ls_old'], :]), np.amax(self.all_data[idx, h['ls_old'], :])],'--k')
+            # # Mark the beginning of each phase   
+            # if phase == True:
+            #     for i in range(2,5):
+            #         if 'phase_s' in results.keys():
+            #             index = (results['phase_s'] == i).idxmax()
+            #         else: 
+            #             index = (results['phase'] == i).idxmax()
+            #         phase_time = results['t_cycle'][index]
+            #         plt.plot([phase_time, phase_time], [np.amin(self.all_data[idx, h['ls_old'], :]), np.amax(self.all_data[idx, h['ls_old'], :])],'--k')
 
 
             plt.xlabel('Natural myofiber strain $\epsilon_f$ [-]', fontsize=fontsize)
@@ -675,15 +782,34 @@ class postprocess_paraview_new(object):
                 # make these tick labels invisible
                 plt.setp(ax.get_yticklabels(), visible=False)
                 
-            # Mark the beginning of each phase   
+            # Mark the beginning of each phase
+            phaselabel = ['d','ic','e','ir']
             if phase == True:
-                for i in range(2,5):
+                for i in range(1,5):
+                    #get begin time of the phase
                     if 'phase_s' in results.keys():
                         index = (results['phase_s'] == i).idxmax()
                     else: 
                         index = (results['phase'] == i).idxmax()
+                    
                     phase_time = results['t_cycle'][index]
-                    plt.plot([phase_time, phase_time], [1.8, 2.6],'--k')
+                    plt.plot([phase_time, phase_time], [1.8, 2.6],'C7')
+                
+                    #plot phase labels
+                    if i != 4:
+                        #get the begin time of the next phase
+                        if 'phase_s' in results.keys():
+                            next_index = (results['phase_s'] == i+1).idxmax()
+                        else: 
+                            next_index = (results['phase'] == i+1).idxmax()
+                        next_phase = results['t_cycle'][next_index]
+                        #plot label between the two phases
+                        plt.text((phase_time+next_phase)/2, 2.5, phaselabel[i-1],fontsize=13,horizontalalignment='center')
+                    elif i == 4:
+                        #plot the label of the last phase
+                        plt.text((phase_time+max(time))/2, 2.5, phaselabel[i-1],fontsize=13,horizontalalignment='center')
+                    
+                    
             plt.axis([min(time),max(time),1.8, 2.6])    
             plt.tick_params(labelsize=fontsize-2)
             plt.grid('on')
