@@ -18,22 +18,30 @@ import math
 # directory_1 = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\Biventricular model\default\cycle_5_stress_free_ref\paraview_data'
 # directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/Biventricular model/08-04_15-16_save_coord_test/cycle_5_stress_free_ref/Paraview_data'
 
-directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/24-03_14-07_infarct_xi_10/cycle_2_stress_free_ref\paraview_data'
-directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/31-03_16-15_infarct_droplet_tao_20_meshres_30/cycle_2_stress_free_ref/Paraview_data'
+# directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/24-03_14-07_infarct_xi_10/cycle_2_stress_free_ref\paraview_data'
+# directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/31-03_16-15_infarct_droplet_tao_20_meshres_30/cycle_2_stress_free_ref/Paraview_data'
+
+# directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/31-03_16-15_infarct_droplet_tao_20_meshres_30/cycle_2_stress_free_ref/Paraview_data'
+# directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/20-04_10-22_infarct_no_border_meshres_30/paraview_data'
+
+directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/24-03_14-07_infarct_xi_10/cycle_2_stress_free_ref\paraview_data'
+directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/20-04_10-22_infarct_no_border_meshres_30/paraview_data'
 
 # Specify corresponding labels for the two directories above.
-dir_labels = ['init', 'adap']
+dir_labels = ['normal', 'new']
 
-inputs1 = {'slice_thickness': 0.5,  # Specify the thickness of the cube (thick longitudinal slice) with to be included nodes [cm].
+inputs1 = {  # Specify the thickness of the cube (thick longitudinal slice) with to be included nodes [cm].
           'load_pickle_file': True,
-          'A_phi': 1/2*math.pi} # Reload the data from a temporary pickle file if available for fatser loading.
+          'A_phi': 1/2*math.pi, 
+          'AM_phi': 1/4*math.pi,
+          'AL_phi': 3/4*math.pi} 
  
 
-inputs2 = {'slice_thickness': 0.5,  # Specify the thickness of the cube (thick longitudinal slice) with to be included nodes [cm].
+inputs2 = { # Specify the thickness of the cube (thick longitudinal slice) with to be included nodes [cm].
           'load_pickle_file': True, # Reload the data from a temporary pickle file if available for fatser loading.
           'infarct': True,
           'AM_phi': -1/4*math.pi,
-          'A_phi': 1/2*math.pi,
+          'A_phi': 0.,
           'AL_phi': 1/4*math.pi} 
 
 
@@ -46,12 +54,13 @@ linewidth = 2
 # common_dir = common_start(directory_1, directory_2)
 
 post_1 = postprocess_paraview_new(directory_1, name='init', **inputs1)
-post_2 = postprocess_paraview_new(directory_2, name='adap', **inputs2)
+post_2 = postprocess_paraview_new(directory_2, name='adap', cycle=2,**inputs2)
 
+post_1.show_regions_new(projection = '2d', fontsize=fontsize, skip=None)
 post_2.show_regions_new(projection = '2d', fontsize=fontsize, skip=None)
 
 fig_ts = plt.figure(figsize=(22, 5), dpi=100)
-post_1.plot_time_stress('--',fig=fig_ts,label=dir_labels[0],phase = False)
+post_1.plot_time_stress('--',fig=fig_ts,phase = False, label=dir_labels[0])
 post_2.plot_time_stress(fig=fig_ts,label=dir_labels[1])
 
 # plt.savefig(os.path.join(directory_1, 'selected_regions.png'),  dpi=300, bbox_inches="tight")
@@ -66,7 +75,7 @@ plt.legend(frameon=False, fontsize=fontsize)
 # plt.savefig(os.path.join(directory_1, 'stress_strain_loops.png'),  dpi=300, bbox_inches="tight")
 
 fig_tls = plt.figure(figsize=(22, 5), dpi=100)
-post_1.plot_time_strain_ls('--', fig=fig_tls, reference='stress_free',var ='ls',label=dir_labels[0],phase = False)
+post_1.plot_time_strain_ls('--', fig=fig_tls, reference='stress_free',var ='ls',phase = False, label=dir_labels[0])
 post_2.plot_time_strain_ls(fig=fig_tls, reference='stress_free',var ='ls',label=dir_labels[1])
 
 
