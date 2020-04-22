@@ -66,6 +66,9 @@ def compute_coordinate_expression(degree,element,var,focus):
 
 def save_to_xdmf(T0,dir_out,var):
     save = True
+
+    #check if T0 mesh is already saved
+    #otherwise it will be saved again by postprocessing
     if MPI.rank(mpi_comm_world()) == 0:
         if not os.path.exists(dir_out):
             print_once("T0 mesh not saved")
