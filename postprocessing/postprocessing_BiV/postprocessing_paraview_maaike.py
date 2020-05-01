@@ -20,10 +20,13 @@ import pickle
 import random
 import csv
 import math
+import warnings
+
+warnings.filterwarnings("ignore")
 
 from mpl_toolkits.mplot3d import Axes3D
 
-plt.close('all')
+# plt.close('all')
 
 def kPa_to_mmHg(p_kPa):
     """
@@ -132,6 +135,11 @@ class postprocess_paraview_new(object):
         
         self.column_headers = self.read_column_headers()
         
+        if 'T0' in self.column_headers:
+            if 'infarct' not in kwargs:
+                up_inf = {'infarct': True}
+                self._parameters.update(up_inf)
+        
     @staticmethod
     def default_parameters():
         #Todo change
@@ -144,6 +152,7 @@ class postprocess_paraview_new(object):
         par['AM_phi'] = 1/5*math.pi
         par['A_phi'] = 1/2*math.pi
         par['AL_phi'] = 4/5*math.pi
+        par['P_phi'] = par['A_phi'] + math.pi
         par['inner_e']= 0.3713
         par['outer_e']= 0.6784
         par['focus']= 4.3
@@ -177,6 +186,21 @@ class postprocess_paraview_new(object):
         ls0 = self.parameters['ls0']
         stretch_ratio = ls/ls0
         return np.log(stretch_ratio)
+    
+    def compute_wall_thickness(self, height):
+        h = self.column_headers
+        P_epi_idx = self.extract_P_idx()[0]
+        P_endo_idx = self.extract_P_idx()[-1]
+        
+        P_epi_x = self.all_data[P_epi_idx, h['displacement:0'], :] + self.all_data[P_epi_idx, h[':0'], 0]
+        P_epi_y = self.all_data[P_epi_idx, h['displacement:1'], :] + self.all_data[P_epi_idx, h[':1'], 0]
+        
+        AM_epi_idx = self.extract_AM_idx()[0]
+        AM_endo_idx = self.extract_AM_idx()[-1]
+        
+        AM_epi_idx = self.extract_AM_idx()[0]
+        AM_endo_idx = self.extract_AM_idx()[-1]
+        
         
     @property
     def idx_ls0(self):
@@ -265,12 +289,14 @@ class postprocess_paraview_new(object):
         h = self.column_headers
         data = self.all_data[:, :, 0]
 
-        #check on which side (x-z or y-z) of the heart the points are located
-        #assumes that if A_phi ==0 on the y-z plane (with positive x) and otherwhise on the x-z plane (with positive y)
-        if self.parameters['A_phi'] == 0:
-            mask_cut_off_right = data[:, h[':0']] >= 0.
-        else:
-            mask_cut_off_right = data[:, h[':1']] >= 0.
+        # #check on which side (x-z or y-z) of the heart the points are located
+        # #assumes that if A_phi ==0 on the y-z plane (with positive x) and otherwhise on the x-z plane (with positive y)
+        # if self.parameters['A_phi'] == 0:
+        #     mask_cut_off_right = data[:, h[':0']] >= 0.
+        #     mask_cut_off_right_P = data[:, h[':0']] <= 0.
+        # else:
+        #     mask_cut_off_right = data[:, h[':1']] >= 0.
+        #     mask_cut_off_right_P = data[:, h[':1']] <= 0.
             
         #check if infarct is included and create mask such that points AM and AL are not located within the infarct
         if self.parameters['infarct'] == True:
@@ -482,6 +508,10 @@ class postprocess_paraview_new(object):
         return self.extract_wall_idx(phi_val = 'AL_phi')
         # return (np.array([427,1417,1848]))
     
+    def extract_P_idx(self):
+        self.parameters['P_phi'] = self.parameters['A_phi'] + math.pi
+        return self.extract_wall_idx(phi_val = 'P_phi')
+    
     def extract_T0_idx(self):
         h = self.column_headers
         if 'T0' in h:
@@ -541,6 +571,130 @@ class postprocess_paraview_new(object):
         plt.axis([40, 140, 0, 120])
         plt.title('Pressure-volume loops', fontsize=fontsize+2)
         
+    def Ta_ls_loop(self,*args, fig = None, fontsize = 12, phase = True,  **kwargs):
+        if fig is None:
+            # Create new figure.
+            fig = plt.figure()
+        
+        # Make fig current.
+        plt.figure(fig.number)
+        
+        regions = [self.extract_P_idx(),
+                   self.extract_AM_idx(), 
+                   self.extract_A_idx(), 
+                   self.extract_AL_idx()]
+        region_labels = ['P','AM', 'A', 'AL']
+        
+        h = self.column_headers
+        
+        results = self.results
+        
+        time = results['t_cycle']
+        t0 = np.amin(time)
+        tend = np.amax(time)
+        
+        ls0 = self.parameters['ls0']
+        
+        for ii, idx in enumerate(regions):
+            # ax1 = plt.subplot(3, len(regions), ii+1)
+            plt.subplot(3, len(regions), ii+1)
+            stress = self.all_data[idx, h['active_stress'], :]
+            mean_stress = np.mean(stress, axis=0)[:]
+            
+            if len(time) != len(stress[0]):
+                if len(time)>len(stress[0]):
+                    print('time and stress array not of same length, shortening time array...')
+                    time = time[0:len(stress[0])]
+                
+            
+            # plt.plot(time, mean_stress, *args, **kwargs)
+            plt.plot(time, mean_stress, *args, **kwargs)
+            
+            plt.xlabel('time [ms]', fontsize=fontsize)
+            if ii == 0:
+                plt.ylabel('Ta [kPa]', fontsize=fontsize)
+            
+            plt.tick_params(labelsize=fontsize-2)
+            plt.grid('on')
+            plt.title(region_labels[ii], fontsize=fontsize+2) 
+            plt.axis([t0, tend, 0, 60])
+            
+            # Mark the beginning of each phase
+            phaselabel = ['d','ic','e','ir']
+            if phase == True:
+                for i in range(1,5):
+                    if 'phase_s' in results.keys():
+                        index = (results['phase_s'] == i).idxmax()
+                    else: 
+                        index = (results['phase'] == i).idxmax()
+                    phase_time = results['t_cycle'][index]
+                    plt.plot([phase_time, phase_time], [0, 80],'C7')
+                    # axs[1][ii].plot([phase_time, phase_time], [0, 80],'C7')
+                    
+                    #plot phase labels
+                    if i != 4:
+                        #get the begin time of the next phase
+                        if 'phase_s' in results.keys():
+                            next_index = (results['phase_s'] == i+1).idxmax()
+                        else: 
+                            next_index = (results['phase'] == i+1).idxmax()
+                        next_phase = results['t_cycle'][next_index]
+                        #plot label between the two phases
+                        plt.text((phase_time+next_phase)/2, 55, phaselabel[i-1],fontsize=13,horizontalalignment='center')
+                    elif i == 4:
+                        #plot the label of the last phase
+                        plt.text((phase_time+max(time))/2, 55, phaselabel[i-1],fontsize=13,horizontalalignment='center')
+    
+                        
+            ls = self.all_data[idx, h['ls_old'], :]
+            mean_ls = np.mean(ls, axis=0)[:]
+            
+            plt.subplot(3, len(regions),  len(regions)+ii+1)
+            plt.plot(time, mean_ls, *args, **kwargs)
+            
+            plt.xlabel('time [ms]', fontsize=fontsize)
+            if ii == 0:
+                plt.ylabel('ls [um]', fontsize=fontsize)
+            
+            plt.tick_params(labelsize=fontsize-2)
+            plt.axis([min(time),max(time),1.8, 2.6])    
+            plt.tick_params(labelsize=fontsize-2)
+            plt.grid('on')
+            
+            # Mark the beginning of each phase
+            phaselabel = ['d','ic','e','ir']
+            if phase == True:
+                for i in range(1,5):
+                    if 'phase_s' in results.keys():
+                        index = (results['phase_s'] == i).idxmax()
+                    else: 
+                        index = (results['phase'] == i).idxmax()
+                    phase_time = results['t_cycle'][index]
+                    plt.plot([phase_time, phase_time], [0, 80],'C7')
+            
+            lsl0 = ls/ls0
+            
+            # Load stress.
+            stress = self.all_data[idx, h['active_stress'], :]
+            
+            # Compute mean strain and stress. 
+            mean_lsl0 = np.mean(lsl0, axis=0)[:]
+            mean_stress = np.mean(stress, axis=0)[:]       
+            
+            plt.subplot(3, len(regions),  len(regions)*2 +ii+1)
+            plt.plot(mean_lsl0, mean_stress, *args, **kwargs)
+
+            plt.xlabel('ls/ls0', fontsize=fontsize)
+            if ii == 0:
+                plt.ylabel('Ta [kPa]', fontsize=fontsize)
+            
+            plt.tick_params(labelsize=fontsize-2)
+            plt.grid('on')
+            plt.axis([0.9, 1.2, 0., 60.]) 
+            
+        
+        
+        
     def plot_time_stress(self, *args, fig=None, phase = True, fontsize=12,**kwargs):
         if fig is None:
             # Create new figure.
@@ -551,8 +705,9 @@ class postprocess_paraview_new(object):
         
         regions = [self.extract_AM_idx(), 
                    self.extract_A_idx(), 
-                   self.extract_AL_idx()]
-        region_labels = ['AM', 'A', 'AL']
+                   self.extract_AL_idx(),
+                   self.extract_P_idx()]
+        region_labels = ['AM', 'A', 'AL','P']
         
         h = self.column_headers
                 # Extract time array.
@@ -869,7 +1024,7 @@ class postprocess_paraview_new(object):
             ax1 = fig.add_subplot(121)
             ax2 = fig.add_subplot(122)
                         
-        col = [ 'C7','C5', 'C0', 'C1','C2']
+        col = [ 'C7','C5', 'C0', 'C1','C2','C3']
         # col = ['g', 'r', 'c','w']
         if projection == '2d':
             # Only select nodes from slice.
@@ -886,7 +1041,8 @@ class postprocess_paraview_new(object):
                        self.extract_T0_idx(),
                        self.extract_AM_idx(), 
                        self.extract_A_idx(), 
-                       self.extract_AL_idx()]
+                       self.extract_AL_idx(),
+                       self.extract_P_idx()]
             # regions = [region0,
             #            np.array([2469, 4259,3805]),]
             
@@ -894,7 +1050,8 @@ class postprocess_paraview_new(object):
                              'T0',
                             'AM', 
                              'A', 
-                             'AL']
+                             'AL',
+                             'P']
         else:
             regions = [region0,
                        self.extract_AM_idx(), 
