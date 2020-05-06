@@ -32,8 +32,7 @@ class EikonalProblem(object):
 
         # self.dx = Measure('dx', domain = mesh, subdomain_data=surface_tags)
         # self.ds = Measure('ds', domain = mesh, subdomain_data=surface_tags)
-        self.dx = dx
-        self.ds = ds
+
 
 
         td0BC = Constant(0.0)
@@ -52,46 +51,55 @@ class EikonalProblem(object):
         #         mesh.surface_tags)
         # else:
         #     self.dirichlet = None
-        def boundary(x, on_boundary):
-            a = Constant(43)
-            sig = (1/(2*a))*( sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]+a)*(x[2]+a))+ sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]-a)*(x[2]-a)))
-            tau = (1/(2*a))*( sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]+a)*(x[2]+a))- sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]-a)*(x[2]-a)))
-            ksi = float(math.acosh(sig))
-            phi = math.atan(x[1]/x[0])
-            theta = float(math.acos(tau))
-            x0 = 11.1
-            y0 = -11.1
-            z0 = -14
-            x1 = 0.
-            y1 = 16.3
-            z1 = 0
-            x2 = -16.3
-            y2 = 0.
-            z2 = 0
-            x3 = -28.4
-            y3 = 0
-            z3 = -24
-            x4 = 21.5
-            y4 = 0
-            z4 = 25
-            r0 = sqrt((x[0]-x0)*(x[0]-x0)+(x[1]-y0)*(x[1]-y0)+(x[2]-z0)*(x[2]-z0))
-            r1 = sqrt((x[0]-x1)*(x[0]-x1)+(x[1]-y1)*(x[1]-y1)+(x[2]-z1)*(x[2]-z1))
-            r2 = sqrt((x[0]-x2)*(x[0]-x2)+(x[1]-y2)*(x[1]-y2)+(x[2]-z2)*(x[2]-z2))
-            r3 = sqrt((x[0]-x3)*(x[0]-x3)+(x[1]-y3)*(x[1]-y3)+(x[2]-z3)*(x[2]-z3))
-            r4 = sqrt((x[0]-x4)*(x[0]-x4)+(x[1]-y4)*(x[1]-y4)+(x[2]-z4)*(x[2]-z4))
-            ksi_endo = 0.375053614389
-            on_endo = abs(ksi - ksi_endo ) <= 1.e-3
-            ksi_epi = 0.685208
-            on_epi = abs(ksi - ksi_epi ) <=1.e-3
-            r_act = 4
-            within_r0 = r0<= r_act
-            within_r1 = r1<= r_act
-            within_r2 = r2<= r_act
-            within_r3 = r3<= r_act
-            within_r4 = r4<= r_act
-            return ( on_endo and ( within_r0 or within_r1 or within_r2 )) or ( on_epi and within_r3 ) #or within_r4
+        # def boundary(x, on_boundary):
+        #     a = Constant(43)
+        #     sig = (1/(2*a))*( sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]+a)*(x[2]+a))+ sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]-a)*(x[2]-a)))
+        #     tau = (1/(2*a))*( sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]+a)*(x[2]+a))- sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]-a)*(x[2]-a)))
+        #     ksi = float(math.acosh(sig))
+        #     phi = math.atan(x[1]/x[0])
+        #     theta = float(math.acos(tau))
+        #     x0 = 11.1
+        #     y0 = -11.1
+        #     z0 = -14
+        #     x1 = 0.
+        #     y1 = 16.3
+        #     z1 = 0
+        #     x2 = -16.3
+        #     y2 = 0.
+        #     z2 = 0
+        #     x3 = -28.4
+        #     y3 = 0
+        #     z3 = -24
+        #     x4 = 21.5
+        #     y4 = 0
+        #     z4 = 25
+        #     r0 = sqrt((x[0]-x0)*(x[0]-x0)+(x[1]-y0)*(x[1]-y0)+(x[2]-z0)*(x[2]-z0))
+        #     r1 = sqrt((x[0]-x1)*(x[0]-x1)+(x[1]-y1)*(x[1]-y1)+(x[2]-z1)*(x[2]-z1))
+        #     r2 = sqrt((x[0]-x2)*(x[0]-x2)+(x[1]-y2)*(x[1]-y2)+(x[2]-z2)*(x[2]-z2))
+        #     r3 = sqrt((x[0]-x3)*(x[0]-x3)+(x[1]-y3)*(x[1]-y3)+(x[2]-z3)*(x[2]-z3))
+        #     r4 = sqrt((x[0]-x4)*(x[0]-x4)+(x[1]-y4)*(x[1]-y4)+(x[2]-z4)*(x[2]-z4))
+        #     ksi_endo = 0.375053614389
+        #     on_endo = abs(ksi - ksi_endo ) <= 1.e-3
+        #     ksi_epi = 0.685208
+        #     on_epi = abs(ksi - ksi_epi ) <=1.e-3
+        #     r_act = 4
+        #     within_r0 = r0<= r_act
+        #     within_r1 = r1<= r_act
+        #     within_r2 = r2<= r_act
+        #     within_r3 = r3<= r_act
+        #     within_r4 = r4<= r_act
+        #     return ( on_endo and ( within_r0 or within_r1 or within_r2 )) or ( on_epi and within_r3 ) #or within_r4
 
-        self.dirichlet = DirichletBC(V, td0BC , boundary, method ='pointwise')
+        sub_domains = MeshFunction("size_t", mesh,mesh.topology().dim()-1)
+        sub_domains.set_all(0)
+
+        bound_points = boundary()
+        bound_points.mark(sub_domains,1)
+
+        file = File("subdomains.pvd")
+        file << sub_domains
+        self.dirichlet = DirichletBC(V, td0BC , sub_domains, 1, method ='pointwise')
+        # self.dirichlet = DirichletBC(V, td0BC , boundary, method ='pointwise')
 
         self.parameters = self.default_parameters()
         prm = self.parameters
@@ -124,9 +132,9 @@ class EikonalProblem(object):
 
         td00 = TrialFunction(self.V)
         sig = Constant(prm['sig_il']) * self.ef0ef0 + Constant(prm['sig_it']) *(self.I- self.ef0ef0)
-        a_in = inner( grad(w), sig* grad( td00 ))*(1/Constant(prm['cm']))*self.dx
-        a = inner( grad(w), q)*(1/Constant(prm['cm']))*self.dx+Constant(prm['rho'])* sqrt( inner(grad(td),q))*w*self.dx
-        L = Constant(prm['f'])*w*self.dx + Constant(prm['g'])*w*self.ds
+        a_in = inner( grad(w), sig* grad( td00 ))*(1/Constant(prm['cm']))*dx
+        a = inner( grad(w), q)*(1/Constant(prm['cm']))*dx+Constant(prm['rho'])* sqrt( inner(grad(td),q))*w*dx
+        L = Constant(prm['f'])*w*dx + Constant(prm['g'])*w*ds
         F = a-L
         # Compute solution
         J = derivative(F, td)
@@ -176,6 +184,95 @@ class EikonalProblem(object):
         prm.add('sig_et', (1.25e-4))
         prm.add('f', (1))
         prm.add('g', (0))
+
+        return prm
+
+class boundary(SubDomain):
+    """
+    Helper method to mark the basal, inner and outer
+    surface boundaries.
+    """
+    def __init__(self):
+        self.parameters = self.default_parameters()
+        self.point_prm = self.parameters['activation_points']
+        self.tol = 1.e-3
+        SubDomain.__init__(self)
+
+    def inside(self, x, on_boundary):
+        prm = self.parameters
+        point_prm = self.point_prm
+
+        # C = Constant(prm['C'])
+        # sig = (1/(2*C))*(sqrt(x[0]**2 + x[1]**2 + (x[2] + C)**2)
+        #         + sqrt(x[0]**2 + x[1]**2 + (x[2] - C)**2))
+
+                # tau = 0.5/C*(np.sqrt(x[0]**2 + x[1]**2 + (x[2] + C)**2)
+        #         - np.sqrt(x[0]**2 + x[1]**2 + (x[2] - C)**2))
+
+        # ksi = float(math.acosh(sig))
+        # phi = atan(x[1]/x[0])
+        # theta = float(acos(tau))
+        xr, yr, zr = self.ellipsToCartesian(prm['epi_ksi'])
+        print(xr,yr,zr)
+
+        r0 = sqrt((x[0]-point_prm['x0'])**2 + (x[1]-point_prm['y0'])**2 + (x[2]-point_prm['z0'])**2)
+        r1 = sqrt((x[0]-point_prm['x1'])**2 + (x[1]-point_prm['y1'])**2 + (x[2]-point_prm['z1'])**2)
+        r2 = sqrt((x[0]-point_prm['x2'])**2 + (x[1]-point_prm['y2'])**2 + (x[2]-point_prm['z2'])**2)
+        r3 = sqrt((x[0]-point_prm['x3'])**2 + (x[1]-point_prm['y3'])**2 + (x[2]-point_prm['z3'])**2)
+        # r3 = sqrt((x[0]-xr)**2 + (x[1]-yr)**2 + (x[2]-zr)**2)
+
+        # on_endo = abs(ksi - prm['endo_ksi']) <= self.tol
+        # on_epi = abs(ksi - prm['epi_ksi']) <= self.tol
+
+        r_act = point_prm['r_act']
+
+        within_r0 = r0 <= r_act
+        within_r1 = r1 <= r_act
+        within_r2 = r2 <= r_act
+        within_r3 = r3 <= r_act
+
+        return on_boundary and ( within_r0 or within_r1 or within_r2 ) or (within_r3 )
+
+        # return ( on_endo and ( within_r0 or within_r1 or within_r2 )) or ( on_epi and within_r3 )
+
+    def ellipsToCartesian(self, ksi,theta=3/5*math.pi,phi = 1/2*math.pi):
+        focus = self.parameters['C']
+        e = ksi
+
+        # b = focus * sqrt(1-e**2)/e
+        a = focus/e
+        b = sqrt((1-ksi**2) * a**2)
+        eps = math.asinh(b/focus)
+
+        x = focus * sinh(eps) * sin(theta) * cos(phi)
+        y = focus * sinh(eps) * sin(theta) * sin(phi)
+        z = focus * cosh(eps) * cos(theta)
+        return x, y, z
+
+    @staticmethod
+    def default_parameters():
+        prm = Parameters('left_ventricle')
+        prm.add('C', 43)
+        prm.add('endo_ksi', 0.375053614389)
+        prm.add('epi_ksi', 0.685208)
+
+        point_prm = Parameters('activation_points')
+
+        point_prm.add("x0", 11.1)
+        point_prm.add("y0", -11.1)
+        point_prm.add("z0", -14)
+        point_prm.add("x1", 0.)
+        point_prm.add("y1", 16.3)
+        point_prm.add("z1", 0)
+        point_prm.add("x2", -16.3)
+        point_prm.add("y2", 0.)
+        point_prm.add("z2", 0)
+        point_prm.add("x3", -28.4)
+        point_prm.add("y3", 0)
+        point_prm.add("z3", -24)
+        point_prm.add('r_act', 4)
+
+        prm.add(point_prm)
 
         return prm
 

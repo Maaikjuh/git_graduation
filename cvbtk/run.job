@@ -5,7 +5,7 @@
 
 # Request the appropriate number of cores. Choose (responsibly) from 1 to 16.
 # On Furnace, this needs to be changed to a maximum of 8.
-#PBS -l nodes=1:ppn=1:intel
+#PBS -l nodes=1:ppn=8:intel
 
 # Combine the standard output and error output into one file.
 #PBS -j oe -o "${PBS_JOBID}.out"
@@ -17,7 +17,6 @@ module purge
 # The first part shouldn't need to be changed.
 # The second part, 'fenics-2017.1.0' should be changed to whatever environment you want to activate.
 source "${HOME}/fenics-tue/anaconda/bin/activate" 'fenics-2017-2-0'
-export PETSC_DIR=${HOME}/fenics-tue/anaconda/envs/fenics-2017-2-0
 
 # Change into the working directory and run the job.
 cd "${PBS_O_WORKDIR}"
@@ -25,5 +24,5 @@ cd "${PBS_O_WORKDIR}"
 # The default script is main.py.
 # Alternative scripts can be set via the -v script="my_script.py" option.
 date
-mpirun -np "${PBS_NP}" python -u ${script:-reorientation.py}
+mpirun -np "${PBS_NP}" python -u ${script:-eikonal_equation_v2.py}
 date
