@@ -9,7 +9,24 @@ from cvbtk import read_dict_from_csv, BiventricleGeometry, save_to_disk, \
      print_once, scalar_space_to_vector_space
 import os
 from dolfin import acos, inner, sqrt, FunctionSpace, project, parameters, pi, conditional, lt, gt
+from dolfin import *
+import numpy as np
 
+def get_values_nodes(mesh,gamma):
+    V = FunctionSpace(mesh, 'Lagrange', 2)
+
+    dofmap = V.dofmap()
+    dofcoors = V.tabulate_dof_coordinates().reshape((-1, 3))
+    z = dofcoors[:,2]
+    print(z)
+    indices = np.where(np.logical_and(z > -2., z < 0.))[0]
+    print(indices)
+    # vals = gamma([indices])
+    
+    vals = gamma.vector().get_local()[dofmap.cell_dofs[indices]]
+
+    mean_angle = np.mean(radians_to_degrees(vals))
+    return mean_angle
 
 def norm(v):
     """
@@ -48,18 +65,18 @@ def main():
     # --------------------------------------------------------------------------- #
     # Specify directory of simulation output and cycle number to find the HDF5 file
     # with the first fiber field.
-    dir_1 = 'output/biv_realcycle/reorientation/REF/new_mesh_reorientation_3'
-    cycle_1 = 6
+    dir_1 = '/home/maaike/model/examples/systemic_circulation/realcycle/output/01-05_10-02_fiber_no_reorientation_meshres_20/'
+    cycle_1 = 5
     results_1 = os.path.join(dir_1, 'results_cycle_{}.hdf5'.format(cycle_1))
 
     # Specify directory of simulation output and cycle number to find the HDF5 file
     # with the second fiber field.
-    dir_2 = 'output/biv_realcycle/reorientation/REF/new_mesh_reorientation_4'
-    cycle_2 = 34
+    dir_2 = "/home/maaike/model/examples/systemic_circulation/realcycle/output/01-05_08-38_fiber_reorientation_meshres_20/"
+    cycle_2 = 5
     results_2 = os.path.join(dir_2, 'results_cycle_{}.hdf5'.format(cycle_2))
 
     # Specify output directory.
-    dir_out = 'output/post_fiber_reorientation_old_vs_new'
+    dir_out = 'post_fiber_reorientation_old_vs_new'
 
     # --------------------------------------------------------------------------- #
 
@@ -94,6 +111,9 @@ def main():
     # Compute angles between vectors in first and second fiber field.
     print_once('Computing angles...')
     gamma = compute_angle_between_vectors(ef_1, ef_2)  # [radians]
+
+    mean_angle = get_values_nodes(geometry.mesh(),project(radians_to_degrees(gamma), Q))
+    print(mean_angle)
 
     # Project all fields (they are quadrature functions or UFL expressions,
     # so we need to project them in order to visualize them).
