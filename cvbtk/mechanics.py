@@ -597,7 +597,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
             ximin = self.parameters['ximin']
             focus = self.parameters['focus']
 
-            border = False
+            border = True
 
             # degree of the expression for ellipsoidal coordinates
             degree = 3

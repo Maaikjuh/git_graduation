@@ -834,7 +834,7 @@ class BasisVectorsBayer(object):
 
     def _create_vectors_lv(self, V):
         """
-        Cardiac basic vectors according tp the Bayer method for an LV mesh.
+        Cardiac basic vectors according to the Bayer method for an LV mesh.
         Returns components of unit vectors on discretized function space V.
 
         NOTE this one in not updated. It does not create the fiber vectors, only cardiac vectors.

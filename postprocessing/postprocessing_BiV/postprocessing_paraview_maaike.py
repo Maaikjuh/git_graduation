@@ -26,7 +26,7 @@ warnings.filterwarnings("ignore")
 
 from mpl_toolkits.mplot3d import Axes3D
 
-# plt.close('all')
+plt.close('all')
 
 def kPa_to_mmHg(p_kPa):
     """
@@ -571,22 +571,21 @@ class postprocess_paraview_new(object):
         plt.axis([40, 140, 0, 120])
         plt.title('Pressure-volume loops', fontsize=fontsize+2)
         
-    def Ta_ls_loop(self,*args, fig = None, fontsize = 12, phase = True,  **kwargs):
+    def Ta_ls_loop(self,*args, fig = None, fontsize = 12, phase = True, label='', **kwargs):
         if fig is None:
             # Create new figure.
             fig = plt.figure()
         
         # Make fig current.
         plt.figure(fig.number)
-        
-        regions = [self.extract_P_idx(),
-                   self.extract_AM_idx(), 
-                   self.extract_A_idx(), 
-                   self.extract_AL_idx()]
-        region_labels = ['P','AM', 'A', 'AL']
-        
+        regions = [self.extract_P_idx()]
+        # regions = [self.extract_P_idx(),
+        #            self.extract_AM_idx(), 
+        #            self.extract_A_idx(), 
+        #            self.extract_AL_idx()]
+        # region_labels = ['P','AM', 'A', 'AL']
+        region_labels = ['']
         h = self.column_headers
-        
         results = self.results
         
         time = results['t_cycle']
@@ -605,14 +604,21 @@ class postprocess_paraview_new(object):
                 if len(time)>len(stress[0]):
                     print('time and stress array not of same length, shortening time array...')
                     time = time[0:len(stress[0])]
-                
-            
-            # plt.plot(time, mean_stress, *args, **kwargs)
-            plt.plot(time, mean_stress, *args, **kwargs)
+
+
+            if ii == len(regions)-1:
+                plt.plot(time, mean_stress, *args, label=label)
+                plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+                # plt.legend(label, loc='center left', bbox_to_anchor=(1, 0.5
+            else:
+                plt.plot(time, mean_stress, *args)                
+        
             
             plt.xlabel('time [ms]', fontsize=fontsize)
             if ii == 0:
                 plt.ylabel('Ta [kPa]', fontsize=fontsize)
+                
+
             
             plt.tick_params(labelsize=fontsize-2)
             plt.grid('on')
@@ -690,7 +696,8 @@ class postprocess_paraview_new(object):
             
             plt.tick_params(labelsize=fontsize-2)
             plt.grid('on')
-            plt.axis([0.9, 1.2, 0., 60.]) 
+            plt.axis([0.95, 1.2, 0., 60.]) 
+            
             
         
         
