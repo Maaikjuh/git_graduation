@@ -19,7 +19,7 @@ info_once(LeftVentricleGeometry.default_parameters(), True)
 # ik heb zelf alleen nog maar 'mesh resolution' aangepast, ik heb nog niet gekeken wat de andere parameters precies deden
 geometry_inputs = {
     'focus_height': 4.3,  
-    'mesh_resolution': 30.,
+    'mesh_resolution': 20.,
     'inner_eccentricity': 0.934819,   
     'mesh_segments': 1,  
     'outer_eccentricity': 0.807075,  
