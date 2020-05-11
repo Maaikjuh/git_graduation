@@ -5,6 +5,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
+from matplotlib.ticker import MaxNLocator
 # import plotly.graph_objects as go
 import pandas as pd
 from dataset import Dataset
@@ -342,6 +343,130 @@ class HemodynamicsPlot(object):
             import os
             os.mkdir('/'.join(filename.split('/')[:-1]))
             self.save(filename, dpi=dpi, bbox_inches=bbox_inches)
+            
+class Hemodynamics_all_cycles(object):
+    """
+    High-level interface between :class:`~cvbtk.Dataset` and :mod:`matplotlib`
+    that plots the pressure vs. time, volume vs. time, flowrate vs. time, and
+    pressure vs. volume curves.
+
+    Args:
+        dataset: Dataset to create the figure from.
+    """
+    def __init__(self, dataset, fig=None):
+        # Store the dataset.
+        self._df = dataset
+
+        if fig is None:
+            # Create new figure.
+            self._fig = plt.figure()
+        else:
+            self._fig = fig
+
+        # Make fig current.
+        plt.figure(self._fig.number)
+        
+        # Create a set of empty axes for plotting.
+        gs = GridSpec(1, 3)
+        _sv = plt.subplot(gs[0, 0])
+        _pv = plt.subplot(gs[0, 1])
+        _w = plt.subplot(gs[0, 2])
+        self._ax = {'sv': _sv, 'pv': _pv, 'w': _w}
+
+        # Remove vertical spacing from the three individual axes.
+        gs.update(hspace=0.15, wspace=0.30)
+
+        # Set axis labels.
+        self._ax['sv'].set_xlabel('Cardiac cycle [-]')
+        self._ax['pv'].set_xlabel('Cardiac cycle [-]')
+        self._ax['w'].set_xlabel('Cardiac cycle [-]')
+        self._ax['sv'].set_ylabel('Stroke volume [ml]')
+        self._ax['pv'].set_ylabel('LV pressure [mmHg]')
+        self._ax['w'].set_ylabel('LV work [J]')
+        
+        self._ax['sv'].set_title('Stroke Volumes')
+        self._ax['pv'].set_title('Maximum cavity pressure')
+        self._ax['w'].set_title('Work')
+
+        # Set the global title.
+        self._fig.suptitle('Change in hemodynamics during fiber reorientation')
+
+        # Remove the right and top spines.
+        [ax.spines['top'].set_visible(False) for _, ax in self._ax.items()]
+        [ax.spines['right'].set_visible(False) for _, ax in self._ax.items()]
+        
+    def hemodymanics(self):       
+        df = self._df
+        
+        min_cyc = min(df['cycle'])
+        max_cyc = max(df['cycle'])
+        
+        cycles = range(min_cyc, max_cyc)
+        sv_cycs = []
+        plv_cycs = []
+        w_cycs = []
+        
+        for i in cycles:
+            data_cycle = df[df['cycle'] == i]
+            
+            time = data_cycle['time'].values  # ms
+            plv = kPa_to_mmHg(data_cycle['plv'].values)
+            qao = data_cycle['qao'].values*60/1000  # ml/s -> l/min
+            vlv = data_cycle['vlv'].values  # ml
+            
+            HR = round(60000/(max(time)-min(time)))
+            EDV =  max(vlv)
+            ESV = min(vlv)
+            
+            sv = EDV - ESV
+            plv_max = max(plv)
+            w = - np.trapz(mmHg_to_kPa(plv), vlv/1000)
+            
+            sv_cycs.append(sv)
+            plv_cycs.append(plv_max)
+            w_cycs.append(w)
+            
+        hemo_cycs = {
+                    'SV': sv_cycs,
+                    'plv_max': plv_cycs,
+                    'W': w_cycs,
+                    'cycles': cycles}
+        return hemo_cycs
+    
+    def plot(self, *args):
+        df = self._df
+        plt.figure(self._fig.number)
+        
+        hemo = self.hemodymanics()
+        
+        #make the stroke volume - cycles plot
+        self._ax['sv'].plot(hemo['cycles'], hemo['SV'], *args)
+        self._ax['sv'].xaxis.set_major_locator(MaxNLocator(integer=True))
+        
+        #make the maximum cavity pressure - cycles plot
+        self._ax['pv'].plot(hemo['cycles'], hemo['plv_max'], *args)
+        self._ax['pv'].xaxis.set_major_locator(MaxNLocator(integer=True))
+        
+        #make the work - cycles plot
+        self._ax['w'].plot(hemo['cycles'], hemo['W'], *args)
+        self._ax['w'].xaxis.set_major_locator(MaxNLocator(integer=True))
+
+    def save(self, filename, dpi=300, bbox_inches='tight'):
+        """
+        Write the currently drawn figure to file.
+
+        Args:
+            filename: Name (or path) to save the figure as/to.
+            dpi (optional): Override the default dpi (300) for quality control.
+            bbox_inches (optional): Override the bounding box ('tight') value.
+        """
+        # TODO Add check for whether or not a plot has been created.
+        try:
+            self._fig.savefig(filename, dpi=dpi, bbox_inches=bbox_inches)
+
+        except FileNotFoundError:
+            import os
+            os.mkdir('/'.join(filename.split('/')[:-1]))
 
 def kPa_to_mmHg(p_kPa):
     """
@@ -456,6 +581,7 @@ def procentual_change_hemodynamics(ref,data):
         hemo_sum.loc[key] = [var1, var2, var3]
     
     return  hemo_sum    
+
 
 def print_hemodynamic_summary(hemo,cycle):    
     print('\nSYSTEMIC CIRCULATION:')
