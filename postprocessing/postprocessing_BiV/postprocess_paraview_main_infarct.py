@@ -25,8 +25,8 @@ import math
 # directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/31-03_16-15_infarct_droplet_tao_20_meshres_30/cycle_2_stress_free_ref/Paraview_data'
 # directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/20-04_10-22_infarct_no_border_meshres_30/paraview_data'
 
-# directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/24-03_14-07_infarct_xi_10/cycle_2_stress_free_ref\paraview_data'
-# directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/20-04_10-22_infarct_no_border_meshres_30/cycle_2_stress_free_ref\paraview_data'
+directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/24-03_14-07_infarct_xi_10/cycle_2_stress_free_ref\paraview_data'
+directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/20-04_10-22_infarct_no_border_meshres_30/cycle_2_stress_free_ref\paraview_data'
 
 # directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/21-04_16-13_with_fiber_reor_30/cycle_1_stress_free_ref\paraview_data'
 # directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/21-04_16-14_no_fiber_reor_30/cycle_1_stress_free_ref/paraview_data'
@@ -34,11 +34,11 @@ import math
 # directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/Biventricular model/20-04_14-23_ADAPTED_BAYER_2cyc_no_infarct/cycle_2_stress_free_ref/paraview_dat'
 # directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/Biventricular model/20-04_11-24_ADAPTED_BAYER_2cyc_with_infarct/cycle_2_stress_free_ref/paraview data'
 
-directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/01-05_08-38_fiber_reorientation_meshres_20/cycle_5_stress_free_ref/paraview_data'
-directory_2 = r"C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/01-05_10-02_fiber_no_reorientation_meshres_20/cycle_5_stress_free_ref/paraview_data"
+# directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/01-05_08-38_fiber_reorientation_meshres_20/cycle_5_stress_free_ref/paraview_data'
+# directory_2 = r"C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/01-05_10-02_fiber_no_reorientation_meshres_20/cycle_5_stress_free_ref/paraview_data"
 
 # Specify corresponding labels for the two directories above.
-dir_labels = ['no reorientation', 'reorientated']
+dir_labels = ['ref', 'infarct']
 
 inputs1 = {  # Specify the thickness of the cube (thick longitudinal slice) with to be included nodes [cm].
           'load_pickle_file': True,
@@ -65,7 +65,10 @@ linewidth = 2
 post_1 = postprocess_paraview_new(directory_1, name='init', **inputs1)
 post_2 = postprocess_paraview_new(directory_2, name='adap', **inputs2)
 
-post_1.show_regions_new(projection = '2d', fontsize=fontsize, skip=None)
+post_1.plot_rotation()
+post_2.plot_rotation()
+
+post_1.show_regions_new(projection = '2d', segments = True, fontsize=fontsize, skip=None)
 post_2.show_regions_new(projection = '2d', fontsize=fontsize, skip=None)
 
 fig_ta_ls_loop = plt.figure(figsize=(15, 15), dpi=100)
