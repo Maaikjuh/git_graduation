@@ -39,8 +39,12 @@ csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\
 csv_ref = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\21-04_16-13_with_fiber_reor_30\results.csv'
 csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\21-04_16-14_no_fiber_reor_30\results.csv'
 
+csv_ref = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\07-05_09-26_fiber_reorientation_meshres_20\results.csv'
 
-COMPARE = True
+
+COMPARE = False
+
+CYCLE = 'all' #'last'
 
 #if the datasets should not be compared, select which dataset should be analyzed
 if COMPARE == False:
@@ -50,9 +54,13 @@ if COMPARE == False:
 #cycle=10
 #cycle = cycle = max(results_normal['cycle']) - 1
 
-# Load results
-[results_ref, cycle_ref] = load_reduced_dataset(csv_ref)
-[results_infarct, cycle_inf] = load_reduced_dataset(csv_infarct)
+if CYCLE == 'last':
+    # Load results
+    [results_ref, cycle_ref] = load_reduced_dataset(csv_ref)
+    [results_infarct, cycle_inf] = load_reduced_dataset(csv_infarct)
+elif CYCLE == 'all':
+    results_cycs = Dataset(filename=csv_ref)
+    results_cycs_2 = Dataset(filename=csv_infarct)    
 
 
 if COMPARE == True:
@@ -63,16 +71,23 @@ if COMPARE == True:
     hemo_sum = procentual_change_hemodynamics(results_ref,results_infarct)
     plot_compare_results(results_ref,results_infarct, dir_out=os.path.dirname(csv_infarct), cycle=None)
 else:
-    # Data from the selected cycle
-    if ANALYZE == 'infarct':
-        data_cycle = results_infarct
-        pathname = csv_infarct
-        cycle = cycle_inf
-    else:
-        data_cycle = results_ref
-        pathname = csv_ref
-        cycle = cycle_ref
-    hemo_sum = hemodynamic_summary(data_cycle)
-    print_hemodynamic_summary(hemo_sum,cycle)
-    plot_results(data_cycle,dir_out=os.path.dirname(pathname), cycle=cycle)
+    if CYCLE == 'last':
+        # Data from the selected cycle
+        if ANALYZE == 'infarct':
+            data_cycle = results_infarct
+            pathname = csv_infarct
+            cycle = cycle_inf
+        else:
+            data_cycle = results_ref
+            pathname = csv_ref
+            cycle = cycle_ref
+        hemo_sum = hemodynamic_summary(data_cycle)
+        print_hemodynamic_summary(hemo_sum,cycle)
+        plot_results(data_cycle,dir_out=os.path.dirname(pathname), cycle=cycle)
+    elif CYCLE == 'all':
+        fig = plt.figure()
+        cycles_plot = Hemodynamics_all_cycles(results_cycs, fig = fig)
+        cycles_plot.plot()
+        cycles_plot = Hemodynamics_all_cycles(results_cycs_2, fig = fig)
+        cycles_plot.plot('--')
     
