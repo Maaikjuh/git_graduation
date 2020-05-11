@@ -1623,11 +1623,14 @@ class FiberReorientation(object):
 
             # Correct for fibers sticking out the walls if current node is on the endocardium or epicardium.
             if on_boundary[ii] >= 0.999:
-                # Project new fiber vector onto local transmural vector.
-                ef_t = np.dot(ef_new_, et[:, ii]) * et[:, ii]
+                try:
+                    # Project new fiber vector onto local transmural vector.
+                    ef_t = np.dot(ef_new_, et[:, ii]) * et[:, ii]
 
-                # Subtract projection.
-                ef_new_ -= ef_t
+                    # Subtract projection.
+                    ef_new_ -= ef_t
+                except IndexError:
+                    continue
 
             # Normalize new fiber vector.
             ef_new = ef_new_/np.linalg.norm(ef_new_)
