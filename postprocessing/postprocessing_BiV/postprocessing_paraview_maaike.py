@@ -28,6 +28,12 @@ from mpl_toolkits.mplot3d import Axes3D
 
 plt.close('all')
 
+def radians_to_degrees(angle):
+    """
+    Converst radians to degrees.
+    """
+    return angle/math.pi*180
+
 def kPa_to_mmHg(p_kPa):
     """
     Convert pressures from kPa to mmHg.
@@ -187,19 +193,19 @@ class postprocess_paraview_new(object):
         stretch_ratio = ls/ls0
         return np.log(stretch_ratio)
     
-    def compute_wall_thickness(self, height):
-        h = self.column_headers
-        P_epi_idx = self.extract_P_idx()[0]
-        P_endo_idx = self.extract_P_idx()[-1]
+    # def compute_wall_thickness(self, height):
+    #     h = self.column_headers
+    #     P_epi_idx = self.extract_P_idx()[0]
+    #     P_endo_idx = self.extract_P_idx()[-1]
         
-        P_epi_x = self.all_data[P_epi_idx, h['displacement:0'], :] + self.all_data[P_epi_idx, h[':0'], 0]
-        P_epi_y = self.all_data[P_epi_idx, h['displacement:1'], :] + self.all_data[P_epi_idx, h[':1'], 0]
+    #     P_epi_x = self.all_data[P_epi_idx, h['displacement:0'], :] + self.all_data[P_epi_idx, h[':0'], 0]
+    #     P_epi_y = self.all_data[P_epi_idx, h['displacement:1'], :] + self.all_data[P_epi_idx, h[':1'], 0]
         
-        AM_epi_idx = self.extract_AM_idx()[0]
-        AM_endo_idx = self.extract_AM_idx()[-1]
+    #     AM_epi_idx = self.extract_AM_idx()[0]
+    #     AM_endo_idx = self.extract_AM_idx()[-1]
         
-        AM_epi_idx = self.extract_AM_idx()[0]
-        AM_endo_idx = self.extract_AM_idx()[-1]
+    #     AM_epi_idx = self.extract_AM_idx()[0]
+    #     AM_endo_idx = self.extract_AM_idx()[-1]
         
         
     @property
@@ -284,7 +290,7 @@ class postprocess_paraview_new(object):
         
         return np.dstack(data)
     
-    def extract_wall_idx(self, phi_val= ''):
+    def extract_wall_idx(self, phi_val= 0.):
         #select single point on epi, mid and endowall respectively
         h = self.column_headers
         data = self.all_data[:, :, 0]
@@ -310,8 +316,8 @@ class postprocess_paraview_new(object):
             mask_T0 = data_T0 >= 90
         
         #get coordinates on the outer and inner wall for phi
-        x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], self.parameters[phi_val])
-        x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],self.parameters['theta'], self.parameters[phi_val])
+        x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], phi_val)
+        x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],self.parameters['theta'], phi_val)
 
         mask = {}
         mask_tot = {}
@@ -341,7 +347,7 @@ class postprocess_paraview_new(object):
                 #create total mask to check if there is/are a point(s) that lies in all boundaries in all the directions
                 mask_tot_loc_1 = mask["mask_1_" + wall + 'x'] * mask["mask_1_" + wall + 'y'] * mask["mask_1_" + wall + 'z']
                 mask_tot_loc_2 = mask["mask_2_" + wall + 'x'] * mask["mask_2_" + wall + 'y'] * mask["mask_2_" + wall + 'z']
-                if self.parameters['infarct'] == True and phi_val != 'A_phi':
+                if self.parameters['infarct'] == True and (phi_val == 'AM_phi' or phi_val == 'AL_phi'):
                     mask_tot_loc = mask_tot_loc_1 * mask_tot_loc_2 * mask_T0
                 else:
                     mask_tot_loc = mask_tot_loc_1 * mask_tot_loc_2
@@ -355,7 +361,7 @@ class postprocess_paraview_new(object):
         return (np.array([np.where(mask_tot['mask_tot_epi'])[0][0],np.where(mask_tot['mask_tot_mid'])[0][0],np.where(mask_tot['mask_tot_endo'])[0][0]]))
         
     def extract_AM_idx(self):
-        return self.extract_wall_idx(phi_val = 'AM_phi')
+        return self.extract_wall_idx(phi_val = self.parameters['AM_phi'])
         # Extract points AM
         # h = self.column_headers
         # data = self.all_data[:, :, 0]
@@ -465,7 +471,7 @@ class postprocess_paraview_new(object):
         # # mask_tot = mask_cut_off_low*mask_cut_off_high*mask_cut_off_right*mask_cut_off_line_left*mask_cut_off_line_right
         # mask_tot = mask_cut_off_low*mask_cut_off_high*mask_cut_off_right*mask_cut_off_slice
         # return np.where(mask_tot)[0]  
-        return self.extract_wall_idx(phi_val = 'A_phi')
+        return self.extract_wall_idx(phi_val = self.parameters['A_phi'])
         # return (np.array([2006,3950,3875]))
     
     def extract_AL_idx(self):
@@ -505,12 +511,27 @@ class postprocess_paraview_new(object):
         #     mask_tot =mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
         
         # return np.where(mask_tot)[0]
-        return self.extract_wall_idx(phi_val = 'AL_phi')
+        return self.extract_wall_idx(phi_val = self.parameters['AL_phi'])
         # return (np.array([427,1417,1848]))
     
     def extract_P_idx(self):
         self.parameters['P_phi'] = self.parameters['A_phi'] + math.pi
-        return self.extract_wall_idx(phi_val = 'P_phi')
+        return self.extract_wall_idx(phi_val = self.parameters['P_phi'])
+    
+    def extract_segment_idx(self):
+        nr_segments = 24
+        
+        phi_int = 2*math.pi / nr_segments
+        phi_range = np.arange(0., 2*math.pi, phi_int)
+        
+        segments = []
+        for i in phi_range:
+            seg = self.extract_wall_idx(phi_val = i)
+            segments.append(seg)
+        
+        return segments
+        
+        
     
     def extract_T0_idx(self):
         h = self.column_headers
@@ -540,6 +561,50 @@ class postprocess_paraview_new(object):
         
         reduced = full[full['cycle'] == cycle].copy(deep=True)
         return reduced
+    
+    def plot_rotation(self, fig = None, fontsize=12):
+        h = self.column_headers
+        results = self.results
+        
+        segments = self.extract_segment_idx()
+        
+        index_ed = (results['phase'] ==2).idxmax() - results.index[0] - 1
+        index_es = (results['phase'] ==4).idxmax() - results.index[0] - 1
+        
+        angles = []
+        strains = []
+        
+        for ii, idx in enumerate(segments):
+            idx_epi = idx[0]
+            x_pos = self.all_data[idx_epi, h[':0'], 0]
+            y_pos = self.all_data[idx_epi, h[':1'], 0]
+            x_ed  = x_pos + self.all_data[idx_epi, h['displacement:0'], index_ed]
+            x_es  = x_pos + self.all_data[idx_epi, h['displacement:0'], index_es]
+            y_ed  = y_pos + self.all_data[idx_epi, h['displacement:1'], index_ed]
+            y_es  = y_pos + self.all_data[idx_epi, h['displacement:1'], index_es]        
+            
+            p_ed = np.array([x_ed, y_ed])
+            p_es = np.array([x_es, y_es])
+            
+            ang = math.atan2(abs(np.linalg.det([p_ed,p_es])),np.dot(p_ed,p_es))
+            angles.append(radians_to_degrees(ang))
+            
+            ls0 = self.all_data[idx_epi, h['ls_old'], index_ed]
+            ls = self.all_data[idx_epi, h['ls_old'], index_es]
+            strain = np.log( ls/ls0 )
+            strains.append(strain)
+            
+        if fig is None:    
+            fig = plt.figure()
+        plt.figure(fig.number)
+        
+        plt.subplot(2, 1, 1)
+        plt.plot(range(1,len(segments)+1), angles)
+        plt.ylabel('Rotation [$^\circ$]', fontsize = fontsize)
+        plt.subplot(2, 1, 2)
+        plt.plot(range(1,len(segments)+1), strains)
+        plt.ylabel('strain', fontsize = fontsize)
+        plt.xlabel('Segments', fontsize = fontsize)
     
     def plot_pv_loops(self, *args, fig=None, fontsize=12, **kwargs):
         if fig is None:
@@ -578,13 +643,13 @@ class postprocess_paraview_new(object):
         
         # Make fig current.
         plt.figure(fig.number)
-        regions = [self.extract_P_idx()]
-        # regions = [self.extract_P_idx(),
-        #            self.extract_AM_idx(), 
-        #            self.extract_A_idx(), 
-        #            self.extract_AL_idx()]
-        # region_labels = ['P','AM', 'A', 'AL']
-        region_labels = ['']
+        # regions = [self.extract_P_idx()]
+        regions = [self.extract_P_idx(),
+                    self.extract_AM_idx(), 
+                    self.extract_A_idx(), 
+                    self.extract_AL_idx()]
+        region_labels = ['P','AM', 'A', 'AL']
+        # region_labels = ['']
         h = self.column_headers
         results = self.results
         
@@ -1015,7 +1080,7 @@ class postprocess_paraview_new(object):
         
         return data_shifted
 
-    def show_regions_new(self, fig = None, projection='2d', fontsize=12, skip=None):
+    def show_regions_new(self, fig = None, projection='2d', fontsize=12, segments = False, skip=None):
         h = self.column_headers
         # Plot the regions.
         if fig is None:
@@ -1027,7 +1092,10 @@ class postprocess_paraview_new(object):
         
         if projection == '3d':
             ax = fig.add_subplot(111, projection='3d')
+        # elif segments == True:
+        #     ax3 = fig.add_subplot(111)
         else:
+            
             ax1 = fig.add_subplot(121)
             ax2 = fig.add_subplot(122)
                         
@@ -1059,18 +1127,25 @@ class postprocess_paraview_new(object):
                              'A', 
                              'AL',
                              'P']
+        elif segments == True:
+            # region0 = np.where((self.all_data[:, h[':2'], 0]) <= -2.)
+            regions = [region0,
+                       self.extract_segment_idx()]
+            region_labels = [
+                             'segments']            
         else:
             regions = [region0,
-                       self.extract_AM_idx(), 
-                       self.extract_A_idx(), 
-                       self.extract_AL_idx()]
+                        self.extract_AM_idx(), 
+                        self.extract_A_idx(), 
+                        self.extract_AL_idx()]
             # regions = [region0,
             #            np.array([2469, 4259,3805]),]
             
             region_labels = [None,
                             'AM', 
-                             'A', 
-                             'AL']            
+                              'A', 
+                              'AL']   
+
             
         # idx_tot =[]
         # idx_tot.extend(regions[1:5])
@@ -1106,19 +1181,35 @@ class postprocess_paraview_new(object):
                 plt.title('Nodes included in local function analysis', fontsize=fontsize+2)
 
             else:
-                # f = plt.figure() 
-                # f, axes = plt.subplots(nrows = 1, ncols = 2, sharex=True, sharey = True)
-                # axes.scatter(x, z)
-                ax1.scatter(x, z, color=col[ii], label=region_labels[ii])
-                ax1.axis('equal')
-                ax1.set_title('side view (x-z)')
-                ax1.legend(frameon=False, fontsize=fontsize)
-                plt.legend(frameon=False, fontsize=fontsize)
-                ax2.scatter(y, z, color=col[ii], label=region_labels[ii])
-                ax2.set_title('front view (y-z)')
-                ax2.axis('equal')
-                ax2.legend(frameon=False, fontsize=fontsize)
-                fig.suptitle('Nodes included in local function analysis', fontsize=16)
+                if segments == True:
+                    # if ii == 0:
+                    #     ax.scatter(x, y,color=col[ii], label=region_labels[ii])
+                    for i in range(0, len(x)):
+                        if ii != 0:
+                            ax1.scatter(x[i], y[i])
+                            ax1.axis('equal')
+                        ax2.scatter(x[i], z[i])
+                        ax2.axis('equal')
+                else:
+                    # f = plt.figure() 
+                    # f, axes = plt.subplots(nrows = 1, ncols = 2, sharex=True, sharey = True)
+                    # axes.scatter(x, z)
+                    ax1.scatter(x, z, color=col[ii], label=region_labels[ii])
+                    ax1.axis('equal')
+                    ax1.set_title('side view (x-z)')
+                    ax1.legend(frameon=False, fontsize=fontsize)
+                    plt.legend(frameon=False, fontsize=fontsize)
+                    
+                    ax2.scatter(y, z, color=col[ii], label=region_labels[ii])
+                    ax2.set_title('front view (y-z)')
+                    ax2.axis('equal')
+                    ax2.legend(frameon=False, fontsize=fontsize)
+                
+                    # if ii != 0:
+                    #     ax3.scatter(x, y, color=col[ii], label=region_labels[ii])
+                    #     ax3.axis('equal')
+                    #     ax3.legend(frameon=False, fontsize=fontsize)
+                    fig.suptitle('Nodes included in local function analysis', fontsize=16)
                 # plt.subplot(1, 2, 2)
                 # ax.scatter(y, z, color=col[ii], label=region_labels[ii])
         # if projection == '3d':
@@ -1131,11 +1222,11 @@ class postprocess_paraview_new(object):
         N_s = np.asarray(N_s)
         N_tot = len(self.all_data)
         
-        for ii in range(1, len(N_s)):
-            print('% of nodes in {0} section: {1:1.2f} %'.format(region_labels[ii], N_s[ii]/N_tot*100))
+        # for ii in range(1, len(N_s)):
+        #     print('% of nodes in {0} section: {1:1.2f} %'.format(region_labels[ii], N_s[ii]/N_tot*100))
             
-        print('% of nodes in all sections : {0:1.2f} %'.format(sum(N_s[1:])/N_tot*100))
-        print('% of nodes in entire slice: {0:1.2f} %'.format(N_s[0]/N_tot*100))
+        # print('% of nodes in all sections : {0:1.2f} %'.format(sum(N_s[1:])/N_tot*100))
+        # print('% of nodes in entire slice: {0:1.2f} %'.format(N_s[0]/N_tot*100))
 
 def common_start(sa, sb):
     """ returns the longest common substring from the beginning of sa and sb """
