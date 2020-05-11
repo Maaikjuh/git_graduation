@@ -24,5 +24,5 @@ cd "${PBS_O_WORKDIR}"
 # The default script is main.py.
 # Alternative scripts can be set via the -v script="my_script.py" option.
 date
-mpirun -np "${PBS_NP}" python -u ${script:-mesh_node_test.py}
+mpirun -np "${PBS_NP}" python -u ${script:-leftventricular_meshing.py}
 date

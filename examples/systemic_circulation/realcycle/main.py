@@ -24,8 +24,8 @@ ACT_STRESS = 'old'  # 'old' is Arts Kerckhoffs, 'new' is Arts Bovendeerd.
 # the simulation from that state (e.g. handy when a simulation crashed).
 # See ReloadState.reload() for a detailed description of these options.
 # Set both options to None if you don't want to reload.
-DIR_RELOAD = None  # Directory with output files of the model to reload.
-TIME_RELOAD = None  # The time (in ms) of the timestep to reload. Set to -1 for reloading the latest available timestep.
+DIR_RELOAD = '/home/maaike/model/examples/systemic_circulation/realcycle/output/07-05_09-26_fiber_reorientation_meshres_20' #None  # Directory with output files of the model to reload.
+TIME_RELOAD = -1 # None  # The time (in ms) of the timestep to reload. Set to -1 for reloading the latest available timestep.
 
 # Set if Infarction should be included
 INFARCT = False
@@ -38,21 +38,18 @@ INPUTS_PATH = None #'inputs.csv'
 
 
 # Set mesh resololution. For the default mesh, chose 30, 40 or 50. 
-SET_MESH_RESOLUTION = 30.0
+SET_MESH_RESOLUTION = 20.0
 
 # Use the following option if you want to load an alternative mesh (that has already been created). 
-# By specifying a path to an .hdf5 file, you can load the mesh from the file
-# instead of the reference mesh. If you do not want to load an alternative mesh from a
+# By specifying a path to an .hdf5 file, you can load the mesh from the file instead of the reference mesh. 
+# If you do not want to load an alternative mesh from a
 # file, but just use the reference lv mesh, set the below path to None.
-LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION)) #None #'mesh_leftventricle_30.hdf5' # 'mesh_leftventricle_30_old_no_optimization.hdf5'
+LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION)) #None 
 # LOAD_ALTERNATIVE_MESH = 'mesh_leftventricle_30.hdf5'
-#doofus code here
+
 # Specify output directory.
-
 now = datetime.datetime.now()
-
-# DIR_OUT = 'output/{}_fiber_reorientation_meshres_{}'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
-DIR_OUT = 'output/{}_fiber_reorientation_meshres_20'.format(now.strftime("%d-%m_%H-%M"))
+DIR_OUT = 'output/{}_fiber_reorientation_meshres_{}_reload_test'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:

@@ -160,6 +160,11 @@ def boundary(x, on_boundary ):
 
 # points = points()
 # points.mark(sub_domains,1)
+xdmf_files = {}
+ofile = XDMFFile(mpi_comm_world(), "fibers.xdmf")
+# filename = os.path.join(dir_out, "fibers.xdmf")
+# xdmf_files["fibers"]= XDMFFile(filename)
+ofile.write(fibers)
 
 td0BC = Constant(0.0)
 bc = DirichletBC(V, td0BC , boundary, method ='pointwise')
