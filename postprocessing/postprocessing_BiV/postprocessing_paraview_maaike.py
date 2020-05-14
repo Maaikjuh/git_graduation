@@ -192,20 +192,6 @@ class postprocess_paraview_new(object):
         ls0 = self.parameters['ls0']
         stretch_ratio = ls/ls0
         return np.log(stretch_ratio)
-    
-    # def compute_wall_thickness(self, height):
-    #     h = self.column_headers
-    #     P_epi_idx = self.extract_P_idx()[0]
-    #     P_endo_idx = self.extract_P_idx()[-1]
-        
-    #     P_epi_x = self.all_data[P_epi_idx, h['displacement:0'], :] + self.all_data[P_epi_idx, h[':0'], 0]
-    #     P_epi_y = self.all_data[P_epi_idx, h['displacement:1'], :] + self.all_data[P_epi_idx, h[':1'], 0]
-        
-    #     AM_epi_idx = self.extract_AM_idx()[0]
-    #     AM_endo_idx = self.extract_AM_idx()[-1]
-        
-    #     AM_epi_idx = self.extract_AM_idx()[0]
-    #     AM_endo_idx = self.extract_AM_idx()[-1]
         
         
     @property
@@ -308,22 +294,13 @@ class postprocess_paraview_new(object):
                         + np.sqrt(x ** 2 + y ** 2 + (z - focus) ** 2)) / focus  
     
     
-    def extract_wall_idx(self, phi_val= 0.,theta_val= None, loc = ['epi','mid','endo']):
+    def extract_wall_idx(self, phi_val= 0.,theta_inner= None, loc = ['epi','mid','endo']):
         #select single point on epi, mid and endowall respectively
         h = self.column_headers
         data = self.all_data[:, :, 0]
         
-        if theta_val == None:
-            theta_val = self.parameters['theta']
-
-        # #check on which side (x-z or y-z) of the heart the points are located
-        # #assumes that if A_phi ==0 on the y-z plane (with positive x) and otherwhise on the x-z plane (with positive y)
-        # if self.parameters['A_phi'] == 0:
-        #     mask_cut_off_right = data[:, h[':0']] >= 0.
-        #     mask_cut_off_right_P = data[:, h[':0']] <= 0.
-        # else:
-        #     mask_cut_off_right = data[:, h[':1']] >= 0.
-        #     mask_cut_off_right_P = data[:, h[':1']] <= 0.
+        if theta_inner == None:
+            theta_inner = self.parameters['theta']
             
         #check if infarct is included and create mask such that points AM and AL are not located within the infarct
         if self.parameters['infarct'] == True:
@@ -338,7 +315,7 @@ class postprocess_paraview_new(object):
         
         #get coordinates on the outer and inner wall for phi
         x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], phi_val)
-        x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],theta_val, phi_val)
+        x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],theta_inner, phi_val)
 
         mask = {}
         mask_tot = {}
@@ -379,6 +356,7 @@ class postprocess_paraview_new(object):
             
         if len(mask_tot.keys()) == 1:
             return np.array(np.where(mask_tot['mask_tot_' + loc[0]])[0][0])
+        
         #only return one point per wall location (epi, mid or endo)
         return (np.array([np.where(mask_tot['mask_tot_epi'])[0][0],np.where(mask_tot['mask_tot_mid'])[0][0],np.where(mask_tot['mask_tot_endo'])[0][0]]))
         
@@ -387,11 +365,9 @@ class postprocess_paraview_new(object):
 
     def extract_A_idx(self): 
         return self.extract_wall_idx(phi_val = self.parameters['A_phi'])
-        # return (np.array([2006,3950,3875]))
     
     def extract_AL_idx(self):
         return self.extract_wall_idx(phi_val = self.parameters['AL_phi'])
-        # return (np.array([427,1417,1848]))
     
     def extract_P_idx(self):
         self.parameters['P_phi'] = self.parameters['A_phi'] + math.pi
@@ -426,7 +402,7 @@ class postprocess_paraview_new(object):
         segments = []
         for i in phi_range:
             # for each segment, extract a point on the epi, mid and endo wall
-            seg = self.extract_wall_idx(phi_val = i, theta_val= theta_inner)
+            seg = self.extract_wall_idx(phi_val = i, theta_inner= theta_inner)
             segments.append(seg)     
         
         if 'T0' in h:
@@ -446,10 +422,31 @@ class postprocess_paraview_new(object):
             T0 = 'f_137'
         data_T0 = self.all_data[:, h[T0], 0]
         return np.where(data_T0 <= 90)
-        
-    
          
-    
+    def calculate_wall_thickness(self):
+        h = self.column_headers
+        results = self.results  
+        if 'T0' in h:
+            segments = self.extract_segment_idx()[0]
+        else:
+            segments = self.extract_segment_idx()
+        
+        distance = []
+        for i, seg in enumerate(segments):
+            epi = seg[0]
+            endo = seg[2]
+            
+            x_pos = self.all_data[[epi,endo], h[':0'], :] + self.all_data[[epi,endo], h['displacement:0'], :]
+            y_pos = self.all_data[[epi,endo], h[':1'], :] + self.all_data[[epi,endo], h['displacement:1'], :]
+                      
+            dx = x_pos[0] - x_pos[1]
+            dy = y_pos[0] - y_pos[1]
+            
+            dist = np.sqrt(dx**2 + dy**2)
+            distance.append(dist)
+        
+        return distance
+               
     @staticmethod
     def load_reduced_dataset(filename, cycle=None):
         """
@@ -463,7 +460,7 @@ class postprocess_paraview_new(object):
             cycle = int(max(full['cycle']) - 1)
         
         reduced = full[full['cycle'] == cycle].copy(deep=True)
-        return reduced
+        return reduced       
     
     def plot_rotation(self, fig = None, fontsize=12):
         h = self.column_headers
@@ -500,21 +497,8 @@ class postprocess_paraview_new(object):
                 ang_point = np.dot(p_ed[:,i], p_es[:,i]) / (np.linalg.norm(p_ed[:,i]) * np.linalg.norm(p_es[:,i]))
                 ang_point = np.arccos(ang_point)
                 ang_points_seg.append(ang_point)
+                
             ang_tot_seg = np.mean(ang_points_seg)
-            # ang = math.atan2(abs(np.linalg.det([p_ed,p_es])),np.dot(p_ed,p_es))
-            # ang = np.dot(p_ed, p_es) / (np.linalg.norm(p_ed) * np.linalg.norm(p_es))
-            # ang = np.arccos(ang_tot_seg)
-            
-            # if p_es[0] > 0. and p_ed[0] > 0.:
-            #     if p_es[1] > p_ed[1]:
-            #         ang = -1 * ang
-            # if p_es[0] < 0. and p_ed[0] < 0.:
-            #     if p_es[1] < p_ed[1]:
-            #         ang = -1 * ang  
-            # if p_es[0] > 0. and p_ed[0] < 0. and p_es[1] > 0. and p_ed[1] > 0.:
-            #     ang = -1 * ang
-            # if p_es[0] < 0. and p_ed[0] > 0. and p_es[1] < 0. and p_ed[1] < 0.:
-            #     ang = -1 * ang
             angles.append(radians_to_degrees(ang_tot_seg))
             
             ls0 = self.all_data[idx_segment, h['ls_old'], index_ed]
@@ -535,14 +519,6 @@ class postprocess_paraview_new(object):
         ax2.set_ylabel('strain', fontsize = fontsize)
         ax2.set_xlabel('Segments', fontsize = fontsize)
         
-        # plt.subplot(2, 1, 1)
-        # plt.plot(range(1,len(segments)+1), angles)
-        # plt.ylabel('Rotation [$^\circ$]', fontsize = fontsize)
-        # plt.subplot(2, 1, 2)
-        # plt.plot(range(1,len(segments)+1), strains)
-        # plt.ylabel('strain', fontsize = fontsize)
-        # plt.xlabel('Segments', fontsize = fontsize)
-        
         if 'T0' in h:
             ax1a = ax1.twinx()
             ax1a.set_ylabel('T0')
@@ -551,6 +527,56 @@ class postprocess_paraview_new(object):
         ax1.axis(ymin=0.,ymax=7.)
         ax2.axis(ymin=-0.2,ymax=0.2)
    
+    def plot_wall_thickness(self, fig = None, fontsize=12):
+        if fig is None:
+            # Create new figure.
+            fig = plt.figure()
+        
+        # Make fig current.
+        plt.figure(fig.number)
+        
+        distance = self.calculate_wall_thickness()    
+        results = self.results
+        time = results['t_cycle']
+        t0 = np.amin(time)
+        tend = np.amax(time)
+        
+        for seg, dist in enumerate(distance):
+            dist = dist - dist[0]
+            plt.plot(time, dist, label = str(seg+1))
+        
+        # Mark the beginning of each phase
+        phaselabel = ['d','ic','e','ir']
+        for i in range(1,5):
+            if 'phase_s' in results.keys():
+                index = (results['phase_s'] == i).idxmax()
+            else: 
+                index = (results['phase'] == i).idxmax()
+            phase_time = results['t_cycle'][index]
+            plt.plot([phase_time, phase_time], [-0.4, 0.2],'C7')
+        
+            #plot phase labels
+            if i != 4:
+                #get the begin time of the next phase
+                if 'phase_s' in results.keys():
+                    next_index = (results['phase_s'] == i+1).idxmax()
+                else: 
+                    next_index = (results['phase'] == i+1).idxmax()
+                next_phase = results['t_cycle'][next_index]
+                #plot label between the two phases
+                plt.text((phase_time+next_phase)/2, 0.15, phaselabel[i-1],fontsize=13,horizontalalignment='center')
+            elif i == 4:
+                #plot the label of the last phase
+                plt.text((phase_time+max(time))/2, 0.15, phaselabel[i-1],fontsize=13,horizontalalignment='center')
+    
+        
+        plt.xlabel('time [ms]', fontsize=fontsize)
+        plt.ylabel('wall thickness [cm]', fontsize=fontsize)
+        plt.tick_params(labelsize=fontsize-2)
+        plt.grid('on')
+        plt.axis([t0, tend, -0.4, 0.2])
+        plt.legend()
+        plt.title('Wall thickness', fontsize=fontsize+2)
     
     def plot_pv_loops(self, *args, fig=None, fontsize=12, **kwargs):
         if fig is None:
@@ -709,9 +735,6 @@ class postprocess_paraview_new(object):
             plt.grid('on')
             plt.axis([0.95, 1.2, 0., 60.]) 
             
-            
-        
-        
         
     def plot_time_stress(self, *args, fig=None, phase = True, fontsize=12,**kwargs):
         if fig is None:
@@ -777,9 +800,7 @@ class postprocess_paraview_new(object):
 
         
     def plot_stress_ls_l0(self, *args, fig=None, fontsize=12, 
-                           reference='onset_shortening',
-                            
-                           **kwargs):
+                           reference='onset_shortening', **kwargs):
         if fig is None:
             # Create new figure.
             fig = plt.figure()
@@ -1035,8 +1056,7 @@ class postprocess_paraview_new(object):
         
         # Make fig current.
         plt.figure(fig.number)
-    
-                        
+                           
         col = [ 'C7','C5', 'C0', 'C1','C2','C3']
         # col = ['g', 'r', 'c','w']
         if projection == '2d':
@@ -1059,11 +1079,7 @@ class postprocess_paraview_new(object):
                 data_T0 = self.all_data[:, h['T0'], 0]
                 segment_idx = self.extract_segment_idx()[0]
                 T0_segment = []
-                # [T0_segment.append(idx) for wall_idx in segment_idx for idx in wall_idx if data_T0[idx] < 90]
-                for wall_idx in segment_idx:
-                    for idx in wall_idx:
-                        if data_T0[idx] < 90:
-                            T0_segment.append(idx)
+                [T0_segment.append(idx) for wall_idx in segment_idx for idx in wall_idx if data_T0[idx] < 90]
                 
                 regions = [region0,
                            segment_idx,
@@ -1083,48 +1099,29 @@ class postprocess_paraview_new(object):
                            self.extract_A_idx(), 
                            self.extract_AL_idx(),
                            self.extract_P_idx()]
-                # regions = [region0,
-                #            np.array([2469, 4259,3805]),]
                 
                 region_labels = [None,
                                  'T0',
-                                'AM', 
+                                 'AM', 
                                  'A', 
                                  'AL',
-                                'P']
+                                 'P']
             else: 
                 regions = [region0,
                             self.extract_AM_idx(), 
                             self.extract_A_idx(), 
                             self.extract_AL_idx()]
-                # regions = [region0,
-                #            np.array([2469, 4259,3805]),]
                 
                 region_labels = [None,
                                 'AM', 
-                                  'A', 
-                                  'AL']   
-
-            
-        # idx_tot =[]
-        # idx_tot.extend(regions[1:5])
+                                'A', 
+                                'AL']   
 
         for ii, idx in enumerate(regions):
             if ii == 0 and skip is not None and skip != 0:
                 # Only select a random batch of relative size 1/skip to plot excluded nodes.
                 random.shuffle(idx)
                 idx = idx[:int(len(idx)/skip)]
-                
-            # if ii ==0:
-            #     # idx =idx[0]
-            #     # idx = [np.delete(idx,int(np.argwhere(idx==i))) for dat in regions[0] for i in dat for row in idx_tot if i in row ]
-            #     idx =idx[0]
-            #     idx_tot = idx_tot[0]
-            #     for data in regions[0]:
-            #         for i in data:               
-            #             for row in idx_tot:
-            #                 if i in row:  
-            #                     idx = np.delete(idx,int(np.argwhere(idx == i)))
 
             x = self.all_data[idx, h[':0'], 0]
             y = self.all_data[idx, h[':1'], 0]
@@ -1143,26 +1140,17 @@ class postprocess_paraview_new(object):
                 if segments == True:
                     # if ii == 0:
                     #     ax.scatter(x, y,color=col[ii], label=region_labels[ii])
-                    for i in range(0, 24):
-                        if ii == 1:
+                    if ii == 1:
+                        for i in range(0, 24):                       
                             ax1.scatter(x[i], y[i])
                             ax1.plot(x[i], y[i])
                             ax1.axis('equal')
                             nr_x = np.mean(np.append(x[i],x[i-1]))
                             nr_y = np.mean(np.append(y[i],y[i-1]))
                             ax1.text(nr_x,nr_y,'{}'.format(i+1), ha='center', va='center')
-                        # if ii == 2:
-                        #     ax1.scatter(x, y)
-                        # if ii == 2:
-                        #     minz_mask = z > min_z
-                        #     maxz_mask = z < max_z
-                        #     mask_z = minz_mask * maxz_mask
-                        #     idx_t0 = np.where(mask_z*z)[1]
-                        #     x_t0 = self.all_data[idx_t0, h[':0'], 0]
-                        #     y_t0 = self.all_data[idx_t0, h[':1'], 0]
-                        #     ax1.scatter(x_t0, y_t0)
-                        ax2.scatter(x, z)
-                        ax2.axis('equal')
+                    ax2.scatter(x, z)
+                    ax2.axis('equal')
+                    
                 else:
                     # f = plt.figure() 
                     # f, axes = plt.subplots(nrows = 1, ncols = 2, sharex=True, sharey = True)
