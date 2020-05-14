@@ -290,10 +290,31 @@ class postprocess_paraview_new(object):
         
         return np.dstack(data)
     
-    def extract_wall_idx(self, phi_val= 0.):
+    def compute_sigma(self, x, y, z):
+        """
+        Ellipsoidal radial position defined such that constant values represent
+        an ellipsoidal surface.
+    
+        Args:
+            x, y, z: x, y, z coordinates.
+            focus: focal length of ellipsoid.
+        Returns:
+            sigma
+        """
+        
+        focus = self.parameters['focus']
+        # Compute and return the sigma values.
+        return 0.5 * (np.sqrt(x ** 2 + y ** 2 + (z + focus) ** 2)
+                        + np.sqrt(x ** 2 + y ** 2 + (z - focus) ** 2)) / focus  
+    
+    
+    def extract_wall_idx(self, phi_val= 0.,theta_val= None, loc = ['epi','mid','endo']):
         #select single point on epi, mid and endowall respectively
         h = self.column_headers
         data = self.all_data[:, :, 0]
+        
+        if theta_val == None:
+            theta_val = self.parameters['theta']
 
         # #check on which side (x-z or y-z) of the heart the points are located
         # #assumes that if A_phi ==0 on the y-z plane (with positive x) and otherwhise on the x-z plane (with positive y)
@@ -317,12 +338,11 @@ class postprocess_paraview_new(object):
         
         #get coordinates on the outer and inner wall for phi
         x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], phi_val)
-        x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],self.parameters['theta'], phi_val)
+        x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],theta_val, phi_val)
 
         mask = {}
         mask_tot = {}
-        coordname = ['x','y','z']
-        loc = ['epi','mid','endo']
+        coordname = ['x','y','z']        
         mask_tot_loc = [False]
         for wall in loc:
             #creates masks for x, y and z for each point on the wall
@@ -357,160 +377,19 @@ class postprocess_paraview_new(object):
                 
             mask_tot['mask_tot_' + wall] = mask_tot_loc  
             
+        if len(mask_tot.keys()) == 1:
+            return np.array(np.where(mask_tot['mask_tot_' + loc[0]])[0][0])
         #only return one point per wall location (epi, mid or endo)
         return (np.array([np.where(mask_tot['mask_tot_epi'])[0][0],np.where(mask_tot['mask_tot_mid'])[0][0],np.where(mask_tot['mask_tot_endo'])[0][0]]))
         
     def extract_AM_idx(self):
         return self.extract_wall_idx(phi_val = self.parameters['AM_phi'])
-        # Extract points AM
-        # h = self.column_headers
-        # data = self.all_data[:, :, 0]
-        # # x = data[:, h[':0']]
-        # # y = data[:, h[':1']]
-        # # z = data[:, h[':2']]
-        # # # mask_cut_off_low = data[:, h[':2']] >= self.parameters['cut_off_low']
-        # # mask_cut_off_high = data[:, h[':2']] <= self.parameters['cut_off_high']
-        # if self.parameters['A_phi'] == 0:
-        #     mask_cut_off_right = data[:, h[':0']] >= 0.
-        # else:
-        #     mask_cut_off_right = data[:, h[':1']] >= 0.
-        
-        # #cylinder method
-        
-        # # pt1 = np.array([0,0,0])
-        # # pt2 = np.array([px,py,pz])
-        # # vec = np.subtract(pt2,pt1)
-        # # contst =  self.parameters['slice_thickness']/2 * np.linalg.norm(vec)
-        
-        
-        # # x1=[tel-pt1[0] for tel in x]
-        # # y1=[tel-pt1[1] for tel in y]
-        # # z1=[tel-pt1[2] for tel in z]
-        
-        # # x2=[tel-pt2[0] for tel in x]
-        # # y2=[tel-pt2[1] for tel in y]
-        # # z2=[tel-pt2[2] for tel in z]
-        
-        
-        # # points1 = np.array([x1,y1,z1])
-        # # points2 = np.array([x2,y2,z2])
-        # # mask_1 = np.dot(points1[:,0],vec)
-        # # mask_2 = np.dot(points2[:,0],vec)
-        # # mask_3 = np.linalg.norm(np.cross(points1[:,0], vec))
-        # # for i in range(1,len(data)):
-        # #     mask_1=np.append(mask_1,np.dot(points1[:,i],vec))
-        # #     mask_2=np.append(mask_2,np.dot(points2[:,i],vec))
-        # #     mask_3=np.append(mask_3,np.linalg.norm(np.cross(points1[:,i], vec)))
-        
-        # # # mask_1 = [np.dot(tel,vec) for i in range(0,len(data)) for tel in points1[:,i]]
 
-        # # # mask_1 = np.dot(points1, vec) >=0
-        # # mask_1 = mask_1>=0
-        # # mask_2 = mask_2>=0
-        # # mask_3 = mask_3<=contst
-        # # mask_tot = mask_1*mask_2*mask_3
-        # # # mask_2 = np.dot(np.array([x,y,z])-pt2, vec) <=0
-        # # # mask_3 = np.linalg.norm(np.cross(np.array([x,y,z])-pt1, vec)) <= contst
-        
-        # if self.parameters['infarct'] == True:
-        #     if 'T0' in h:
-        #         T0 = 'T0'
-        #     elif 'f_135' in h:
-        #         T0 = 'f_135'
-        #     elif 'f_137' in h:
-        #         T0 = 'f_137'
-        #     data_T0 = self.all_data[:, h[T0], 0]
-        #     mask_T0 = data_T0 >= 90
-    
-        
-        # line method
-    
-        # mask_cut_off_low = data[:, h[':2']] >= z - self.parameters['slice_thickness']/2
-        # mask_cut_off_high = data[:, h[':2']] <= z + self.parameters['slice_thickness']/2
-        # mask_cut_off_line_left = data[:, h[':1']] >= (x-x2)/(y-y2)*data[:, h[':0']] -  self.parameters['slice_thickness']/2 
-        # mask_cut_off_line_right = data[:, h[':1']] <= (x-x2)/(y-y2)*data[:, h[':0']] +  self.parameters['slice_thickness']/2 
-        # # mask_cut_off_line_high = data[:, h[':2']] <= z* abs(1-(y + x/y*data[:, h[':0']]))+  self.parameters['slice_thickness']/2 
-        # # mask_cut_off_line_low = data[:, h[':2']] <= z* abs(1-(y + x/y*data[:, h[':0']]))-  self.parameters['slice_thickness']/2 
-
-
-        # # # mask_tot = mask_cut_off_line_low*mask_cut_off_line_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
-        
-        # # mask_tot = mask_1 * mask_2 * mask_3 * mask_cut_off_right
-        # if self.parameters['infarct'] == True:
-        #     if 'T0' in h:
-        #         T0 = 'T0'
-        #     elif 'f_135' in h:
-        #         T0 = 'f_135'
-        #     elif 'f_137' in h:
-        #         T0 = 'f_137'
-        #     data_T0 = self.all_data[:, h[T0], 0]
-        #     mask_T0 = data_T0 >= 90
-        #     mask_tot = mask_T0*mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
-        # else:
-        #     mask_tot =mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
-
-        # return np.where(mask_tot)[0]  
-        # # return (np.array([2469,2345,3805]))
-
-    def extract_A_idx(self):
-        # Extract points A
-        # h = self.column_headers
-        # data = self.all_data[:, :, 0]
-        # x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], self.parameters['A_phi'])
-
-        # mask_cut_off_low = data[:, h[':2']] >= z - self.parameters['slice_thickness']/2
-        # mask_cut_off_high = data[:, h[':2']] <= z + self.parameters['slice_thickness']/2
-        # if self.parameters['A_phi'] == 0.:
-        #     mask_cut_off_right = data[:, h[':0']] >= 0.
-        #     mask_cut_off_slice = abs(data[:, h[':1']]) <= self.parameters['slice_thickness']/2
-        # else:
-        #     mask_cut_off_right = data[:, h[':1']] >= 0.
-        #     mask_cut_off_slice = abs(data[:, h[':0']]) <= self.parameters['slice_thickness']/2        
-        # # mask_cut_off_line_left = data[:, h[':1']] >= x/y*data[:, h[':0']] -  self.parameters['slice_thickness']/2 
-        # # mask_cut_off_line_right = data[:, h[':1']] <= x/y*data[:, h[':0']] +  self.parameters['slice_thickness']/2 
-        # # mask_tot = mask_cut_off_low*mask_cut_off_high*mask_cut_off_right*mask_cut_off_line_left*mask_cut_off_line_right
-        # mask_tot = mask_cut_off_low*mask_cut_off_high*mask_cut_off_right*mask_cut_off_slice
-        # return np.where(mask_tot)[0]  
+    def extract_A_idx(self): 
         return self.extract_wall_idx(phi_val = self.parameters['A_phi'])
         # return (np.array([2006,3950,3875]))
     
     def extract_AL_idx(self):
-        # Extract points AL
-        # h = self.column_headers
-        # data = self.all_data[:, :, 0]
-        # # mask_cut_off_low = data[:, h[':2']] >= self.parameters['cut_off_low']
-        # # mask_cut_off_high = data[:, h[':2']] <= self.parameters['cut_off_high']
-        # if self.parameters['A_phi'] == 0.:
-        #     mask_cut_off_right = data[:, h[':0']] >= 0.
-        # else:
-        #     mask_cut_off_right = data[:, h[':1']] >= 0.
-        
-        # x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], self.parameters['AL_phi'])
-        # x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],self.parameters['theta'], self.parameters['AL_phi'])
-
-        
-        # mask_cut_off_low = data[:, h[':2']] >= z - self.parameters['slice_thickness']/2
-        # mask_cut_off_high = data[:, h[':2']] <= z + self.parameters['slice_thickness']/2
-        # mask_cut_off_line_left = data[:, h[':1']] >= (x-x2)/(y-y2)*data[:, h[':0']] -  self.parameters['slice_thickness']/2 
-        # mask_cut_off_line_right = data[:, h[':1']] <= (x-x2)/(y-y2)*data[:, h[':0']] +  self.parameters['slice_thickness']/2 
-        # # mask_cut_off_line_left = 1.73/2.37*data[:, h[':0']] -  self.parameters['slice_thickness']/2 <=data[:, h[':1']]
-        # # mask_cut_off_line_right = 1.73/2.37*data[:, h[':0']] +  self.parameters['slice_thickness']/2 >=data[:, h[':1']]
-
-       
-        # if self.parameters['infarct'] == True:
-        #     if 'T0' in h:
-        #         T0 = 'T0'
-        #     elif 'f_135' in h:
-        #         T0 = 'f_135'
-        #     elif 'f_137' in h:
-        #         T0 = 'f_137'
-        #     data_T0 = self.all_data[:, h[T0], 0]
-        #     mask_T0 = data_T0 >= 90
-        #     mask_tot = mask_T0*mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
-        # else:
-        #     mask_tot =mask_cut_off_low*mask_cut_off_high*mask_cut_off_line_left*mask_cut_off_line_right*mask_cut_off_right
-        
-        # return np.where(mask_tot)[0]
         return self.extract_wall_idx(phi_val = self.parameters['AL_phi'])
         # return (np.array([427,1417,1848]))
     
@@ -520,17 +399,41 @@ class postprocess_paraview_new(object):
     
     def extract_segment_idx(self):
         nr_segments = 24
+        h = self.column_headers
         
+        # calculate all sigma values  
+        # constant value represents ellipsoidal surface
+        sigma = self.compute_sigma(self.all_data[:, h[':0'], 0],self.all_data[:, h[':1'], 0],self.all_data[:, h[':2'], 0])
+        
+        # get sigma value of epi and endo ellipsoid
+        max_sigma = max(sigma)
+        min_sigma = min(sigma)
+        
+        # calculate height (z) of the segments
+        tau = math.cos(self.parameters['theta'])
+        z_epi = self.parameters['focus'] * max_sigma * tau
+        
+        # calculate for which theta a (segment) point on the inner ellipsoid is 
+        # at the same height as the point on the outer ellipsoid
+        tau = z_epi/(self.parameters['focus'] * min_sigma)
+        theta_inner = math.acos(tau)
+        
+        # create 24 segments
         phi_int = 2*math.pi / nr_segments
         phi_range = np.arange(0., 2*math.pi, phi_int)
+        phi_range = np.arange(-1*math.pi, 1*math.pi, phi_int)
         
         segments = []
         for i in phi_range:
-            seg = self.extract_wall_idx(phi_val = i)
-            segments.append(seg)
+            # for each segment, extract a point on the epi, mid and endo wall
+            seg = self.extract_wall_idx(phi_val = i, theta_val= theta_inner)
+            segments.append(seg)     
         
-        return segments
-        
+        if 'T0' in h:
+            data_T0 = self.all_data[segments, h['T0'], 0]
+            return segments, data_T0
+        else:      
+            return segments   
         
     
     def extract_T0_idx(self):
@@ -566,45 +469,88 @@ class postprocess_paraview_new(object):
         h = self.column_headers
         results = self.results
         
-        segments = self.extract_segment_idx()
+        if 'T0' in h:
+            segments, T0 = self.extract_segment_idx()
+        else:
+            segments = self.extract_segment_idx()
         
         index_ed = (results['phase'] ==2).idxmax() - results.index[0] - 1
         index_es = (results['phase'] ==4).idxmax() - results.index[0] - 1
         
         angles = []
         strains = []
-        
+        nrsegments = []
         for ii, idx in enumerate(segments):
-            idx_epi = idx[0]
-            x_pos = self.all_data[idx_epi, h[':0'], 0]
-            y_pos = self.all_data[idx_epi, h[':1'], 0]
-            x_ed  = x_pos + self.all_data[idx_epi, h['displacement:0'], index_ed]
-            x_es  = x_pos + self.all_data[idx_epi, h['displacement:0'], index_es]
-            y_ed  = y_pos + self.all_data[idx_epi, h['displacement:1'], index_ed]
-            y_es  = y_pos + self.all_data[idx_epi, h['displacement:1'], index_es]        
+            idx_segment = np.append(idx,segments[ii-1])
+            # idx_epi = idx[0]
+            x_pos = self.all_data[idx_segment, h[':0'], 0]
+            y_pos = self.all_data[idx_segment, h[':1'], 0]
+            
+            x_ed  = x_pos + self.all_data[idx_segment, h['displacement:0'], index_ed]
+            x_es  = x_pos + self.all_data[idx_segment, h['displacement:0'], index_es]
+            
+            y_ed  = y_pos + self.all_data[idx_segment, h['displacement:1'], index_ed]
+            y_es  = y_pos + self.all_data[idx_segment, h['displacement:1'], index_es]        
             
             p_ed = np.array([x_ed, y_ed])
             p_es = np.array([x_es, y_es])
             
-            ang = math.atan2(abs(np.linalg.det([p_ed,p_es])),np.dot(p_ed,p_es))
-            angles.append(radians_to_degrees(ang))
+            ang_points_seg = []
+            for i in range(0,len(p_ed)+1):
+                ang_point = np.dot(p_ed[:,i], p_es[:,i]) / (np.linalg.norm(p_ed[:,i]) * np.linalg.norm(p_es[:,i]))
+                ang_point = np.arccos(ang_point)
+                ang_points_seg.append(ang_point)
+            ang_tot_seg = np.mean(ang_points_seg)
+            # ang = math.atan2(abs(np.linalg.det([p_ed,p_es])),np.dot(p_ed,p_es))
+            # ang = np.dot(p_ed, p_es) / (np.linalg.norm(p_ed) * np.linalg.norm(p_es))
+            # ang = np.arccos(ang_tot_seg)
             
-            ls0 = self.all_data[idx_epi, h['ls_old'], index_ed]
-            ls = self.all_data[idx_epi, h['ls_old'], index_es]
+            # if p_es[0] > 0. and p_ed[0] > 0.:
+            #     if p_es[1] > p_ed[1]:
+            #         ang = -1 * ang
+            # if p_es[0] < 0. and p_ed[0] < 0.:
+            #     if p_es[1] < p_ed[1]:
+            #         ang = -1 * ang  
+            # if p_es[0] > 0. and p_ed[0] < 0. and p_es[1] > 0. and p_ed[1] > 0.:
+            #     ang = -1 * ang
+            # if p_es[0] < 0. and p_ed[0] > 0. and p_es[1] < 0. and p_ed[1] < 0.:
+            #     ang = -1 * ang
+            angles.append(radians_to_degrees(ang_tot_seg))
+            
+            ls0 = self.all_data[idx_segment, h['ls_old'], index_ed]
+            ls = self.all_data[idx_segment, h['ls_old'], index_es]
             strain = np.log( ls/ls0 )
-            strains.append(strain)
+            strains.append(np.mean(strain))
+            nrsegments.append(ii)
             
         if fig is None:    
             fig = plt.figure()
         plt.figure(fig.number)
         
-        plt.subplot(2, 1, 1)
-        plt.plot(range(1,len(segments)+1), angles)
-        plt.ylabel('Rotation [$^\circ$]', fontsize = fontsize)
-        plt.subplot(2, 1, 2)
-        plt.plot(range(1,len(segments)+1), strains)
-        plt.ylabel('strain', fontsize = fontsize)
-        plt.xlabel('Segments', fontsize = fontsize)
+        ax1 = fig.add_subplot(2, 1, 1)
+        ax1.plot(nrsegments, angles)
+        ax1.set_ylabel('Rotation [$^\circ$]', fontsize = fontsize)
+        ax2 = fig.add_subplot(2, 1, 2)
+        ax2.plot(nrsegments, strains)
+        ax2.set_ylabel('strain', fontsize = fontsize)
+        ax2.set_xlabel('Segments', fontsize = fontsize)
+        
+        # plt.subplot(2, 1, 1)
+        # plt.plot(range(1,len(segments)+1), angles)
+        # plt.ylabel('Rotation [$^\circ$]', fontsize = fontsize)
+        # plt.subplot(2, 1, 2)
+        # plt.plot(range(1,len(segments)+1), strains)
+        # plt.ylabel('strain', fontsize = fontsize)
+        # plt.xlabel('Segments', fontsize = fontsize)
+        
+        if 'T0' in h:
+            ax1a = ax1.twinx()
+            ax1a.set_ylabel('T0')
+            ax1a.plot(nrsegments, T0)
+        
+        ax1.axis(ymin=0.,ymax=7.)
+        ax2.axis(ymin=-0.2,ymax=0.2)
+   
     
     def plot_pv_loops(self, *args, fig=None, fontsize=12, **kwargs):
         if fig is None:
@@ -1089,15 +1035,7 @@ class postprocess_paraview_new(object):
         
         # Make fig current.
         plt.figure(fig.number)
-        
-        if projection == '3d':
-            ax = fig.add_subplot(111, projection='3d')
-        # elif segments == True:
-        #     ax3 = fig.add_subplot(111)
-        else:
-            
-            ax1 = fig.add_subplot(121)
-            ax2 = fig.add_subplot(122)
+    
                         
         col = [ 'C7','C5', 'C0', 'C1','C2','C3']
         # col = ['g', 'r', 'c','w']
@@ -1105,46 +1043,67 @@ class postprocess_paraview_new(object):
             # Only select nodes from slice.
             # region0 = np.where((self.all_data[:, h[':1'], 0]) >= 0.)
             region0 = np.where((self.all_data[:, h[':1'], 0]) >= -4.)
+
+            ax1 = fig.add_subplot(121)
+            ax2 = fig.add_subplot(122)
         else:
             # Select all nodes.
             # region0 = self.all_data
             region0 = np.where((self.all_data[:, h[':1'], 0]) >= -4.)
             # region0 = np.arange(len(self.all_data[:, h[':1'], 0]))
+            ax = fig.add_subplot(111, projection='3d')
         
-        if self.parameters['infarct'] == True:
-            regions = [region0,
-                       self.extract_T0_idx(),
-                       self.extract_AM_idx(), 
-                       self.extract_A_idx(), 
-                       self.extract_AL_idx(),
-                       self.extract_P_idx()]
-            # regions = [region0,
-            #            np.array([2469, 4259,3805]),]
-            
-            region_labels = [None,
-                             'T0',
-                            'AM', 
-                             'A', 
-                             'AL',
-                             'P']
-        elif segments == True:
+        if segments == True:
             # region0 = np.where((self.all_data[:, h[':2'], 0]) <= -2.)
-            regions = [region0,
-                       self.extract_segment_idx()]
-            region_labels = [
-                             'segments']            
+            if 'T0' in h:
+                data_T0 = self.all_data[:, h['T0'], 0]
+                segment_idx = self.extract_segment_idx()[0]
+                T0_segment = []
+                # [T0_segment.append(idx) for wall_idx in segment_idx for idx in wall_idx if data_T0[idx] < 90]
+                for wall_idx in segment_idx:
+                    for idx in wall_idx:
+                        if data_T0[idx] < 90:
+                            T0_segment.append(idx)
+                
+                regions = [region0,
+                           segment_idx,
+                           (np.asarray(T0_segment)),
+                           self.extract_T0_idx()]
+                region_labels = ['segments',
+                                 'infarct']  
+            else:
+                regions = [region0,
+                           self.extract_segment_idx()]
+                region_labels = ['segments']                
         else:
-            regions = [region0,
-                        self.extract_AM_idx(), 
-                        self.extract_A_idx(), 
-                        self.extract_AL_idx()]
-            # regions = [region0,
-            #            np.array([2469, 4259,3805]),]
-            
-            region_labels = [None,
-                            'AM', 
-                              'A', 
-                              'AL']   
+            if 'T0' in h:
+                regions = [region0,
+                           self.extract_T0_idx(),
+                           self.extract_AM_idx(), 
+                           self.extract_A_idx(), 
+                           self.extract_AL_idx(),
+                           self.extract_P_idx()]
+                # regions = [region0,
+                #            np.array([2469, 4259,3805]),]
+                
+                region_labels = [None,
+                                 'T0',
+                                'AM', 
+                                 'A', 
+                                 'AL',
+                                'P']
+            else: 
+                regions = [region0,
+                            self.extract_AM_idx(), 
+                            self.extract_A_idx(), 
+                            self.extract_AL_idx()]
+                # regions = [region0,
+                #            np.array([2469, 4259,3805]),]
+                
+                region_labels = [None,
+                                'AM', 
+                                  'A', 
+                                  'AL']   
 
             
         # idx_tot =[]
@@ -1184,11 +1143,25 @@ class postprocess_paraview_new(object):
                 if segments == True:
                     # if ii == 0:
                     #     ax.scatter(x, y,color=col[ii], label=region_labels[ii])
-                    for i in range(0, len(x)):
-                        if ii != 0:
+                    for i in range(0, 24):
+                        if ii == 1:
                             ax1.scatter(x[i], y[i])
+                            ax1.plot(x[i], y[i])
                             ax1.axis('equal')
-                        ax2.scatter(x[i], z[i])
+                            nr_x = np.mean(np.append(x[i],x[i-1]))
+                            nr_y = np.mean(np.append(y[i],y[i-1]))
+                            ax1.text(nr_x,nr_y,'{}'.format(i+1), ha='center', va='center')
+                        # if ii == 2:
+                        #     ax1.scatter(x, y)
+                        # if ii == 2:
+                        #     minz_mask = z > min_z
+                        #     maxz_mask = z < max_z
+                        #     mask_z = minz_mask * maxz_mask
+                        #     idx_t0 = np.where(mask_z*z)[1]
+                        #     x_t0 = self.all_data[idx_t0, h[':0'], 0]
+                        #     y_t0 = self.all_data[idx_t0, h[':1'], 0]
+                        #     ax1.scatter(x_t0, y_t0)
+                        ax2.scatter(x, z)
                         ax2.axis('equal')
                 else:
                     # f = plt.figure() 
