@@ -2,6 +2,7 @@ from dolfin import *
 import math as math
 import numpy as np
 
+
 # Create mesh and define function space
 h5file = HDF5File( mpi_comm_world() , "/home/maaike/Pleunie/sepran_tetra_82422_all_P1.h5", 'r')
 mesh = Mesh(mpi_comm_world())

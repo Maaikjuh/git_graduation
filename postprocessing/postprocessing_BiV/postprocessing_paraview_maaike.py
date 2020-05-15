@@ -432,6 +432,7 @@ class postprocess_paraview_new(object):
             segments = self.extract_segment_idx()
         
         distance = []
+        
         for i, seg in enumerate(segments):
             epi = seg[0]
             endo = seg[2]
@@ -527,7 +528,7 @@ class postprocess_paraview_new(object):
         ax1.axis(ymin=0.,ymax=7.)
         ax2.axis(ymin=-0.2,ymax=0.2)
    
-    def plot_wall_thickness(self, fig = None, fontsize=12):
+    def plot_wall_thickness(self, fig = None, fontsize=12, nrsegments=None):
         if fig is None:
             # Create new figure.
             fig = plt.figure()
@@ -541,9 +542,12 @@ class postprocess_paraview_new(object):
         t0 = np.amin(time)
         tend = np.amax(time)
         
+        if nrsegments == None:
+            nrsegments = range(0, len(segments))
         for seg, dist in enumerate(distance):
-            dist = dist - dist[0]
-            plt.plot(time, dist, label = str(seg+1))
+            if (seg+1) in nrsegments:
+                dist = dist - dist[0]
+                plt.plot(time, dist, label = str(seg+1))
         
         # Mark the beginning of each phase
         phaselabel = ['d','ic','e','ir']
@@ -571,7 +575,7 @@ class postprocess_paraview_new(object):
     
         
         plt.xlabel('time [ms]', fontsize=fontsize)
-        plt.ylabel('wall thickness [cm]', fontsize=fontsize)
+        plt.ylabel('Change in wall thickness [cm]', fontsize=fontsize)
         plt.tick_params(labelsize=fontsize-2)
         plt.grid('on')
         plt.axis([t0, tend, -0.4, 0.2])

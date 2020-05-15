@@ -79,7 +79,10 @@ parameters.update({'form_compiler': inputs['form_compiler']})
 
 inputs['geometry']['load_fiber_field_from_meshfile'] = True
 geometry = LeftVentricleGeometry(meshfile=filepath, **inputs['geometry'])
-ef = geometry.fiber_vectors()[0].to_function(None)
+# ef = geometry.fiber_vectors()[0].to_function(None)
+VV = VectorFunctionSpace(mesh , 'Lagrange', 1, dim=3)
+fibers = Function(VV)
+ef = geometry.fiber_vectors()[0].to_function(fibers)
 # geometry._fiber_vectors = None  # This may be a redundant statement (but I did not check if it works without).
 # geometry.load_fiber_field(filepath=filepath)
 # Create scalar function space for the difference in angle between vectors.
@@ -122,10 +125,10 @@ w = TestFunction(V)
 td = Function(V)
 f = Constant(1)
 g = Constant(0)
-ff = as_vector([ fibers[0], fibers[1], fibers[2]])
-print(ff)
-ff = fibers
-ef = ff/sqrt(inner(ff ,ff))
+# ff = as_vector([ fibers[0], fibers[1], fibers[2]])
+# print(ff)
+# ff = fibers
+# ef = ff/sqrt(inner(ff ,ff))
 I = Identity(3)
 Mi = sig_il * outer(ef ,ef)+ sig_it *(I- outer(ef ,ef))
 Me = sig_el * outer(ef ,ef)+ sig_et *(I- outer(ef ,ef))
