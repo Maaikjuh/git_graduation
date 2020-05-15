@@ -88,6 +88,5 @@ else:
         fig = plt.figure()
         cycles_plot = Hemodynamics_all_cycles(results_cycs, fig = fig)
         cycles_plot.plot()
-        cycles_plot = Hemodynamics_all_cycles(results_cycs_2, fig = fig)
-        cycles_plot.plot('--')
+
     

@@ -1567,6 +1567,7 @@ class FiberReorientation(object):
         Helper-method to check whether fiber reorientation is enabled in current cycle.
         Returns True if enabled, False if not.
         """
+        print('ncycles_pre: {}'.format(current_cycle))
         return not (current_cycle < 1 + ncycles_pre or current_cycle > ncycles_pre + ncycles_reorient)
 
     def reorient_fibers(self, current_cycle):
@@ -1587,8 +1588,10 @@ class FiberReorientation(object):
         ncycles_reorient = self._inputs['ncycles_reorient']
         if not self.check_fiber_reorientation(current_cycle, ncycles_pre, ncycles_reorient):
             # Do not reorient.
+            print_once('Not reorienting fibers...')
             return
 
+        print_once('Reorienting fibers...')
         # Extract kappa.
         kappa = self._inputs['kappa']
 
@@ -1630,7 +1633,8 @@ class FiberReorientation(object):
                     # Subtract projection.
                     ef_new_ -= ef_t
                 except IndexError:
-                    continue
+                    # TODO Figure out why the index is out of bounds
+                    print('Error when projecting fiber vector onto local transmural vector, continuing without projection')
 
             # Normalize new fiber vector.
             ef_new = ef_new_/np.linalg.norm(ef_new_)

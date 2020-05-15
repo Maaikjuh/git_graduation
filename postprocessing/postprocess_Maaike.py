@@ -435,7 +435,6 @@ class Hemodynamics_all_cycles(object):
     
     def plot(self, *args):
         df = self._df
-        plt.figure(self._fig.number)
         
         hemo = self.hemodymanics()
         

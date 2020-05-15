@@ -584,177 +584,135 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         Return the interpolated values of T0 on the mesh
         """
-
-        infarct_type = 'droplet'
-
-        if infarct_type == 'droplet':
-            print_once("generating droplet infarct area")
-            Ta0_infarct = self.parameters['Ta0_infarct']
-            Ta0 = self.parameters['Ta0']
-            phi_max = self.parameters['phi_max']
-            theta_min = self.parameters['theta_min']
-            theta_max = self.parameters['theta_max']
-            ximin = self.parameters['ximin']
-            focus = self.parameters['focus']
-
-            border = False
-
-            # degree of the expression for ellipsoidal coordinates
-            degree = 3
-
-            Q = vector_space_to_scalar_space(u.ufl_function_space())
-
-            # calculate spherical nodal coordinates of the mesh
-            phi = compute_coordinate_expression(degree, Q.ufl_element(),'phi',focus)
-            theta = compute_coordinate_expression(degree, Q.ufl_element(),'theta',focus)
-            xi = compute_coordinate_expression(degree, Q.ufl_element(),'xi',focus)
-
-            # dir_out = self.parameters['save_T0_mesh']
-
-            # ptphi = project(phi,Q)
-            # save_to_xdmf(ptphi,dir_out,'phi_coord')
-
-            # ptheta = project(theta,Q)
-            # save_to_xdmf(ptheta,dir_out,'theta_coord')
-
-            # ptxi = project(xi,Q)
-            # save_to_xdmf(ptxi,dir_out,'xi_coord')
-
-            # point of origin for phi
-            phi0=0 
-                      
-            if border == True:
-                # # borderzone of the infarct
-                # # formula to describe one half of the droplet shape for phi
-                # # slope from zero to max value of phi in the droplet
-                # slope = (phi_max-1/10*math.pi)/(theta_max-1/10*math.pi-(theta_min+1/15*math.pi))
-                # #expression for the phi values for the right side of the droplet shape 
-                # drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=theta_min+1/15*math.pi), degree=3, theta=theta)
-
-                # slope = (phi_max+1/4*math.pi)/(math.pi-(theta_min-1/15*math.pi))
-                # drop_exp_border = Expression("{slope}*(theta-{theta_min})".format(slope=slope,theta_min=theta_min-1/15*math.pi), degree=3, theta=theta)
-
-                # #check if phi is smaller than the right side of the droplet and bigger than the left side
-                # cpp_exp_Ta0_phi = "fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp)".format(phi0=phi0)
-             
-                # #check if theta is within the specified theta range
-                # cpp_exp_Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=theta_min+1/15*math.pi, thetamax=theta_max-1/5*math.pi)
-             
-                # #check if xi is greater than the smallest specified ellipsoid
-                # cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
-                
-                # cpp_exp_Ta0_phi_border = "fabs(phi-{phi0}) <=drop_exp_border && fabs(phi-{phi0}) >=-1*(drop_exp_border)".format(phi0=phi0)
-                # cpp_exp_Ta0_theta_border = "theta> {thetamin} && theta < {thetamax}".format(thetamin=theta_min-1/15*math.pi, thetamax=math.pi)
-
-                # cpp_exp_Ta0_border = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct+50,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi_border, exp_theta=cpp_exp_Ta0_theta_border, exp_xi=cpp_exp_Ta0_xi)
-                # cpp_exp_Ta0_infarct = "{exp_phi} && {exp_theta} && {exp_xi}".format(exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
-
-                # cpp_exp_Ta0 = "({exp_infarct})? {Ta0_infarct} : {exp_border}".format(Ta0_infarct=Ta0_infarct,exp_infarct=cpp_exp_Ta0_infarct,exp_border=cpp_exp_Ta0_border)
-
-                # Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp,drop_exp_border=drop_exp_border)
         
-                min_theta = 1/2*pi + 1/15*math.pi
-                max_theta = math.pi -1/5*math.pi
+        print_once("generating droplet infarct area")
+        Ta0_infarct = self.parameters['Ta0_infarct']
+        Ta0 = self.parameters['Ta0']
+        phi_max = self.parameters['phi_max']
+        theta_min = self.parameters['theta_min']
+        theta_max = self.parameters['theta_max']
+        ximin = self.parameters['ximin']
+        focus = self.parameters['focus']
+
+        # point of origin for phi
+        phi0=0 
+
+        border = False
+
+        # degree of the expression for ellipsoidal coordinates
+        degree = 3
+
+        Q = vector_space_to_scalar_space(u.ufl_function_space())
+
+        # calculate spherical nodal coordinates of the mesh
+        phi = compute_coordinate_expression(degree, Q.ufl_element(),'phi',focus)
+        theta = compute_coordinate_expression(degree, Q.ufl_element(),'theta',focus)
+        xi = compute_coordinate_expression(degree, Q.ufl_element(),'xi',focus)
+
+        ## uncomment to save the coordinate expressions on the mesh
+        # dir_out = self.parameters['save_T0_mesh']
+
+        # ptphi = project(phi,Q)
+        # save_to_xdmf(ptphi,dir_out,'phi_coord')
+
+        # ptheta = project(theta,Q)
+        # save_to_xdmf(ptheta,dir_out,'theta_coord')
+
+        # ptxi = project(xi,Q)
+        # save_to_xdmf(ptxi,dir_out,'xi_coord')
+                    
+        if border == True:
+            # # borderzone of the infarct
+            # # formula to describe one half of the droplet shape for phi
+            # # slope from zero to max value of phi in the droplet
+            # slope = (phi_max-1/10*math.pi)/(theta_max-1/10*math.pi-(theta_min+1/15*math.pi))
+            # #expression for the phi values for the right side of the droplet shape 
+            # drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=theta_min+1/15*math.pi), degree=3, theta=theta)
+
+            # slope = (phi_max+1/4*math.pi)/(math.pi-(theta_min-1/15*math.pi))
+            # drop_exp_border = Expression("{slope}*(theta-{theta_min})".format(slope=slope,theta_min=theta_min-1/15*math.pi), degree=3, theta=theta)
+
+            # #check if phi is smaller than the right side of the droplet and bigger than the left side
+            # cpp_exp_Ta0_phi = "fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp)".format(phi0=phi0)
+            
+            # #check if theta is within the specified theta range
+            # cpp_exp_Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=theta_min+1/15*math.pi, thetamax=theta_max-1/5*math.pi)
+            
+            # #check if xi is greater than the smallest specified ellipsoid
+            # cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
+            
+            # cpp_exp_Ta0_phi_border = "fabs(phi-{phi0}) <=drop_exp_border && fabs(phi-{phi0}) >=-1*(drop_exp_border)".format(phi0=phi0)
+            # cpp_exp_Ta0_theta_border = "theta> {thetamin} && theta < {thetamax}".format(thetamin=theta_min-1/15*math.pi, thetamax=math.pi)
+
+            # cpp_exp_Ta0_border = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct+50,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi_border, exp_theta=cpp_exp_Ta0_theta_border, exp_xi=cpp_exp_Ta0_xi)
+            # cpp_exp_Ta0_infarct = "{exp_phi} && {exp_theta} && {exp_xi}".format(exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
+
+            # cpp_exp_Ta0 = "({exp_infarct})? {Ta0_infarct} : {exp_border}".format(Ta0_infarct=Ta0_infarct,exp_infarct=cpp_exp_Ta0_infarct,exp_border=cpp_exp_Ta0_border)
+
+            # Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp,drop_exp_border=drop_exp_border)
     
-                max_phi = 1/3*math.pi
+            min_theta = 1/2*pi + 1/15*math.pi
+            max_theta = math.pi -1/5*math.pi
 
-                min_theta_border = 1/2*math.pi-1/12*math.pi
-                max_theta_border = math.pi
-                max_phi_border = max_phi+1/4*math.pi
+            max_phi = 1/3*math.pi
 
-                min_theta_border_2 = 1/3*math.pi
-                max_phi_border_2 = max_phi_border +1/6*math.pi
+            min_theta_border = 1/2*math.pi-1/12*math.pi
+            max_theta_border = math.pi
+            max_phi_border = max_phi+1/4*math.pi
 
-                slope = max_phi/(math.pi-min_theta)
-                slope_border = max_phi_border/(math.pi-min_theta_border)
-                slope_border_2 = max_phi_border_2/(math.pi-min_theta_border_2)
+            min_theta_border_2 = 1/3*math.pi
+            max_phi_border_2 = max_phi_border +1/6*math.pi
 
-                drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=min_theta), degree=3, theta=theta)
-                drop_exp_border = Expression("{slope}*(theta-({theta_min}))".format(slope=slope_border,theta_min=min_theta_border), degree=3, theta=theta)
-                drop_exp_border_2 = Expression("{slope}*(theta-({theta_min}))".format(slope=slope_border_2,theta_min=min_theta_border_2), degree=3, theta=theta)
+            slope = max_phi/(math.pi-min_theta)
+            slope_border = max_phi_border/(math.pi-min_theta_border)
+            slope_border_2 = max_phi_border_2/(math.pi-min_theta_border_2)
 
-                Ta0_phi = "fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp)".format(phi0=phi0)
-                Ta0_phi_border = "fabs(phi-{phi0}) <=drop_exp_border && fabs(phi-{phi0}) >=-1*(drop_exp_border)".format(phi0=phi0)
-                Ta0_phi_border_2 = "fabs(phi-{phi0}) <=drop_exp_border_2 && fabs(phi-{phi0}) >=-1*(drop_exp_border_2)".format(phi0=phi0)
-           
-                Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=min_theta, thetamax=max_theta)
-                Ta0_theta_border = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=min_theta_border, thetamax=max_theta_border)
-                Ta0_theta_border_2 = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=min_theta_border_2, thetamax=max_theta_border)
-             
-                Ta0_border_2 = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct+90,Ta0=Ta0, exp_phi=Ta0_phi_border_2, exp_theta=Ta0_theta_border_2)
-                Ta0_border = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {border_2}".format(Ta0_infarct=Ta0_infarct+40,border_2=Ta0_border_2, exp_phi=Ta0_phi_border, exp_theta=Ta0_theta_border)
-                Ta0_infarct = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {border}".format(Ta0_infarct=Ta0_infarct,border=Ta0_border, exp_phi=Ta0_phi, exp_theta=Ta0_theta)
+            drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=min_theta), degree=3, theta=theta)
+            drop_exp_border = Expression("{slope}*(theta-({theta_min}))".format(slope=slope_border,theta_min=min_theta_border), degree=3, theta=theta)
+            drop_exp_border_2 = Expression("{slope}*(theta-({theta_min}))".format(slope=slope_border_2,theta_min=min_theta_border_2), degree=3, theta=theta)
+
+            Ta0_phi = "fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp)".format(phi0=phi0)
+            Ta0_phi_border = "fabs(phi-{phi0}) <=drop_exp_border && fabs(phi-{phi0}) >=-1*(drop_exp_border)".format(phi0=phi0)
+            Ta0_phi_border_2 = "fabs(phi-{phi0}) <=drop_exp_border_2 && fabs(phi-{phi0}) >=-1*(drop_exp_border_2)".format(phi0=phi0)
+        
+            Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=min_theta, thetamax=max_theta)
+            Ta0_theta_border = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=min_theta_border, thetamax=max_theta_border)
+            Ta0_theta_border_2 = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=min_theta_border_2, thetamax=max_theta_border)
+            
+            Ta0_border_2 = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct+90,Ta0=Ta0, exp_phi=Ta0_phi_border_2, exp_theta=Ta0_theta_border_2)
+            Ta0_border = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {border_2}".format(Ta0_infarct=Ta0_infarct+40,border_2=Ta0_border_2, exp_phi=Ta0_phi_border, exp_theta=Ta0_theta_border)
+            Ta0_infarct = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {border}".format(Ta0_infarct=Ta0_infarct,border=Ta0_border, exp_phi=Ta0_phi, exp_theta=Ta0_theta)
+
+            Ta0_exp = Expression(Ta0_infarct, element=Q.ufl_element(), phi=phi, theta=theta, drop_exp=drop_exp,drop_exp_border=drop_exp_border,drop_exp_border_2=drop_exp_border_2)
     
-                Ta0_exp = Expression(Ta0_infarct, element=Q.ufl_element(), phi=phi, theta=theta, drop_exp=drop_exp,drop_exp_border=drop_exp_border,drop_exp_border_2=drop_exp_border_2)
-        
-           
-           
-            else:
-                # formula to describe one half of the droplet shape for phi
-                # slope from zero to max value of phi in the droplet
-                print("phi_max: {}, theta_max: {}, theta_min: {}".format(phi_max, theta_max,theta_min))
-                slope = (phi_max)/(theta_max-(theta_min))
-                #expression for the phi values for the right side of the droplet shape 
-                drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=theta_min), degree=3, theta=theta)
-
-                #check if phi is smaller than the right side of the droplet and bigger than the left side
-                cpp_exp_Ta0_phi = "fabs(phi-{phi0}) <= drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp)".format(phi0=phi0)
-             
-                #check if theta is within the specified theta range
-                cpp_exp_Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=theta_min, thetamax=theta_max)
-             
-                #check if xi is greater than the smallest specified ellipsoid
-                cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
-
-                # if in infarct area: T0 = specified Ta0 for the infarct
-                # else: T0 = Ta0
-                cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
-                # Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp)
-                Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp)
-
-            self.T0.interpolate(Ta0_exp)
-        
         else:
-            print_once("generating arbitrary infarct area")
+            # formula to describe one half of the droplet shape
+            print("phi_max: {}, theta_max: {}, theta_min: {}".format(phi_max, theta_max,theta_min))
 
-            phi_min = self.parameters['phi_min']
-            phi_max = self.parameters['phi_max']
-            theta_min = self.parameters['theta_min']
-            theta_max = self.parameters['theta_max']
-            ximin = self.parameters['ximin']
-            Ta0_infarct = self.parameters['Ta0_infarct']
-            Ta0 = self.parameters['Ta0']
+            # phi slope from zero at theta min and max at the apex (if theta_max is pi),
+            # because all lines coincide at the apex, a droplet shape is formed by the linear slope
+            slope = (phi_max)/(theta_max-(theta_min))
+            #expression for the phi values for the right side of the droplet shape 
+            drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=theta_min), degree=3, theta=theta)
 
-            focus = self.parameters['focus']
-
-            # degree of the expression for ellipsoidal coordinates
-            degree = 3
-
-            Q = vector_space_to_scalar_space(u.ufl_function_space())
-
-            # calculate spherical nodal coordinates of the mesh
-            phi = compute_coordinate_expression(degree, Q.ufl_element(),'phi',focus)
-            theta = compute_coordinate_expression(degree, Q.ufl_element(),'theta',focus)
-            xi = compute_coordinate_expression(degree, Q.ufl_element(),'xi',focus)
-
-            # expression to check if coordinates are within infarct area
-            cpp_exp_Ta0_phi = "phi <= {phimax} && phi>= {phimin}".format(phimin=phi_min, phimax = phi_max)
-            cpp_exp_Ta0_theta = "theta> {thetamin} && theta < {thetamax}".format(thetamin=theta_min, thetamax=theta_max)
+            #check if phi is smaller than the right side of the droplet and bigger than the left side
+            cpp_exp_Ta0_phi = "fabs(phi-{phi0}) <= drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp)".format(phi0=phi0)
+            
+            #check if theta is within the specified theta range
+            cpp_exp_Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=theta_min, thetamax=theta_max)
+            
+            #check if xi is greater than the smallest specified ellipsoid
             cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
 
-            # if in infarct area: T0 = 0.
+            # if in infarct area: T0 = specified Ta0 for the infarct
             # else: T0 = Ta0
             cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
+            # Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp)
+            Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp)
 
-            # cpp_exp_Ta0_phi = "phi <= 4 && phi>= -4"
-            # cpp_exp_Ta0_theta = "theta> 0 && theta < 4"
-            # cpp_exp_Ta0_xi = "xi >= 0"
-
-            # expression for T0 with for all nodes the value of T0
-            T0expression = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi)
-
-            
-            self.T0.interpolate(T0expression)
+        # interpolate the expression with different values for Ta0 in the infarcted area
+        # on the T0 mesh
+        self.T0.interpolate(Ta0_exp)
     
         V= u.ufl_function_space()
         mesh = V.ufl_domain().ufl_cargo()
@@ -768,7 +726,9 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         area = round(area,1)
         print_once("infarct area: {}%".format(area))
 
-        # save infarcted area to inputs.csv
+        # write percentage of infarcted area to inputs.csv (not nicely done...)
+        # check if infarcted area is already saved in the csv, because postprocessing
+        # repeats this routine for every timestep
         dir_out = self.parameters['save_T0_mesh']
         filename = os.path.join(dir_out, 'inputs.csv')
 
