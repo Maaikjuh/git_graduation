@@ -17,15 +17,15 @@ import matplotlib.pyplot as plt
 import math
 
 # Change the number of cycles and active stress ('new' or 'old') here:
-NUM_CYCLES = 35
+NUM_CYCLES = 40
 ACT_STRESS = 'old'  # 'old' is Arts Kerckhoffs, 'new' is Arts Bovendeerd.
 
 # Use the following options if you want to reload a saved model state and continue
 # the simulation from that state (e.g. handy when a simulation crashed).
 # See ReloadState.reload() for a detailed description of these options.
 # Set both options to None if you don't want to reload.
-DIR_RELOAD = '/home/maaike/model/examples/systemic_circulation/realcycle/output/07-05_09-26_fiber_reorientation_meshres_20' #None  # Directory with output files of the model to reload.
-TIME_RELOAD = -1 # None  # The time (in ms) of the timestep to reload. Set to -1 for reloading the latest available timestep.
+DIR_RELOAD = None #'/home/maaike/model/examples/systemic_circulation/realcycle/output/07-05_09-26_fiber_reorientation_meshres_20' #None  # Directory with output files of the model to reload.
+TIME_RELOAD = None #-1 # None  # The time (in ms) of the timestep to reload. Set to -1 for reloading the latest available timestep.
 
 # Set if Infarction should be included
 INFARCT = False
@@ -49,7 +49,7 @@ LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RE
 
 # Specify output directory.
 now = datetime.datetime.now()
-DIR_OUT = 'output/{}_fiber_reorientation_meshres_{}_reload_test'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
+DIR_OUT = 'output/{}_fiber_reorientation_meshres_{}'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
@@ -146,7 +146,7 @@ def get_inputs(number_of_cycles, active_stress):
     # If you do not want to perform fiber reorientation, simply set ncycles_reorient to 0.
     ncycles_reorient = 30
     fiber_reorientation = {'kappa': 4.0 * time['tc'],  # Time constant of fiber reorientation model.
-                           'ncycles_pre': 2,  # Number of cardiac cycles before enabling reorientation.
+                           'ncycles_pre': 5,  # Number of cardiac cycles before enabling reorientation.
                            'ncycles_reorient': ncycles_reorient}  # Total number of cardiac cycles with reorientation.
 
     model = {'fiber_reorientation': fiber_reorientation}
