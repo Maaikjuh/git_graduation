@@ -24,8 +24,8 @@ ACT_STRESS = 'old'  # 'old' is Arts Kerckhoffs, 'new' is Arts Bovendeerd.
 # the simulation from that state (e.g. handy when a simulation crashed).
 # See ReloadState.reload() for a detailed description of these options.
 # Set both options to None if you don't want to reload.
-DIR_RELOAD = None #'/home/maaike/model/examples/systemic_circulation/realcycle/output/07-05_09-26_fiber_reorientation_meshres_20' #None  # Directory with output files of the model to reload.
-TIME_RELOAD = None #-1 # None  # The time (in ms) of the timestep to reload. Set to -1 for reloading the latest available timestep.
+DIR_RELOAD = '/home/maaike/model/examples/systemic_circulation/realcycle/output/13-05_19-29_fiber_reorientation_meshres_20' #None  # Directory with output files of the model to reload.
+TIME_RELOAD = 15042.0 #None #-1 # None  # The time (in ms) of the timestep to reload. Set to -1 for reloading the latest available timestep.
 
 # Set if Infarction should be included
 INFARCT = False
@@ -49,7 +49,7 @@ LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RE
 
 # Specify output directory.
 now = datetime.datetime.now()
-DIR_OUT = 'output/{}_fiber_reorientation_meshres_{}'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
+DIR_OUT = '13-05_19-29_fiber_reorientation_meshres_20' #output/{}_fiber_reorientation_meshres_{}'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
@@ -122,9 +122,11 @@ def get_inputs(number_of_cycles, active_stress):
     # Specify alternative mesh, enter for geometry_type: alternative_lv_mesh
     # after the ',' enter the filename of the alternative mesh
     if LOAD_ALTERNATIVE_MESH == None:
-        geometry_type = 'reference_left_ventricle', None
+        alt_mesh = None
+        geometry_type = 'reference_left_ventricle'
     else:
-        geometry_type = 'alternative_lv_mesh', LOAD_ALTERNATIVE_MESH
+        alt_mesh = True
+        geometry_type = LOAD_ALTERNATIVE_MESH
     geometry = {'mesh_resolution': SET_MESH_RESOLUTION}
 
     # Fiber field.
@@ -237,6 +239,7 @@ def get_inputs(number_of_cycles, active_stress):
 
     # Combine and return all input dictionaries.
     inputs = {'geometry': geometry,
+              'alternative_mesh': alt_mesh,
               'geometry_type': geometry_type,
               'model': model,
               'material_model': material_model,
