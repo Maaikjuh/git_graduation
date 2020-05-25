@@ -395,12 +395,13 @@ def preprocess_lv(inputs):
     print_once('Loading geometry type "{}"...'.format(geometry_type))
 
     # Load the desired mesh.
-    if geometry_type[0] == 'reference_left_ventricle_pluijmert':
-        geometry = cvbtk.resources.reference_left_ventricle_pluijmert(resolution=res, **inputs['geometry'])
-    elif geometry_type[0] == 'reference_left_ventricle':
-        geometry = cvbtk.resources.reference_left_ventricle(resolution=res, **inputs['geometry'])
-    elif geometry_type[0] == 'alternative_lv_mesh':
-        geometry = cvbtk.resources.select_left_ventricle_mesh(geometry_type[1], **inputs['geometry'])
+    if inputs['alternative_mesh'] == None:
+        if geometry_type == 'reference_left_ventricle_pluijmert':
+            geometry = cvbtk.resources.reference_left_ventricle_pluijmert(resolution=res, **inputs['geometry'])
+        elif geometry_type == 'reference_left_ventricle':
+            geometry = cvbtk.resources.reference_left_ventricle(resolution=res, **inputs['geometry'])
+    elif inputs['alternative_mesh'] == True:
+        geometry = cvbtk.resources.select_left_ventricle_mesh(geometry_type, **inputs['geometry'])
     else:
         raise ValueError('Unknwon geometry type.')
 
