@@ -6,7 +6,7 @@ from cvbtk import LeftVentricleGeometry, read_dict_from_csv, save_to_disk, scala
 
 # Create mesh and define function space
 dir_out = 'eikonal'
-filepath = "/home/maaike/model/cvbtk/data/mesh_leftventricle_30.hdf5"
+filepath = 'mesh_leftventricle_30.hdf5' # "/home/maaike/model/cvbtk/data/mesh_leftventricle_30.hdf5"
 h5file = HDF5File( mpi_comm_world() , filepath, 'r')
 mesh = Mesh(mpi_comm_world())
 h5file.read(mesh , 'mesh', True )
