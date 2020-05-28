@@ -10,21 +10,24 @@ now = datetime.datetime.now()
 dir_out = 'eikonal/{}_variable_test'.format(now.strftime("%d-%m_%H-%M"))
 
 filepath = 'mesh_leftventricle_30.hdf5' # "/home/maaike/model/cvbtk/data/mesh_leftventricle_30.hdf5"
-h5file = HDF5File( mpi_comm_world() , filepath, 'r')
-mesh = Mesh(mpi_comm_world())
-h5file.read(mesh , 'mesh', True )
+# h5file = HDF5File( mpi_comm_world() , filepath, 'r')
+# mesh = Mesh(mpi_comm_world())
+# h5file.read(mesh , 'mesh', True )
 # surface_tags = MeshFunction('size_t', mesh )
 # h5file.read( surface_tags , 'boundaries')
-V = FunctionSpace(mesh , 'Lagrange',1)
-log(INFO , "Function Space dimension {}".format(V.dim ()))
+# V = FunctionSpace(mesh , 'Lagrange',1)
+# log(INFO , "Function Space dimension {}".format(V.dim ()))
 
 # Fibers
-VV = VectorFunctionSpace(mesh , 'Lagrange', 1, dim=3)
-fibers = Function(VV)
-h5file.read(fibers , 'fiber_vector')
-ofile = XDMFFile(mpi_comm_world(), os.path.join(dir_out,"fibers.xdmf"))
-ofile.write(fibers)
+# VV = VectorFunctionSpace(mesh , 'Lagrange', 1, dim=3)
+# fibers = Function(VV)
+# h5file.read(fibers , 'fiber_vector')
+# ofile = XDMFFile(mpi_comm_world(), os.path.join(dir_out,"fibers.xdmf"))
+# ofile.write(fibers)
 fac = 0.01
+
+parameters["form_compiler"]["quadrature_degree"] = 4
+parameters["form_compiler"]["representation"] = "uflacs"
 
 def compute_coordinate_expression(x,var,focus):
     """
@@ -81,43 +84,25 @@ def boundary(x, on_boundary):
 # Read inputs (we need the geometry inputs).
 inputs = read_dict_from_csv('inputs.csv')
 
-# Set the proper global FEniCS parameters.
-parameters.update({'form_compiler': inputs['form_compiler']})
+# # Set the proper global FEniCS parameters.
+# parameters.update({'form_compiler': inputs['form_compiler']})
 
 # Load geometry and first fiber field.
 
 inputs['geometry']['load_fiber_field_from_meshfile'] = True
 geometry = LeftVentricleGeometry(meshfile=filepath, **inputs['geometry'])
-VV = VectorFunctionSpace(mesh , 'Lagrange', 1, dim=3)
 ef = geometry.fiber_vectors()[0].to_function(None)
-
-# fibers = Function(VV)
-# ef = geometry.fiber_vectors()[0].to_function(fibers)
-# ofile = XDMFFile(mpi_comm_world(), os.path.join(dir_out,"ef_1.xdmf"))
-# ofile.write(ef)
-# geometry._fiber_vectors = None  # This may be a redundant statement (but I did not check if it works without).
-# geometry.load_fiber_field(filepath=filepath)
-# Create scalar function space for the difference in angle between vectors.
 Q = FunctionSpace(geometry.mesh(), 'Lagrange', 2)
+V1 = scalar_space_to_vector_space(Q)
+ofile = XDMFFile(mpi_comm_world(), os.path.join(dir_out,"ef_1.xdmf"))
+ofile.write(project(ef,V1))
 
 # fiber_vectors = geometry.fiber_vectors()
 # [ef, es, en] = [np.asarray(_.to_array(None)) for _ in fiber_vectors] # NOTE: have shapes (3, -1)
 # ff = ([ef, es, en])
-# Create vector function space.
-# Fibers
-# VV = VectorFunctionSpace(mesh , 'Lagrange', 1, dim=3)
-# fibers = Function(VV)
-# # ef = project(ef, VV)
-V1 = scalar_space_to_vector_space(Q)
-# # ef = project(ef, V1)
-ofile = XDMFFile(mpi_comm_world(), os.path.join(dir_out,"ef_1.xdmf"))
-ofile.write(project(ef,V1))
-# ofile = XDMFFile(mpi_comm_world(), os.path.join(dir_out,"fibers.xdmf"))
-# ofile.write(fibers)
-# fibers = ef
 
 td0BC = Constant(0.0)
-bc = DirichletBC(V, td0BC , boundary, method ='pointwise')
+bc = DirichletBC(Q, td0BC , boundary, method ='pointwise')
 
 # Define parameters
 cm = Constant(5*10**-4)
@@ -133,18 +118,17 @@ sig_et = Constant(1.25e-3 * fac)
 # sig_it = Constant(4.16e-5)
 # sig_el = Constant(2.5e-4)
 # sig_et = Constant(1.25e-4)
-parameters["form_compiler"]["quadrature_degree"] = 2
-parameters["form_compiler"]["representation"] = "uflacs"
+
 
 # Define variational problem
-w = TestFunction(V)
-td = Function(V)
+w = TestFunction(Q)
+td = Function(Q)
 f = Constant(1)
 g = Constant(0)
-# ff = as_vector([ fibers[0], fibers[1], fibers[2]])
+ff = as_vector([ ef[0], ef[1], ef[2]])
 
-# ef = ff/sqrt(inner(ff ,ff))
-ef = fibers
+ef = ff/sqrt(inner(ff ,ff))
+# ef = fibers
 I = Identity(3)
 Mi = sig_il * outer(ef ,ef)+ sig_it *(I- outer(ef ,ef))
 Me = sig_el * outer(ef ,ef)+ sig_et *(I- outer(ef ,ef))
@@ -154,10 +138,7 @@ beta_i = inner(Mi*p,p)/ inner(M*p,p)
 beta_e = inner(Me*p,p)/ inner(M*p,p)
 q = ( beta_i**2*Me+ beta_e**2*Mi)*p
 
-ofile = XDMFFile(mpi_comm_world(), os.path.join(dir_out,"ef.xdmf"))
-ofile.write(project(ef,VV))
-
-td00 = TrialFunction(V)
+td00 = TrialFunction(Q)
 sig = sig_il * outer(ef ,ef)+ sig_it *(I- outer(ef ,ef))
 a_in = inner( grad(w), sig* grad( td00 ))*(1/cm)*dx
 a = inner( grad(w), q)*(1/cm)*dx+rho* sqrt( inner(grad(td),q))*w*dx
@@ -171,7 +152,7 @@ solver = NonlinearVariationalSolver(pde)
 
 # initialize with poisson solution
 log(INFO , "Solving poisson to initialize")
-td0 = Function(V)
+td0 = Function(Q)
 solve( a_in ==L,td0 , bc , solver_parameters ={"linear_solver": "mumps"})
 
 # Save initilaization in VTK format
