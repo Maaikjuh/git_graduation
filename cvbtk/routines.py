@@ -129,6 +129,9 @@ def create_materials(model, inputs):
 
     model.active_stress = act
 
+#    if inputs['active_stress']['eikonal']:
+#        model.active_stress.eikonal(u, inputs['active_stress']['eikonal'])
+
 
 def create_model(geometry, inputs, heart_type):
     """
@@ -261,6 +264,8 @@ def load_model_state_from_hdf5(model, results_hdf5, vector_number, fiber_reorien
         if fiber_reorientation:
             # Fiber vectors are saved in results file.
             model.geometry.load_fiber_field(openfile=f, vector_number=vector_number)
+        
+    f.close()
 
 
 def preprocess_biv(inputs):
@@ -731,6 +736,8 @@ def save_model_state_to_hdf5(model, hdf5_filename, t, new=False, save_fiber_vect
 
         # For the CSV file:
         vector_number = f.attributes('displacement')['count'] - 1
+
+        f.close()
 
         return vector_number
 
@@ -1205,7 +1212,7 @@ def timestep_lv(t_active_stress, dt, cycle, wk_dict, lv, solver, fiber_reorienta
     # Update the old ls (and lc) values with most recently computed values.
     lv.active_stress.upkeep()
 
-    # -------------------------------------------------------------------- #
+     # -------------------------------------------------------------------- #
     # time increment                                                       #
     # -------------------------------------------------------------------- #
     lv.dt = dt
@@ -1226,6 +1233,7 @@ def timestep_lv(t_active_stress, dt, cycle, wk_dict, lv, solver, fiber_reorienta
     # Estimate new displacement field.
     # lv.u = lv.estimate_displacement()
 
+    #
     # Solve to determine pressure.
     plv_new, vlv_new, accuracy, _ = solver.solve(lv, v_target)
 
@@ -1330,7 +1338,8 @@ def write_data_lv(t, t_cycle, phase, cycle, wk_dict, lv, est, acc, results, new=
 
     data_timestep = {'time': t,
                      't_cycle': t_cycle,
-                     't_act': float(lv.active_stress.activation_time),
+                    #  't_act': float(lv.active_stress.activation_time),
+                     't_act': (lv.active_stress.activation_time),
 
                      'cycle': cycle,
                      'phase': phase['lv'],
