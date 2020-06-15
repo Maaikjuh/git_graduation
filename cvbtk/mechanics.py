@@ -9,6 +9,7 @@ from dolfin.cpp.common import Parameters
 from ufl import Identity, as_tensor, det, dot, exp, grad, inv, sqrt
 
 from .utils import safe_project, vector_space_to_scalar_space, quadrature_function_space, print_once
+from .geometries import LeftVentricleGeometry
 
 import datetime
 import os
@@ -217,7 +218,12 @@ class ActiveStressModel(ConstitutiveModel):
 
         # Create time increment and activation map variables.
         self._dt = Constant(1.0)
-        self._tact = Constant(0.0 - self.parameters['tdep'])
+        # self._tact = Constant(0.0 - self.parameters['tdep'])
+
+        #04-06
+        self.Q = vector_space_to_scalar_space(u.ufl_function_space())
+        self._tact = Function(self.Q, name='tact')
+        self._tact.assign(Constant(0.0 - self.parameters['tdep']))
 
         # Create, at minimum, a sarcomere length variable.
         ef = self.fiber_vectors[0]
@@ -239,11 +245,31 @@ class ActiveStressModel(ConstitutiveModel):
         """
         Return the time since/before activation as a variable (Constant).
         """
+        # print('activation_time (property):', self._tact)
         return self._tact
 
     @activation_time.setter
     def activation_time(self, value):
-        self._tact.assign(float(value) - self.parameters['tdep'])
+        # self._tact.assign(float(value) - self.parameters['tdep'])
+        self._tact = project(float(value) - self.parameters['tdep'], self.Q)
+        print('t_act:',min(self._tact.vector().array()))
+        # print('activation_time.setter:', self._tact)
+
+    def eikonal(self, u, filename):
+        mesh = Mesh()
+        openfile = HDF5File(mpi_comm_world, filename, 'r')
+        openfile.read(mesh, 'mesh', False)
+        V = FunctionSpace(mesh, 'Lagrange', 1)
+        td = Function(V)
+
+        openfile.read(td,'td/vector_0')
+
+        V = u.ufl_function_space()
+        mesh = V.ufl_domain().ufl_cargo()
+
+        parameters['allow_extrapolation'] = False
+
+        self._tact = project(td, V)
 
     @property
     def dt(self):
@@ -290,8 +316,9 @@ class ActiveStressModel(ConstitutiveModel):
 
         # Rotate S from the fiber basis to the Cartesian basis and return.
         R = as_tensor(self.fiber_vectors)
-        S = R.T*S_*R
-        return S
+#        S = R.T*S_*R
+        S = R.T*s*R
+        return S # S
 
     @property
     def ls(self):
@@ -380,7 +407,6 @@ class ArtsBovendeerdActiveStress(ActiveStressModel):
         f_iso = iso_cond*iso_term
 
         # Activation time and rise/decay time constants.
-        ta = self.activation_time
         tr = prm['taur1'] + prm['ar']*(self.ls - prm['lsa1'])
         td = prm['taud1'] + prm['ad']*(self.ls - prm['lsa1'])
 
@@ -422,15 +448,18 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         prm = self.parameters
         
         # This model requires lc (and lc_old) to be defined.
-        Q = vector_space_to_scalar_space(u.ufl_function_space())
-        lc_old = Function(Q)
+        self.Q = vector_space_to_scalar_space(u.ufl_function_space())
+        lc_old = Function(self.Q)
         self._lc_old = lc_old
         lc = lc_old + self.dt*(prm['Ea']*(self.ls_old - lc_old) - 1)*prm['v0']
         
         # Initialize variable T0 to express the level of active stress generation
         # Initialize with all nodal points to default value of Ta0       
-        self.T0 = Function(Q, name='T0')
+        self.T0 = Function(self.Q, name='T0')
         self.T0.assign(Constant(self.parameters['Ta0']))
+
+        self.f_twitch = Function(self.Q, name='f_twitch')
+        self.f_twitch.assign(Constant(0))
 
         if prm['restrict_lc']:
             # Upper bound: restrict lc to not be greater than ls.
@@ -562,17 +591,35 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         # Maximum activation time.
         t_max = prm['b']*(self.ls - prm['ld'])
+        t_max = project(t_max, self.Q)
+        
+        print('ls:', self.ls)
+        print('activation time:', self.activation_time)
 
-        # Term for the time dependence.
-        twitch_term_1 = (tanh(self.activation_time/prm['taur']))**2
-        twitch_term_2 = (tanh((t_max - self.activation_time)/prm['taud']))**2
-        twitch_cond_1 = ge(self.activation_time, 0)
-        twitch_cond_2 = le(self.activation_time, t_max)
-        twitch_cond = conditional(And(twitch_cond_1, twitch_cond_2), 1, 0)
-        f_twitch = twitch_cond*twitch_term_1*twitch_term_2
+        # # Term for the time dependence.
+        # twitch_term_1 = (tanh(self.activation_time/prm['taur']))**2
+        # twitch_term_2 = (tanh((t_max - self.activation_time)/prm['taud']))**2
+
+        # twitch_cond_1 = ge(self.activation_time, 0)
+        # twitch_cond_2 = le(self.activation_time, t_max)
+        # twitch_cond = conditional(And(twitch_cond_1, twitch_cond_2), 1, 0)
+        # f_twitch = twitch_cond*twitch_term_1*twitch_term_2
+        
+
+        twitch_term_1 = Expression("pow(tanh(act_time/{taur}),2)".format(taur=prm['taur']),element = self.Q.ufl_element(), act_time = self.activation_time)
+        twitch_term_2 = Expression("pow(tanh((t_max-act_time)/{taud}),2)".format(taud= prm['taud']),element = self.Q.ufl_element(), t_max = t_max, act_time = self.activation_time)
+        twitch_terms = "twitch_term_1*twitch_term_2"
+
+        twitch_cond_if = "act_time >= 0. && act_time <= t_max"
+#        twitch_cond_if = Expression("act_time >= 0. && act_time <= t_max",element=self.Q.ufl_element(),act_time=self.activation_time,t_max=t_max)
+        twitch_cond = "{twitch_cond}? {twitch_terms} : 0".format(twitch_cond=twitch_cond_if, twitch_terms=twitch_terms)
+
+        f_twitch_exp = Expression(twitch_cond, element = self.Q.ufl_element(), act_time=self.activation_time, t_max = t_max, twitch_term_1=twitch_term_1,twitch_term_2=twitch_term_2)
+
+        self.f_twitch.interpolate(f_twitch_exp)
 
         # Assemble into the scalar value and return.
-        p = f_iso*f_twitch*prm['Ea']*(self.ls - self.lc)
+        p = f_iso*self.f_twitch*prm['Ea']*(self.ls - self.lc)
         return p
 
     def infarct_T0(self,u):
@@ -584,7 +631,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         Return the interpolated values of T0 on the mesh
         """
-        
+
         print_once("generating droplet infarct area")
         Ta0_infarct = self.parameters['Ta0_infarct']
         Ta0 = self.parameters['Ta0']
@@ -622,35 +669,6 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         # save_to_xdmf(ptxi,dir_out,'xi_coord')
                     
         if border == True:
-            # # borderzone of the infarct
-            # # formula to describe one half of the droplet shape for phi
-            # # slope from zero to max value of phi in the droplet
-            # slope = (phi_max-1/10*math.pi)/(theta_max-1/10*math.pi-(theta_min+1/15*math.pi))
-            # #expression for the phi values for the right side of the droplet shape 
-            # drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=theta_min+1/15*math.pi), degree=3, theta=theta)
-
-            # slope = (phi_max+1/4*math.pi)/(math.pi-(theta_min-1/15*math.pi))
-            # drop_exp_border = Expression("{slope}*(theta-{theta_min})".format(slope=slope,theta_min=theta_min-1/15*math.pi), degree=3, theta=theta)
-
-            # #check if phi is smaller than the right side of the droplet and bigger than the left side
-            # cpp_exp_Ta0_phi = "fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp)".format(phi0=phi0)
-            
-            # #check if theta is within the specified theta range
-            # cpp_exp_Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=theta_min+1/15*math.pi, thetamax=theta_max-1/5*math.pi)
-            
-            # #check if xi is greater than the smallest specified ellipsoid
-            # cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
-            
-            # cpp_exp_Ta0_phi_border = "fabs(phi-{phi0}) <=drop_exp_border && fabs(phi-{phi0}) >=-1*(drop_exp_border)".format(phi0=phi0)
-            # cpp_exp_Ta0_theta_border = "theta> {thetamin} && theta < {thetamax}".format(thetamin=theta_min-1/15*math.pi, thetamax=math.pi)
-
-            # cpp_exp_Ta0_border = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct+50,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi_border, exp_theta=cpp_exp_Ta0_theta_border, exp_xi=cpp_exp_Ta0_xi)
-            # cpp_exp_Ta0_infarct = "{exp_phi} && {exp_theta} && {exp_xi}".format(exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
-
-            # cpp_exp_Ta0 = "({exp_infarct})? {Ta0_infarct} : {exp_border}".format(Ta0_infarct=Ta0_infarct,exp_infarct=cpp_exp_Ta0_infarct,exp_border=cpp_exp_Ta0_border)
-
-            # Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp,drop_exp_border=drop_exp_border)
-    
             min_theta = 1/2*pi + 1/15*math.pi
             max_theta = math.pi -1/5*math.pi
 
@@ -687,7 +705,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
     
         else:
             # formula to describe one half of the droplet shape
-            print("phi_max: {}, theta_max: {}, theta_min: {}".format(phi_max, theta_max,theta_min))
+            print_once("phi_max: {}, theta_max: {}, theta_min: {}".format(phi_max, theta_max,theta_min))
 
             # phi slope from zero at theta min and max at the apex (if theta_max is pi),
             # because all lines coincide at the apex, a droplet shape is formed by the linear slope
@@ -739,27 +757,6 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
                     writer.writerow(['infarct area (%)', area ])
             except:
                 pass
-
-        # dofcoors = V.tabulate_dof_coordinates().reshape((-1, 3))
-        # topology = mesh.topology()
-        # mccells = topology(3,3)
-        # print('connectivity: {}'.format(mccells))
-        # for cell in cells(mesh):
-        #     cell_id = cell.index()
-        #     T0val = self.T0(dofcoors[cell_id][0], dofcoors[cell_id][1], dofcoors[cell_id][2])
-        #     if T0val < 60:
-        #         print(T0val)
-        #         # neighbour = mccells[cell_id]
-        #         # print("neighbour: {}".format(neighbour))
-        #         # print('T0 at cell ID {} is: {}'.format(cell_id,self.T0(dofcoors[neighbour][0], dofcoors[neighbour][1], dofcoors[neighbour][2])))
-       
-
-                
-
-        # cell_id = 0
-        # print('dofcoors [0]: {}'.format(dofcoors[cell_id][0]))
-        # self.T0(dofcoors[cell_id][0], dofcoors[cell_id][1], dofcoors[cell_id][2])
-        # print('T0 at cell ID {} is: {}'.format(cell_id,self.T0(dofcoors[cell_id][0], dofcoors[cell_id][1], dofcoors[cell_id][2])))
        
         return self.T0
 
@@ -802,6 +799,10 @@ class BovendeerdMaterial(ConstitutiveModel):
     """
     def __init__(self, u, fiber_vectors, **kwargs):
         super(BovendeerdMaterial, self).__init__(u, fiber_vectors, **kwargs)
+
+        Q = vector_space_to_scalar_space(u.ufl_function_space())
+        # self.Sfun = Function(Q)
+        # self.Sfun.assign(Constant(0.0))
 
     @staticmethod
     def default_parameters():
@@ -918,16 +919,19 @@ class BovendeerdMaterial(ConstitutiveModel):
                              (Wv_nf, Wv_ns, Wv_nn)))
 
         # Volume term component of S in fsn basis.
+        # self.Sfun.assign(a5)
         Sv_ = 2*a5*(det(C_) - 1)*Wv_
+        # Sv_ = 2*self.Sfun*(det(C_) - 1)*Wv_
 
         # Combine the terms, rotate to Cartesian basis, and return.
         S = R.T*(Ss_ + Sv_)*R
+        # print('S:',S)
 
         return S
 
 class KerckhoffsMaterial(ConstitutiveModel):
     """
-    Ppassive material law according to Kerckhoffs (2003).
+    Passive material law according to Kerckhoffs (2003).
 
     Args:
         u: The displacement unknown.
