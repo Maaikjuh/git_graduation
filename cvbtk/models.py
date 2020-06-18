@@ -639,6 +639,7 @@ class LeftVentricleModel(object):
         n0 = -det(F)*inv(F.T)*FacetNormal(self.geometry.mesh())
         ds = Measure('ds', subdomain_data=self.geometry.tags())
         L = L - dot(self.boundary_pressure*n0, v)*ds(self.geometry.endocardium)
+#        L = L - inner(self.boundary_pressure*n0, v)*ds(self.geometry.endocardium)
 
         a = derivative(L, u)
 
