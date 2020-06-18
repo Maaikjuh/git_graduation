@@ -218,8 +218,9 @@ class ActiveStressModel(ConstitutiveModel):
 
         # Create time increment and activation map variables.
         self._dt = Constant(1.0)
-        # self._tact = Constant(0.0 - self.parameters['tdep'])
-
+        
+#        self._tact = Constant(0.0 - self.parameters['tdep'])
+#
         #04-06
         self.Q = vector_space_to_scalar_space(u.ufl_function_space())
         self._tact = Function(self.Q, name='tact')
@@ -250,8 +251,10 @@ class ActiveStressModel(ConstitutiveModel):
 
     @activation_time.setter
     def activation_time(self, value):
-        # self._tact.assign(float(value) - self.parameters['tdep'])
-        self._tact = project(float(value) - self.parameters['tdep'], self.Q)
+#        self._tact.assign(float(value) - self.parameters['tdep'])
+#        print(float(value) - self.parameters['tdep'])
+#        self._tact = project(float(value) - self.parameters['tdep'], self.Q)
+        self._tact.vector()[:]= float(value) - self.parameters['tdep']
         print('t_act:',min(self._tact.vector().array()))
         # print('activation_time.setter:', self._tact)
 
@@ -316,8 +319,8 @@ class ActiveStressModel(ConstitutiveModel):
 
         # Rotate S from the fiber basis to the Cartesian basis and return.
         R = as_tensor(self.fiber_vectors)
-#        S = R.T*S_*R
-        S = R.T*s*R
+        S = R.T*S_*R
+#        S = R.T*s*R
         return S # S
 
     @property
@@ -596,14 +599,16 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         print('ls:', self.ls)
         print('activation time:', self.activation_time)
 
-        # # Term for the time dependence.
-        # twitch_term_1 = (tanh(self.activation_time/prm['taur']))**2
-        # twitch_term_2 = (tanh((t_max - self.activation_time)/prm['taud']))**2
-
-        # twitch_cond_1 = ge(self.activation_time, 0)
-        # twitch_cond_2 = le(self.activation_time, t_max)
-        # twitch_cond = conditional(And(twitch_cond_1, twitch_cond_2), 1, 0)
-        # f_twitch = twitch_cond*twitch_term_1*twitch_term_2
+#         # Term for the time dependence.
+#        twitch_term_1 = (tanh(self.activation_time/prm['taur']))**2
+#        twitch_term_2 = (tanh((t_max - self.activation_time)/prm['taud']))**2
+#        
+#        twitch_cond_1 = ge(self.activation_time, 0)
+#        twitch_cond_2 = le(self.activation_time, t_max)
+#        twitch_cond = conditional(And(twitch_cond_1, twitch_cond_2), 1, 0)
+#        f_twitch = twitch_cond*twitch_term_1*twitch_term_2
+        
+#        p = f_iso*f_twitch*prm['Ea']*(self.ls - self.lc)
         
 
         twitch_term_1 = Expression("pow(tanh(act_time/{taur}),2)".format(taur=prm['taur']),element = self.Q.ufl_element(), act_time = self.activation_time)
@@ -620,6 +625,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         # Assemble into the scalar value and return.
         p = f_iso*self.f_twitch*prm['Ea']*(self.ls - self.lc)
+        
         return p
 
     def infarct_T0(self,u):
