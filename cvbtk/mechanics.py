@@ -223,6 +223,8 @@ class ActiveStressModel(ConstitutiveModel):
 #
         #04-06
         self.Q = vector_space_to_scalar_space(u.ufl_function_space())
+        self._tact_dummy = Function(self.Q, name='tact_dummy')
+        self._tact_dummy.assign(Constant(0.0 - self.parameters['tdep']))
         self._tact = Function(self.Q, name='tact')
         self._tact.assign(Constant(0.0 - self.parameters['tdep']))
 
@@ -254,7 +256,9 @@ class ActiveStressModel(ConstitutiveModel):
 #        self._tact.assign(float(value) - self.parameters['tdep'])
 #        print(float(value) - self.parameters['tdep'])
 #        self._tact = project(float(value) - self.parameters['tdep'], self.Q)
-        self._tact.vector()[:]= float(value) - self.parameters['tdep']
+        self._tact_dummy.vector()[:]= float(value) - self.parameters['tdep']
+        self._tact.assign(self._tact_dummy)
+#        
         print('t_act:',min(self._tact.vector().array()))
         # print('activation_time.setter:', self._tact)
 
@@ -593,24 +597,31 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         f_iso = iso_cond*iso_term
 
         # Maximum activation time.
+#        t_max = prm['b']*(self.ls - prm['ld'])
+#        t_max = project(t_max, self.Q)
+        
+#        print('ls:', self.ls)
+#        print('activation time:', self.activation_time)
+
+##         # Term for the time dependence.
         t_max = prm['b']*(self.ls - prm['ld'])
-        t_max = project(t_max, self.Q)
         
-        print('ls:', self.ls)
-        print('activation time:', self.activation_time)
-
-#         # Term for the time dependence.
-#        twitch_term_1 = (tanh(self.activation_time/prm['taur']))**2
-#        twitch_term_2 = (tanh((t_max - self.activation_time)/prm['taud']))**2
+        acti_1 = Constant(min(self.activation_time.vector().array()))
+        twitch_term_1 = (tanh(acti_1/prm['taur']))**2
+        twitch_term_2 = (tanh((t_max - acti_1)/prm['taud']))**2
+        
+        twitch_cond_1 = ge(acti_1, 0)
+        twitch_cond_2 = le(acti_1, t_max)
+        twitch_cond = conditional(And(twitch_cond_1, twitch_cond_2), 1, 0)
+        f_twitch = twitch_cond*twitch_term_1*twitch_term_2
+        
+        projected = project(f_twitch, self.Q)
+        print('max f_twitch originial:',max(projected.vector().array()))
 #        
-#        twitch_cond_1 = ge(self.activation_time, 0)
-#        twitch_cond_2 = le(self.activation_time, t_max)
-#        twitch_cond = conditional(And(twitch_cond_1, twitch_cond_2), 1, 0)
-#        f_twitch = twitch_cond*twitch_term_1*twitch_term_2
-        
 #        p = f_iso*f_twitch*prm['Ea']*(self.ls - self.lc)
+#        p = f_iso*project(f_twitch,self.Q)*prm['Ea']*(self.ls - self.lc)
         
-
+        t_max = project(t_max, self.Q)
         twitch_term_1 = Expression("pow(tanh(act_time/{taur}),2)".format(taur=prm['taur']),element = self.Q.ufl_element(), act_time = self.activation_time)
         twitch_term_2 = Expression("pow(tanh((t_max-act_time)/{taud}),2)".format(taud= prm['taud']),element = self.Q.ufl_element(), t_max = t_max, act_time = self.activation_time)
         twitch_terms = "twitch_term_1*twitch_term_2"
@@ -622,6 +633,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         f_twitch_exp = Expression(twitch_cond, element = self.Q.ufl_element(), act_time=self.activation_time, t_max = t_max, twitch_term_1=twitch_term_1,twitch_term_2=twitch_term_2)
 
         self.f_twitch.interpolate(f_twitch_exp)
+        print('max f_twitch:', max(self.f_twitch.vector().array()))
 
         # Assemble into the scalar value and return.
         p = f_iso*self.f_twitch*prm['Ea']*(self.ls - self.lc)
