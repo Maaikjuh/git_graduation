@@ -116,12 +116,13 @@ def create_materials(model, inputs):
     if active_stress_model == 'ArtsBovendeerdActiveStress':
         act = ArtsBovendeerdActiveStress(u, fsn, **inputs['active_stress'])
     elif active_stress_model == 'ArtsKerckhoffsActiveStress':
-        if inputs['infarct'] == False:
-            act = ArtsKerckhoffsActiveStress(u, fsn, **inputs['active_stress'])
-        elif inputs['infarct']['infarct'] ==True:
-            act = ArtsKerckhoffsActiveStress(u, fsn, **inputs['active_stress'],**inputs['infarct'])
-        else:
-            raise ValueError('Unknown infarct bool specified')    
+        act = ArtsKerckhoffsActiveStress(u, fsn, **inputs['active_stress'])
+#        if inputs['infarct'] == False:
+#            act = ArtsKerckhoffsActiveStress(u, fsn, **inputs['active_stress'])
+#        elif inputs['infarct']['infarct'] ==True:
+#            act = ArtsKerckhoffsActiveStress(u, fsn, **inputs['active_stress'],**inputs['infarct'])
+#        else:
+#            raise ValueError('Unknown infarct bool specified')    
     elif active_stress_model is None:
         act = None
     else:
@@ -725,6 +726,7 @@ def save_model_state_to_hdf5(model, hdf5_filename, t, new=False, save_fiber_vect
         f.write(model.u, 'displacement', t)
 
         if model.active_stress is not None:
+            f.write(model.active_stress.activation_time,'activation_time',t)
             if isinstance(model.active_stress, ArtsKerckhoffsActiveStress):
                 # Save contractile element length.
                 f.write(model.active_stress.lc_old, 'contractile_element', t)
@@ -881,6 +883,7 @@ def simulate(wk, model, results, inputs, heart_type=None, solver=None, dir_out='
     cycle = inputs['state']['cycle']
     t_cycle = inputs['state']['t_cycle']
     t_active_stress = inputs['state']['t_active_stress']
+    model.active_stress.activation_time = t_active_stress - inputs['active_stress']['tdep']
 
     t = t0
 
@@ -1091,6 +1094,7 @@ def simulate(wk, model, results, inputs, heart_type=None, solver=None, dir_out='
         # Check if the active stress's internal time needs to be reset. (Based on LV phase).
         if phase['lv'] < 3 and t_active_stress >= inputs['time']['tc']:
             t_active_stress = t_active_stress - inputs['time']['tc']
+            model.active_stress.activation_time = -1 * inputs['time']['tc'] - inputs['active_stress']['tdep']
 
         # Exit if maximum cycles reached:
         if cycle > inputs['number_of_cycles']:
@@ -1216,7 +1220,8 @@ def timestep_lv(t_active_stress, dt, cycle, wk_dict, lv, solver, fiber_reorienta
     # time increment                                                       #
     # -------------------------------------------------------------------- #
     lv.dt = dt
-    lv.active_stress.activation_time = t_active_stress + dt
+#    lv.active_stress.activation_time = t_active_stress + dt
+    lv.active_stress.activation_time = dt
 
     # -------------------------------------------------------------------- #
     # t = n + 1                                                            #
