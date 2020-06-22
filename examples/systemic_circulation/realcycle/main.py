@@ -17,19 +17,20 @@ import matplotlib.pyplot as plt
 import math
 
 # Change the number of cycles and active stress ('new' or 'old') here:
-NUM_CYCLES = 40
+NUM_CYCLES = 2
 ACT_STRESS = 'old'  # 'old' is Arts Kerckhoffs, 'new' is Arts Bovendeerd.
 
 # Use the following options if you want to reload a saved model state and continue
 # the simulation from that state (e.g. handy when a simulation crashed).
 # See ReloadState.reload() for a detailed description of these options.
 # Set both options to None if you don't want to reload.
-DIR_RELOAD = '/home/maaike/model/examples/systemic_circulation/realcycle/output/13-05_19-29_fiber_reorientation_meshres_20' #None  # Directory with output files of the model to reload.
-TIME_RELOAD = 15042.0 #None #-1 # None  # The time (in ms) of the timestep to reload. Set to -1 for reloading the latest available timestep.
+DIR_RELOAD = None #'/home/maaike/model/examples/systemic_circulation/realcycle/output/13-05_19-29_fiber_reorientation_meshres_20' #None  # Directory with output files of the model to reload.
+TIME_RELOAD = None #15042.0 #None #-1 # None  # The time (in ms) of the timestep to reload. Set to -1 for reloading the latest available timestep.
 
-# Set if Infarction should be included
+# Set if Infarction should be included (False/True)
 INFARCT = False
 
+DIR_EIKONAL = '/home/maaike/Documents/Graduation_project/git_graduation/cvbtk/eikonal/15-06_10-06_mesh_50_purk_fac_kot00/td.hdf5' #None
 # Use the following option if you want to load a set of inputs and start a new simulation using those inputs.
 # By specifying a path to an inputs.csv file, you can load the inputs from the file
 # instead of defining them in get_inputs(). If you do not want to load inputs from a
@@ -49,7 +50,7 @@ LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RE
 
 # Specify output directory.
 now = datetime.datetime.now()
-DIR_OUT = '13-05_19-29_fiber_reorientation_meshres_20' #output/{}_fiber_reorientation_meshres_{}'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
+DIR_OUT = 'output/{}_passive_stress_{}'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
@@ -99,18 +100,29 @@ def get_inputs(number_of_cycles, active_stress):
     # -------------------------------------------------------------------------- #
     # Infarct: create a dictionary of inputs for the infarct geometry.           #
     # -------------------------------------------------------------------------- #
-    if INFARCT == True:
-        infarct_prm = { 'infarct': INFARCT,
-                        'phi_min': 0.,
-                        'phi_max': 1.5708,
-                        'theta_min': 1.5708,
-                        'theta_max': 3.1416,
-                        'ximin': 0., #0.5,
-                        'focus': 4.3,
-                        'Ta0_infarct': 20., #20.,
-                        'save_T0_mesh': DIR_OUT}
-    else:
-        infarct_prm = False
+    infarct_prm = { 'infarct': INFARCT,
+                'phi_min': 0.,
+                'phi_max': 1.5708,
+                'theta_min': 1.5708,
+                'theta_max': 3.1416,
+                'ximin': 0., #0.5,
+                'focus': 4.3,
+                'Ta0_infarct': 20., #20.,
+                'save_T0_mesh': DIR_OUT}
+#    if INFARCT == True:
+#        infarct_prm = { 'infarct': INFARCT,
+#                        'phi_min': 0.,
+#                        'phi_max': 1.5708,
+#                        'theta_min': 1.5708,
+#                        'theta_max': 3.1416,
+#                        'ximin': 0., #0.5,
+#                        'focus': 4.3,
+#                        'Ta0_infarct': 20., #20.,
+#                        'save_T0_mesh': DIR_OUT}
+#    else:
+#        infarct_prm = { 'infarct': INFARCT}
+    
+    eikonal = {'td_dir': DIR_EIKONAL}
 
     # -------------------------------------------------------------------------- #
     # LV: create a dictionary of inputs for LeftVentricle geometry.              #
@@ -146,7 +158,7 @@ def get_inputs(number_of_cycles, active_stress):
     # -------------------------------------------------------------------------- #
     # Fiber reorientation.
     # If you do not want to perform fiber reorientation, simply set ncycles_reorient to 0.
-    ncycles_reorient = 30
+    ncycles_reorient = 0
     fiber_reorientation = {'kappa': 4.0 * time['tc'],  # Time constant of fiber reorientation model.
                            'ncycles_pre': 5,  # Number of cardiac cycles before enabling reorientation.
                            'ncycles_reorient': ncycles_reorient}  # Total number of cardiac cycles with reorientation.
@@ -181,7 +193,9 @@ def get_inputs(number_of_cycles, active_stress):
                                      'ls0': active_stress_ls0,
                                      'beta': active_stress_beta,
                                      'tdep': active_stress_tdep,
-                                     'restrict_lc': True}
+                                     'restrict_lc': True,
+                                     'infarct': infarct_prm,
+                                     'eikonal': eikonal}
 
     active_stress_arts_bovendeerd = {'Ta0': 160.0,  # pg. 66: 250 kPa
                                      'ar': 100.0,
@@ -209,8 +223,9 @@ def get_inputs(number_of_cycles, active_stress):
     state = {'cycle': 1,
              'phase': initial_phase,
              't_cycle': time['t0'],
-             't_active_stress': time['t0'] - filling_time}
-
+             't_active_stress': time['t0']+6.}
+#             't_active_stress': time['t0'] - filling_time}
+#
     # Initial conditions (specify pressures [in kPa]).
     initial_conditions = {'arterial_pressure': 11.5}
 
@@ -251,8 +266,8 @@ def get_inputs(number_of_cycles, active_stress):
               'initial_conditions': initial_conditions,
               'time': time,
               'volume_solver': volume_solver,
-              'number_of_cycles': number_of_cycles,
-              'infarct': infarct_prm}
+              'number_of_cycles': number_of_cycles}
+#              'infarct': infarct_prm}
 
     # Add the proper active stress parameters:
     if active_stress == 'old':
