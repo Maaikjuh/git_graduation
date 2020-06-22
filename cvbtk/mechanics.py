@@ -99,15 +99,15 @@ class ConstitutiveModel(object):
     def __init__(self, u, fiber_vectors, **kwargs):
         # TODO improve check if ischemic area should be included
         # maybe design a better robust method
-        try:
+#        try:
             #normal parameters without infarct
-            self._parameters = self.default_parameters()
-            self._parameters.update(kwargs)
+        self._parameters = self.default_parameters()
+        self._parameters.update(kwargs)
 
-        except:
-            #infarct parameters
-            self._parameters = self.default_infarct_parameters()
-            self._parameters.update(kwargs)
+#        except:
+#            #infarct parameters
+#            self._parameters = self.default_infarct_parameters()
+#            self._parameters.update(kwargs)
         
         try:
             # Discretize the fiber vectors onto quadrature elements.
@@ -222,11 +222,15 @@ class ActiveStressModel(ConstitutiveModel):
 #        self._tact = Constant(0.0 - self.parameters['tdep'])
 #
         #04-06
-        self.Q = vector_space_to_scalar_space(u.ufl_function_space())
-        self._tact_dummy = Function(self.Q, name='tact_dummy')
-        self._tact_dummy.assign(Constant(0.0 - self.parameters['tdep']))
-        self._tact = Function(self.Q, name='tact')
-        self._tact.assign(Constant(0.0 - self.parameters['tdep']))
+
+        if self.parameters['eikonal']['td_dir'] == None:
+            self.Q = vector_space_to_scalar_space(u.ufl_function_space())
+            self._tact_dummy = Function(self.Q, name='tact_dummy')
+            self._tact_dummy.assign(Constant(0.0 - self.parameters['tdep']))
+            self._tact = Function(self.Q, name='tact')
+            self._tact.assign(Constant(0.0 - self.parameters['tdep']))
+        else:
+            self.eikonal(u, self.parameters['eikonal']['td_dir'])
 
         # Create, at minimum, a sarcomere length variable.
         ef = self.fiber_vectors[0]
@@ -256,27 +260,33 @@ class ActiveStressModel(ConstitutiveModel):
 #        self._tact.assign(float(value) - self.parameters['tdep'])
 #        print(float(value) - self.parameters['tdep'])
 #        self._tact = project(float(value) - self.parameters['tdep'], self.Q)
-        self._tact_dummy.vector()[:]= float(value) - self.parameters['tdep']
+#        self._tact_dummy.vector()[:]= float(value) - self.parameters['tdep']
+        self._tact_dummy.vector()[:] += float(value)
         self._tact.assign(self._tact_dummy)
+        file = File('eikonal_td.pvd')
+        file << self._tact
         
         print('t_act:',min(self._tact.vector().array()))
         # print('activation_time.setter:', self._tact)
 
     def eikonal(self, u, filename):
-        mesh = Mesh()
-        openfile = HDF5File(mpi_comm_world, filename, 'r')
-        openfile.read(mesh, 'mesh', False)
-        V = FunctionSpace(mesh, 'Lagrange', 1)
-        td = Function(V)
-
+        mesh1 = Mesh()
+        openfile = HDF5File(mpi_comm_world(), filename, 'r')
+        openfile.read(mesh1, 'mesh', False)
+        V1 = FunctionSpace(mesh1, 'Lagrange', 2)
+        parameters['allow_extrapolation'] = True
+        td = Function(V1)
         openfile.read(td,'td/vector_0')
 
-        V = u.ufl_function_space()
-        mesh = V.ufl_domain().ufl_cargo()
-
+#        V = u.ufl_function_space()
+        mesh = u.ufl_domain().ufl_cargo()
+        V = FunctionSpace(mesh,'Lagrange',2)
         parameters['allow_extrapolation'] = False
 
-        self._tact = project(td, V)
+        self._tact = project(-1*td, V)
+        self._tact_dummy = self._tact
+        file = File('eikonal.pvd')
+        file << self._tact
 
     @property
     def dt(self):
@@ -496,9 +506,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         """
         Return a set of default parameters for this model.
         """
-        prm = Parameters('active_stress')
-
-        prm.add('infarct', False)
+        prm = Parameters('active_stress')        
 
         prm.add('Ta0', float())
         prm.add('Ea', float())
@@ -520,48 +528,64 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         prm.add('restrict_lc', False)
 
-        prm.add('infarct_bool', False)
+        prm_infarct = Parameters('infarct')
+        prm_infarct.add('infarct', False)
+        prm_infarct.add('phi_min', float())
+        prm_infarct.add('phi_max', float())
+        prm_infarct.add('theta_min', float())
+        prm_infarct.add('theta_max', float())
+        prm_infarct.add('ximin', float())
+        prm_infarct.add('focus', float())
+        prm_infarct.add('Ta0_infarct', float())
+        prm_infarct.add('save_T0_mesh', "./")
+        
+        prm.add(prm_infarct)
+        
+        prm_eikonal = Parameters('eikonal')
+        prm_eikonal.add('td_dir', '')
+        
+        prm.add(prm_eikonal)
 
         return prm
 
-    @staticmethod
-    def default_infarct_parameters():
-        """
-        Return a set of default parameters for this model + for the infarcted area.
-        """
-        prm = Parameters('active_stress')
-
-        prm.add('infarct', True)
-
-        prm.add('Ta0', float())
-        prm.add('Ea', float())
-        prm.add('al', float())
-
-        prm.add('lc0', float())
-        prm.add('ls0', float())
-
-        prm.add('taur', float())
-        prm.add('taud', float())
-
-        prm.add('b', float())
-        prm.add('ld', float())
-
-        prm.add('beta', 0.0)
-
-        prm.add('v0', float())
-        prm.add('tdep', float())
-
-        prm.add('restrict_lc', False)
-
-        prm.add('phi_min', float())
-        prm.add('phi_max', float())
-        prm.add('theta_min', float())
-        prm.add('theta_max', float())
-        prm.add('ximin', float())
-        prm.add('focus', float())
-        prm.add('Ta0_infarct', float())
-        prm.add('save_T0_mesh', "./")
-        return prm
+#    @staticmethod
+#    def default_infarct_parameters():
+#        """
+#        Return a set of default parameters for this model + for the infarcted area.
+#        """
+#        prm = Parameters('active_stress')
+#
+#        prm.add('infarct', True)
+#
+#        prm.add('Ta0', float())
+#        prm.add('Ea', float())
+#        prm.add('al', float())
+#
+#        prm.add('lc0', float())
+#        prm.add('ls0', float())
+#
+#        prm.add('taur', float())
+#        prm.add('taud', float())
+#
+#        prm.add('b', float())
+#        prm.add('ld', float())
+#
+#        prm.add('beta', 0.0)
+#
+#        prm.add('v0', float())
+#        prm.add('tdep', float())
+#
+#        prm.add('restrict_lc', False)
+#
+#        prm.add('phi_min', float())
+#        prm.add('phi_max', float())
+#        prm.add('theta_min', float())
+#        prm.add('theta_max', float())
+#        prm.add('ximin', float())
+#        prm.add('focus', float())
+#        prm.add('Ta0_infarct', float())
+#        prm.add('save_T0_mesh', "./")
+#        return prm
 
     def active_stress_scalar(self, u):
         """
@@ -576,12 +600,12 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         """
         prm = self.parameters
 
-        if prm['infarct']==True: 
+        if prm['infarct']['infarct']==True: 
             # create infarct area
             t0 = time.time()
             print_once("*** creating T0 mesh... ***")
             self.T0 = self.infarct_T0(u)                
-            dir_out = prm['save_T0_mesh']
+            dir_out = prm['infarct']['save_T0_mesh']
             # save infarct mesh
             save_to_xdmf(self.T0,dir_out,'T0')
 
@@ -649,15 +673,17 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         Return the interpolated values of T0 on the mesh
         """
-
-        print_once("generating droplet infarct area")
-        Ta0_infarct = self.parameters['Ta0_infarct']
+        
         Ta0 = self.parameters['Ta0']
-        phi_max = self.parameters['phi_max']
-        theta_min = self.parameters['theta_min']
-        theta_max = self.parameters['theta_max']
-        ximin = self.parameters['ximin']
-        focus = self.parameters['focus']
+        
+        prm_infarct = self.parameters['infarct']
+#        print_once("generating droplet infarct area")
+        Ta0_infarct = prm_infarct['Ta0_infarct']  
+        phi_max = prm_infarct['phi_max']
+        theta_min = prm_infarct['theta_min']
+        theta_max = prm_infarct['theta_max']
+        ximin = prm_infarct['ximin']
+        focus = prm_infarct['focus']
 
         # point of origin for phi
         phi0=0 
@@ -765,7 +791,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         # write percentage of infarcted area to inputs.csv (not nicely done...)
         # check if infarcted area is already saved in the csv, because postprocessing
         # repeats this routine for every timestep
-        dir_out = self.parameters['save_T0_mesh']
+        dir_out = prm_infarct['save_T0_mesh']
         filename = os.path.join(dir_out, 'inputs.csv')
 
         if MPI.rank(mpi_comm_world()) == 0:
