@@ -222,7 +222,7 @@ class ActiveStressModel(ConstitutiveModel):
 #        self._tact = Constant(0.0 - self.parameters['tdep'])
 #
         #04-06
-
+        self.td_save = 0
         if self.parameters['eikonal']['td_dir'] == None:
             self.Q = vector_space_to_scalar_space(u.ufl_function_space())
             self._tact_dummy = Function(self.Q, name='tact_dummy')
@@ -230,6 +230,7 @@ class ActiveStressModel(ConstitutiveModel):
             self._tact = Function(self.Q, name='tact')
             self._tact.assign(Constant(0.0 - self.parameters['tdep']))
         else:
+            self.file = XDMFFile(os.path.join(dir_out, 'eikonal_td.xdmf'))
             self.eikonal(u, self.parameters['eikonal']['td_dir'])
 
         # Create, at minimum, a sarcomere length variable.
@@ -263,8 +264,13 @@ class ActiveStressModel(ConstitutiveModel):
 #        self._tact_dummy.vector()[:]= float(value) - self.parameters['tdep']
         self._tact_dummy.vector()[:] += float(value)
         self._tact.assign(self._tact_dummy)
-        file = File('eikonal_td.pvd')
-        file << self._tact
+        
+        self.td_save += int(value)
+        
+        dir_out = self.parameters['eikonal']['save_td_mesh']
+        
+        
+        self.file.write(self._tact, int(self.td_save))
         
         print('t_act:',min(self._tact.vector().array()))
         # print('activation_time.setter:', self._tact)
@@ -285,8 +291,10 @@ class ActiveStressModel(ConstitutiveModel):
 
         self._tact = project(-1*td, V)
         self._tact_dummy = self._tact
-        file = File('eikonal.pvd')
-        file << self._tact
+        
+        dir_out = self.parameters['eikonal']['save_td_mesh']
+        file_mesh = XDMFFile(os.path.join(dir_out, 'eikonal.xdmf'))
+        file_mesh.write(self._tact)
 
     @property
     def dt(self):
@@ -543,6 +551,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         
         prm_eikonal = Parameters('eikonal')
         prm_eikonal.add('td_dir', '')
+        prm_eikonal.add('save_td_mesh','')
         
         prm.add(prm_eikonal)
 
