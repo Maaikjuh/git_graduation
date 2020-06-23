@@ -1351,11 +1351,15 @@ class Export(object):
                 # Read time information from hdf5 file.
                 u_vector = 'displacement/vector_{}'.format(vector)
                 t = self.results_hdf5.attributes(u_vector)['timestamp']
-                t_act = -1
+#                t_act = -1
+                tact_vector = 'activation_time/vector_{}'.format(vector)
+                t_act = self.results_hdf5.read(self.model.active_stress.activation_time, tact_vector)
             else:
                 # Get time information from csv file.
                 t = self.data['time'].values.tolist()[idx]
-                t_act = self.data['t_act'].values.tolist()[idx]
+#                t_act = self.data['t_act'].values.tolist()[idx]
+                tact_vector = 'activation_time/vector_{}'.format(vector)
+                t_act = self.results_hdf5.read(self.model.active_stress.activation_time, tact_vector)
 
             # Check if fiber reorientation is enabled.
             current_cycle = list(self.data['cycle'])[idx]
@@ -1763,7 +1767,8 @@ class Export(object):
 
         # Activation time.
         if self.model.active_stress is not None:
-            self.model.active_stress.activation_time = float(t_act + self.model.active_stress.parameters['tdep'])
+            self.model.active_stress.activation_time_map = t_act
+#            self.model.active_stress.activation_time = float(t_act + self.model.active_stress.parameters['tdep'])
 
         # Fiber vectors.
         if fiber_reorientation:
