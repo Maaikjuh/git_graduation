@@ -275,6 +275,10 @@ class ActiveStressModel(ConstitutiveModel):
         print('t_act:',min(self._tact.vector().array()))
         # print('activation_time.setter:', self._tact)
 
+    @activation_time_map.setter
+    def activation_time_map(self, tact):
+        self._tact = tact
+
     def eikonal(self, u, filename):
         mesh1 = Mesh()
         openfile = HDF5File(mpi_comm_world(), filename, 'r')
