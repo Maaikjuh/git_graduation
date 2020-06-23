@@ -230,6 +230,7 @@ class ActiveStressModel(ConstitutiveModel):
             self._tact = Function(self.Q, name='tact')
             self._tact.assign(Constant(0.0 - self.parameters['tdep']))
         else:
+            dir_out = self.parameters['eikonal']['save_td_mesh']
             self.file = XDMFFile(os.path.join(dir_out, 'eikonal_td.xdmf'))
             self.eikonal(u, self.parameters['eikonal']['td_dir'])
 
@@ -267,7 +268,7 @@ class ActiveStressModel(ConstitutiveModel):
         
         self.td_save += int(value)
         
-        dir_out = self.parameters['eikonal']['save_td_mesh']
+        
         
         
         self.file.write(self._tact, int(self.td_save))
@@ -275,7 +276,7 @@ class ActiveStressModel(ConstitutiveModel):
         print('t_act:',min(self._tact.vector().array()))
         # print('activation_time.setter:', self._tact)
 
-    @activation_time_map.setter
+    # @activation_time_map.setter
     def activation_time_map(self, tact):
         self._tact = tact
 
