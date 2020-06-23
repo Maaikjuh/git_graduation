@@ -224,8 +224,8 @@ def get_inputs(number_of_cycles, active_stress):
     state = {'cycle': 1,
              'phase': initial_phase,
              't_cycle': time['t0'],
-#             't_active_stress': time['t0']+6.}
-             't_active_stress': time['t0'] - filling_time}
+            #  't_active_stress': time['t0']+6.}
+            't_active_stress': time['t0'] - filling_time}
 #
     # Initial conditions (specify pressures [in kPa]).
     initial_conditions = {'arterial_pressure': 11.5}
