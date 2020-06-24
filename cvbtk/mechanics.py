@@ -294,6 +294,7 @@ class ActiveStressModel(ConstitutiveModel):
         parameters['allow_extrapolation'] = False
 
         self._tact = project(-1*td, V)
+        self._tact.rename('eikonal','eikonal')
         self._tact_dummy = self._tact
         
         dir_out = self.parameters['eikonal']['save_td_mesh']
