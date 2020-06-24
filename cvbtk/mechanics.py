@@ -222,7 +222,9 @@ class ActiveStressModel(ConstitutiveModel):
 #        self._tact = Constant(0.0 - self.parameters['tdep'])
 #
         #04-06
-        self.td_save = 0
+        self.td_save = 0.0
+        dir_out = self.parameters['eikonal']['save_td_mesh']
+        self.file = XDMFFile(os.path.join(dir_out, 'eikonal_td.xdmf'))
         if self.parameters['eikonal']['td_dir'] == None:
             self.Q = vector_space_to_scalar_space(u.ufl_function_space())
             self._tact_dummy = Function(self.Q, name='tact_dummy')
@@ -230,8 +232,7 @@ class ActiveStressModel(ConstitutiveModel):
             self._tact = Function(self.Q, name='tact')
             self._tact.assign(Constant(0.0 - self.parameters['tdep']))
         else:
-            dir_out = self.parameters['eikonal']['save_td_mesh']
-            self.file = XDMFFile(os.path.join(dir_out, 'eikonal_td.xdmf'))
+
             self.eikonal(u, self.parameters['eikonal']['td_dir'])
 
         # Create, at minimum, a sarcomere length variable.
@@ -266,14 +267,13 @@ class ActiveStressModel(ConstitutiveModel):
         self._tact_dummy.vector()[:] += float(value)
         self._tact.assign(self._tact_dummy)
         
-        self.td_save += int(value)
-        
-        
-        
-        
-        self.file.write(self._tact, int(self.td_save))
-        
-        print('t_act:',min(self._tact.vector().array()))
+        self.td_save += (value)
+    
+        self.file.write(self._tact, float(self.td_save))
+
+        print_once('td: self.td_save')
+        print_once('min t_act:',min(self._tact.vector().array()))
+        print_once('max t_act:',min(self._tact.vector().array()))
         # print('activation_time.setter:', self._tact)
 
     # @activation_time_map.setter
