@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Apr 15 15:11:24 2020
+Created on Wed Jun 24 11:03:54 2020
 
 @author: Maaike
 """
@@ -14,6 +14,7 @@ from postprocessing import Dataset, shift_data, get_paths
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
+from matplotlib.gridspec import GridSpec
 import os
 import glob
 import pickle
@@ -27,6 +28,17 @@ warnings.filterwarnings("ignore")
 from mpl_toolkits.mplot3d import Axes3D
 
 plt.close('all')
+
+def length(v):
+    return math.sqrt(v[0]**2+v[1]**2)
+def dot_product(v,w):
+   return v[0]*w[0]+v[1]*w[1]
+def determinant(v,w):
+   return v[0]*w[1]-v[1]*w[0]
+def inner_angle(v,w):
+   cosx=dot_product(v,w)/(length(v)*length(w))
+   rad=math.acos(cosx) # in radians
+   return rad*180/math.pi # returns degrees
 
 def radians_to_degrees(angle):
     """
@@ -159,8 +171,8 @@ class postprocess_paraview_new(object):
         par['A_phi'] = 1/2*math.pi
         par['AL_phi'] = 4/5*math.pi
         par['P_phi'] = par['A_phi'] + math.pi
-        par['inner_e']= 0.3713
-        par['outer_e']= 0.6784
+        par['inner_sigma']= 0.3713
+        par['outer_sigma']= 0.6784
         par['focus']= 4.3
         par['ls0'] = 1.9
         par['name'] = ''
@@ -294,11 +306,13 @@ class postprocess_paraview_new(object):
                         + np.sqrt(x ** 2 + y ** 2 + (z - focus) ** 2)) / focus  
     
     
-    def extract_wall_idx(self, phi_val= 0.,theta_inner= None, loc = ['epi','mid','endo']):
+    def extract_wall_idx(self, phi_val= 0.,theta_outer = None, theta_inner= None, loc = ['epi','mid','endo']):
         #select single point on epi, mid and endowall respectively
         h = self.column_headers
         data = self.all_data[:, :, 0]
         
+        if theta_outer == None:
+            theta_outer = self.parameters['theta']
         if theta_inner == None:
             theta_inner = self.parameters['theta']
             
@@ -314,8 +328,8 @@ class postprocess_paraview_new(object):
             mask_T0 = data_T0 >= 90
         
         #get coordinates on the outer and inner wall for phi
-        x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_e'],self.parameters['theta'], phi_val)
-        x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_e'],theta_inner, phi_val)
+        x, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_sigma'],theta_outer, phi_val)
+        x2, y2, z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_sigma'],theta_inner, phi_val)
 
         mask = {}
         mask_tot = {}
@@ -373,8 +387,10 @@ class postprocess_paraview_new(object):
         self.parameters['P_phi'] = self.parameters['A_phi'] + math.pi
         return self.extract_wall_idx(phi_val = self.parameters['P_phi'])
     
-    def extract_segment_idx(self):
-        nr_segments = 24
+    def extract_segment_idx(self, nr_segments = 24, theta=None):
+        if theta == None:
+            theta = self.parameters['theta']
+            
         h = self.column_headers
         
         # calculate all sigma values  
@@ -386,7 +402,7 @@ class postprocess_paraview_new(object):
         min_sigma = min(sigma)
         
         # calculate height (z) of the segments
-        tau = math.cos(self.parameters['theta'])
+        tau = math.cos(theta)
         z_epi = self.parameters['focus'] * max_sigma * tau
         
         # calculate for which theta a (segment) point on the inner ellipsoid is 
@@ -402,34 +418,47 @@ class postprocess_paraview_new(object):
         segments = []
         for i in phi_range:
             # for each segment, extract a point on the epi, mid and endo wall
-            seg = self.extract_wall_idx(phi_val = i, theta_inner= theta_inner)
-            segments.append(seg)     
+            seg = self.extract_wall_idx(phi_val = i, theta_outer = theta, theta_inner= theta_inner)
+            segments.append(seg)    
+        return segments
         
-        if 'T0' in h:
-            data_T0 = self.all_data[segments, h['T0'], 0]
-            return segments, data_T0
-        else:      
-            return segments   
+        # if 'T0' in h:
+        #     data_T0 = self.all_data[segments, h['T0'], 0]
+        #     return segments, data_T0
+        # else:      
+        #     return segments   
         
-    
+    def extract_torsion_idx(self,nr_segments = 8, theta_vals = None):
+        if theta_vals == None:
+            theta_vals = [1.1, 4/10*math.pi, 5/10*math.pi, 6/10*math.pi, 7/10*math.pi, 8/10*math.pi]
+        
+        torsion_idx = []
+        for i, theta in enumerate(theta_vals):
+            slice_idx = self.extract_segment_idx(nr_segments,theta = theta)
+            torsion_idx.append(slice_idx)
+        return torsion_idx
+        
     def extract_T0_idx(self):
         h = self.column_headers
-        if 'T0' in h:
-            T0 = 'T0'
-        elif 'f_135' in h:
-            T0 = 'f_135'
-        elif 'f_137' in h:
-            T0 = 'f_137'
-        data_T0 = self.all_data[:, h[T0], 0]
+        data_T0 = self.all_data[:, h['T0'], 0]
         return np.where(data_T0 <= 90)
+    
+    def extract_eikonal_idx(self):
+        h = self.column_headers
+        if 'eikonal' in h:
+            td = 'eikonal'
+        elif 'f_179' in h:
+            td = 'f_179'
+        data_td = self.all_data[:, h[td], 0]
+        return np.where(data_td >= -20)
          
     def calculate_wall_thickness(self):
         h = self.column_headers
         results = self.results  
-        if 'T0' in h:
-            segments = self.extract_segment_idx()[0]
-        else:
-            segments = self.extract_segment_idx()
+        # if 'T0' in h:
+        #     segments = self.extract_segment_idx()[0]
+        # else:
+        segments = self.extract_segment_idx()
         
         distance = []
         
@@ -461,16 +490,110 @@ class postprocess_paraview_new(object):
             cycle = int(max(full['cycle']) - 1)
         
         reduced = full[full['cycle'] == cycle].copy(deep=True)
-        return reduced       
+        return reduced    
     
-    def plot_rotation(self, fig = None, fontsize=12):
+    def plot_torsion(self, fig = None, fontsize=12,nr_segments = 8, theta_vals = None,title=''):
+        self.show_slices_segment_idx()
+        
+        if fig is None:    
+            fig = plt.figure()
+        plt.figure(fig.number)
+        
+        col = ['C0', 'C1','C2','C3', 'C4','C8']
+        
+        ax1 = fig.add_subplot(2, 2, 1)
+        ax2 = fig.add_subplot(2, 2, 2)
+        ax3 = fig.add_subplot(2,2,3)
+        ax4 = fig.add_subplot(2,2,4)
+        
+        h = self.column_headers
+        results = self.results
+  
+        index_es = (results['phase'] ==4).idxmax() - results.index[0] - 1
+        
+        slices_idx = self.extract_torsion_idx(nr_segments) 
+        nrsegments = range(1, nr_segments+1)
+               
+        base_idx = slices_idx[0]
+       
+        for ii in range(1, len(slices_idx)): 
+            tor_slice = slices_idx[ii]
+            
+            slice_epi= []
+            slice_endo = []
+            shear_epi= []
+            shear_endo = []
+            for seg in nrsegments:    
+                seg = seg -1
+                seg_slice = tor_slice[seg]
+                
+                seg_base = base_idx[seg]
+                # epi_base = seg_base[0]
+                # endo_base = seg_base[2]
+                
+                for i in [0, 2]:
+                    seg_point = seg_slice[i]
+                    base_point = seg_base[i]
+                    
+                    x = self.all_data[[base_point, seg_point], h[':0'], 0]
+                    x = x + self.all_data[[base_point, seg_point], h['displacement:0'], index_es]
+                
+                    y = self.all_data[[base_point, seg_point], h[':1'], 0]
+                    y = y + self.all_data[[base_point, seg_point], h['displacement:1'], index_es]
+                    
+                    base = ([x[0],y[0]])
+                    point = ([x[1],y[1]])
+                    
+                    vector1 = base/np.linalg.norm(base)
+                    vector2 = point/np.linalg.norm(point)
+                    
+                    dot_product = np.dot(vector1,vector2)
+                    ang_point = radians_to_degrees(np.arccos(dot_product))
+                    
+                    # ang_point = np.dot(base, point) / (np.linalg.norm(base) * np.linalg.norm(point))
+                    # ang_point = np.arccos(ang_point)
+                    # # ang_point = math.degrees(math.atan2(point[1], point[0]) - math.atan2(base[1], base[0]))
+                    # ang_point = inner_angle(base,point)
+                    
+                    r = math.sqrt(point[0]**2 + point[1]**2)
+                    height = 1 #self.all_data[base_point, h[':2'], 0] - self.all_data[seg_point, h[':2'], 0] 
+                    shear = math.atan(2*r*math.sin(ang_point/2)/height)
+                    if i == 0:
+                        slice_epi.append(ang_point)
+                        shear_epi.append(shear)
+                    elif i == 2:
+                        slice_endo.append(ang_point)
+                        shear_endo.append(shear)
+                    
+            label_epi = '{}, average: {:.2f}'.format(ii, np.mean(slice_epi))
+            label_endo = '{}, average: {:.2f}'.format(ii, np.mean(slice_endo))
+            label_shear_epi = '{}, average: {:.2f}'.format(ii, np.mean(shear_epi))
+            label_shear_endo = '{}, average: {:.2f}'.format(ii, np.mean(shear_epi))
+            ax1.plot(nrsegments, slice_epi, color = col[ii-1], label = label_epi)
+            ax2.plot(nrsegments, slice_endo, color = col[ii-1], label = label_endo)
+            ax3.plot(nrsegments, shear_epi, color = col[ii-1], label = label_shear_epi)
+            ax4.plot(nrsegments, shear_endo, color = col[ii-1], label = label_shear_endo)
+        
+        fig.suptitle(title,fontsize=fontsize+2)
+        ax1.legend(frameon=False, fontsize=fontsize)
+        ax2.legend(frameon=False, fontsize=fontsize)
+        ax3.legend(frameon=False, fontsize=fontsize)
+        ax4.legend(frameon=False, fontsize=fontsize)
+        ax1.set_ylabel('Torsion epicardial [$^\circ$]', fontsize = fontsize)
+        ax2.set_ylabel('Torsion endocardial [$^\circ$]', fontsize = fontsize)
+        ax3.set_ylabel('Shear epicardial [$^\circ$]', fontsize = fontsize)
+        ax4.set_ylabel('Shear endocardial [$^\circ$]', fontsize = fontsize)
+        ax3.set_xlabel('Segments', fontsize = fontsize)
+        ax4.set_xlabel('Segments', fontsize = fontsize)
+                    
+    def plot_rotation(self, fig = None, fontsize=12, title = ''):
         h = self.column_headers
         results = self.results
         
-        if 'T0' in h:
-            segments, T0 = self.extract_segment_idx()
-        else:
-            segments = self.extract_segment_idx()
+        # if 'T0' in h:
+        #     segments, T0 = self.extract_segment_idx()
+        # else:
+        segments = self.extract_segment_idx()
         
         index_ed = (results['phase'] ==2).idxmax() - results.index[0] - 1
         index_es = (results['phase'] ==4).idxmax() - results.index[0] - 1
@@ -479,7 +602,13 @@ class postprocess_paraview_new(object):
         strains = []
         nrsegments = []
         for ii, idx in enumerate(segments):
-            idx_segment = np.append(idx,segments[ii-1])
+            idx = idx[1]
+            idx_segment = np.append(idx,segments[ii-1][1])
+            if ii != len(segments)-1:
+                idx_segment = np.append(idx_segment,segments[ii+1][1])
+            else:
+                idx_segment = np.append(idx_segment,segments[0][1])
+
             # idx_epi = idx[0]
             x_pos = self.all_data[idx_segment, h[':0'], 0]
             y_pos = self.all_data[idx_segment, h[':1'], 0]
@@ -494,9 +623,10 @@ class postprocess_paraview_new(object):
             p_es = np.array([x_es, y_es])
             
             ang_points_seg = []
-            for i in range(0,len(p_ed)+1):
+            for i in range(0,len(p_ed)):
                 ang_point = np.dot(p_ed[:,i], p_es[:,i]) / (np.linalg.norm(p_ed[:,i]) * np.linalg.norm(p_es[:,i]))
                 ang_point = np.arccos(ang_point)
+                # ang_point = inner_angle(p_ed[:,i],p_es[:,i])
                 ang_points_seg.append(ang_point)
                 
             ang_tot_seg = np.mean(ang_points_seg)
@@ -506,12 +636,13 @@ class postprocess_paraview_new(object):
             ls = self.all_data[idx_segment, h['ls_old'], index_es]
             strain = np.log( ls/ls0 )
             strains.append(np.mean(strain))
-            nrsegments.append(ii)
+            nrsegments.append(ii+1)
             
         if fig is None:    
             fig = plt.figure()
         plt.figure(fig.number)
         
+        fig.suptitle(title, fontsize = fontsize+2)
         ax1 = fig.add_subplot(2, 1, 1)
         ax1.plot(nrsegments, angles)
         ax1.set_ylabel('Rotation [$^\circ$]', fontsize = fontsize)
@@ -520,10 +651,10 @@ class postprocess_paraview_new(object):
         ax2.set_ylabel('strain', fontsize = fontsize)
         ax2.set_xlabel('Segments', fontsize = fontsize)
         
-        if 'T0' in h:
-            ax1a = ax1.twinx()
-            ax1a.set_ylabel('T0')
-            ax1a.plot(nrsegments, T0)
+        # if 'T0' in h:
+        #     ax1a = ax1.twinx()
+        #     ax1a.set_ylabel('T0')
+        #     ax1a.plot(nrsegments, T0)
         
         ax1.axis(ymin=0.,ymax=7.)
         ax2.axis(ymin=-0.2,ymax=0.2)
@@ -547,6 +678,11 @@ class postprocess_paraview_new(object):
         for seg, dist in enumerate(distance):
             if (seg+1) in nrsegments:
                 dist = dist - dist[0]
+                
+                dist2 = distance[seg-1]
+                dist2 = dist2 - dist2[0]
+                
+                dist = (dist + dist2)/2
                 plt.plot(time, dist, label = str(seg+1))
         
         # Mark the beginning of each phase
@@ -1051,7 +1187,8 @@ class postprocess_paraview_new(object):
         
         return data_shifted
 
-    def show_regions_new(self, fig = None, projection='2d', fontsize=12, segments = False, skip=None):
+   
+    def show_T0_eikonal_idx(self, fig = None,fontsize=12):
         h = self.column_headers
         # Plot the regions.
         if fig is None:
@@ -1062,136 +1199,245 @@ class postprocess_paraview_new(object):
         plt.figure(fig.number)
                            
         col = [ 'C7','C5', 'C0', 'C1','C2','C3']
-        # col = ['g', 'r', 'c','w']
-        if projection == '2d':
-            # Only select nodes from slice.
-            # region0 = np.where((self.all_data[:, h[':1'], 0]) >= 0.)
-            region0 = np.where((self.all_data[:, h[':1'], 0]) >= -4.)
-
-            ax1 = fig.add_subplot(121)
-            ax2 = fig.add_subplot(122)
-        else:
-            # Select all nodes.
-            # region0 = self.all_data
-            region0 = np.where((self.all_data[:, h[':1'], 0]) >= -4.)
-            # region0 = np.arange(len(self.all_data[:, h[':1'], 0]))
-            ax = fig.add_subplot(111, projection='3d')
+        region0 = np.where((self.all_data[:, h[':1'], 0]) >= -4.)
         
-        if segments == True:
-            # region0 = np.where((self.all_data[:, h[':2'], 0]) <= -2.)
-            if 'T0' in h:
-                data_T0 = self.all_data[:, h['T0'], 0]
-                segment_idx = self.extract_segment_idx()[0]
-                T0_segment = []
-                [T0_segment.append(idx) for wall_idx in segment_idx for idx in wall_idx if data_T0[idx] < 90]
-                
-                regions = [region0,
-                           segment_idx,
-                           (np.asarray(T0_segment)),
-                           self.extract_T0_idx()]
-                region_labels = ['segments',
-                                 'infarct']  
-            else:
-                regions = [region0,
-                           self.extract_segment_idx()]
-                region_labels = ['segments']                
-        else:
-            if 'T0' in h:
-                regions = [region0,
-                           self.extract_T0_idx(),
-                           self.extract_AM_idx(), 
-                           self.extract_A_idx(), 
-                           self.extract_AL_idx(),
-                           self.extract_P_idx()]
-                
-                region_labels = [None,
-                                 'T0',
-                                 'AM', 
-                                 'A', 
-                                 'AL',
-                                 'P']
-            else: 
-                regions = [region0,
-                            self.extract_AM_idx(), 
-                            self.extract_A_idx(), 
-                            self.extract_AL_idx()]
-                
-                region_labels = [None,
-                                'AM', 
-                                'A', 
-                                'AL']   
-
+        gs = GridSpec(1,2)
+        _xy2 = plt.subplot(gs[0,0])
+        _xz2 = plt.subplot(gs[0,1])
+  
+        self._ax = {'xy2': _xy2, 'xz2': _xz2}
+        
+        self.lv_drawing(self._ax)
+        
+        regions = [region0,
+                   self.extract_AM_idx(), 
+                   self.extract_A_idx(), 
+                   self.extract_AL_idx(),
+                   self.extract_P_idx()]  
+        
+        region_labels = [None,
+                         'AM',
+                         'A',
+                         'AL',
+                         'P']
+        if 'T0' in h:
+            regions.append(self.extract_T0_idx())
+            region_labels.append('T0')
+        
+        if 'eikonal' in h or 'f_179' in h:
+            regions.append(self.extract_eikonal_idx())
+            region_labels.append('eikonal')
+        
         for ii, idx in enumerate(regions):
-            if ii == 0 and skip is not None and skip != 0:
-                # Only select a random batch of relative size 1/skip to plot excluded nodes.
-                random.shuffle(idx)
-                idx = idx[:int(len(idx)/skip)]
-
             x = self.all_data[idx, h[':0'], 0]
             y = self.all_data[idx, h[':1'], 0]
             z = self.all_data[idx, h[':2'], 0]
-                
-            if projection == '3d':
-                # if ii ==0:
-                #     ax.scatter3D(x, z, y, color=col[ii], label=region_labels[ii],marker='.',zdir='y')
-                # if ii != 0:
-                ax.scatter3D(x, z, y, color=col[ii], label=region_labels[ii],zdir='y')
-                
-                plt.legend(frameon=False, fontsize=fontsize)
-                plt.title('Nodes included in local function analysis', fontsize=fontsize+2)
-
-            else:
-                if segments == True:
-                    # if ii == 0:
-                    #     ax.scatter(x, y,color=col[ii], label=region_labels[ii])
-                    if ii == 1:
-                        for i in range(0, 24):                       
-                            ax1.scatter(x[i], y[i])
-                            ax1.plot(x[i], y[i])
-                            ax1.axis('equal')
-                            nr_x = np.mean(np.append(x[i],x[i-1]))
-                            nr_y = np.mean(np.append(y[i],y[i-1]))
-                            ax1.text(nr_x,nr_y,'{}'.format(i+1), ha='center', va='center')
-                    ax2.scatter(x, z)
-                    ax2.axis('equal')
                     
-                else:
-                    # f = plt.figure() 
-                    # f, axes = plt.subplots(nrows = 1, ncols = 2, sharex=True, sharey = True)
-                    # axes.scatter(x, z)
-                    ax1.scatter(x, z, color=col[ii], label=region_labels[ii])
-                    ax1.axis('equal')
-                    ax1.set_title('side view (x-z)')
-                    ax1.legend(frameon=False, fontsize=fontsize)
-                    plt.legend(frameon=False, fontsize=fontsize)
-                    
-                    ax2.scatter(y, z, color=col[ii], label=region_labels[ii])
-                    ax2.set_title('front view (y-z)')
-                    ax2.axis('equal')
-                    ax2.legend(frameon=False, fontsize=fontsize)
-                
-                    # if ii != 0:
-                    #     ax3.scatter(x, y, color=col[ii], label=region_labels[ii])
-                    #     ax3.axis('equal')
-                    #     ax3.legend(frameon=False, fontsize=fontsize)
-                    fig.suptitle('Nodes included in local function analysis', fontsize=16)
-                # plt.subplot(1, 2, 2)
-                # ax.scatter(y, z, color=col[ii], label=region_labels[ii])
-        # if projection == '3d':
-        #     ax.view_init(1, 1)
-            # ax.set_aspect('equal')        # plt.axis('off')
- 
-        # Print some information on the number of nodes in the regions.
-        regions[0] = (regions[0])[0]
-        N_s = [len(indices) for indices in regions]
-        N_s = np.asarray(N_s)
-        N_tot = len(self.all_data)
-        
-        # for ii in range(1, len(N_s)):
-        #     print('% of nodes in {0} section: {1:1.2f} %'.format(region_labels[ii], N_s[ii]/N_tot*100))
+            self._ax['xy2'].scatter(x, y, color=col[ii], label=region_labels[ii])
+            self._ax['xy2'].axis('equal')
+            self._ax['xy2'].set_title('top view (x-y)')
+            self._ax['xy2'].legend(frameon=False, fontsize=fontsize)
             
-        # print('% of nodes in all sections : {0:1.2f} %'.format(sum(N_s[1:])/N_tot*100))
-        # print('% of nodes in entire slice: {0:1.2f} %'.format(N_s[0]/N_tot*100))
+            self._ax['xz2'].scatter(x, z, color=col[ii], label=region_labels[ii])
+            self._ax['xz2'].set_title('front view (x-z)')
+            self._ax['xz2'].axis('equal')
+            self._ax['xz2'].legend(frameon=False, fontsize=fontsize)  
+            
+    def show_single_slice_segment_idx(self, fig = None, projection='2d', fontsize=12):
+        h = self.column_headers
+        # Plot the regions.
+        if fig is None:
+            # Create new figure.
+            fig = plt.figure()
+        
+        # Make fig current.
+        plt.figure(fig.number)
+                           
+        col = [ 'C7','C5', 'C0', 'C1','C2','C3']
+        
+        region0 = np.where((self.all_data[:, h[':1'], 0]) >= -4.)
+        regions = [region0,
+                   self.extract_segment_idx()]
+        
+        gs = GridSpec(1,2)
+        _xy1 = plt.subplot(gs[0,0])
+        _xz1 = plt.subplot(gs[0,1])
+        
+        self._ax = {'xy1': _xy1, 'xz1': _xz1}
+        self.lv_drawing('xz1')
+        
+        for ii, idx in enumerate(regions):
+            x = self.all_data[idx, h[':0'], 0]
+            y = self.all_data[idx, h[':1'], 0]
+            z = self.all_data[idx, h[':2'], 0]
+                        
+            if ii == 1:
+                for i in range(0, len(regions[ii])):
+                    self._ax['xy1'].scatter(x[i], y[i])
+                    self._ax['xy1'].plot(x[i], y[i])
+                    self._ax['xy1'].axis('equal')
+                    nr_x = np.mean(np.append(x[i],x[i-1]))
+                    nr_y = np.mean(np.append(y[i],y[i-1]))
+                    self._ax['xy1'].text(nr_x,nr_y,'{}'.format(i+1), ha='center', va='center')
+                    
+                    self._ax['xz1'].scatter(x, z, color=col[ii])
+                    self._ax['xz1'].set_title('front view (x-z)')
+                    self._ax['xz1'].axis('equal')
+                    self._ax['xz1'].legend(frameon=False, fontsize=fontsize)
+            else:
+                self._ax['xz1'].scatter(x, z, color=col[ii])
+                self._ax['xz1'].axis('equal')
+                self._ax['xz1'].set_title('top view (x-y)')
+                self._ax['xz1'].legend(frameon=False, fontsize=fontsize)
+                
+    def show_slices_segment_idx(self, fig = None, projection='2d', fontsize=12):
+        h = self.column_headers
+        results = self.results
+        # Plot the regions.
+        if fig is None:
+            # Create new figure.
+            fig = plt.figure()
+        index_es = (results['phase'] ==4).idxmax() - results.index[0]
+        # Make fig current.
+        plt.figure(fig.number)
+        col = [ 'C7','C5', 'C0', 'C1','C2','C3', 'C4','C8']
+        
+        region0 = np.where((self.all_data[:, h[':1'], 0]) >= -4.)
+
+        gs = GridSpec(2,2)
+        _xy1 = plt.subplot(gs[0,0])
+        _xz1 = plt.subplot(gs[0,1])
+        _xy2 = plt.subplot(gs[1,0])
+        _xy3 = plt.subplot(gs[1,1])   
+        
+        self._ax = {'xy1': _xy1, 'xz1': _xz1, 'xy2': _xy2, 'xy3': _xy3}
+        
+        lv_keys = {'xy1', 'xz1', 'xy3'}
+        self.lv_drawing(lv_keys)
+        
+        regions = [region0]
+        region_labels = [None]
+        
+        slices = self.extract_torsion_idx()
+        for i, slice_idx in enumerate(slices):
+            regions.append(slice_idx)
+            region_labels.append('slice {}'.format(str(i)))
+        
+        infarct = False
+        if 'T0' in h:
+            infarct = True
+            regions.append(self.extract_T0_idx())
+            region_labels.append('T0')
+            
+        for ii, idx in enumerate(regions):
+            x = self.all_data[idx, h[':0'], 0]
+            y = self.all_data[idx, h[':1'], 0]
+            z = self.all_data[idx, h[':2'], 0]
+            
+            xdis = x + self.all_data[idx, h['displacement:0'], index_es]
+            ydis = y + self.all_data[idx, h['displacement:1'], index_es]
+            
+            self._ax['xy1'].scatter(x, y, color=col[ii], label=region_labels[ii])
+            self._ax['xy1'].axis('equal')
+            self._ax['xy1'].set_title('top view (x-y)')
+            self._ax['xy1'].legend(frameon=False, fontsize=fontsize)
+            
+            self._ax['xz1'].scatter(x, z, color=col[ii], label=region_labels[ii])
+            self._ax['xz1'].set_title('front view (x-z)')
+            self._ax['xz1'].axis('equal')
+            self._ax['xz1'].legend(frameon=False, fontsize=fontsize)
+            
+            ii_inf = len(regions)
+            if infarct == True:
+                ii_inf = len(regions) -1
+            if ii != 0 and ii != ii_inf:       
+                # self._ax['xz2'].scatter(x, z, color=col[ii], label=region_labels[ii])
+                # if ii == 1:
+                for i in range(0, len(slice_idx)): 
+                    # self._ax['xy2'].scatter(x[i], y[i], color=col[ii])
+                    # self._ax['xy2'].plot(x[i], y[i], color=col[ii])
+                    
+                    if ii == 1 or ii == 5:
+                        self._ax['xy2'].scatter(x[i], y[i], color=col[ii])
+                        self._ax['xy2'].plot(x[i], y[i], color=col[ii])
+              
+                        self._ax['xy3'].scatter(xdis[i], ydis[i], color=col[ii])
+                        self._ax['xy3'].plot(xdis[i], ydis[i], color=col[ii])
+                    if ii == 1:
+                        nr_x = np.mean(np.append(x[i],x[i-1]))
+                        nr_y = np.mean(np.append(y[i],y[i-1]))
+                        self._ax['xy2'].text(nr_x,nr_y,'{}'.format(i+1), ha='center', va='center')
+                        self._ax['xy3'].text(nr_x,nr_y,'{}'.format(i+1), ha='center', va='center')
+            
+              
+    def lv_drawing(self, ax_keys):
+        def ellips(a, b, t):
+            x = a*np.cos(t)
+            y = b*np.sin(t)
+            return x, y
+    
+        def cutoff(x, y, h):
+            x = x[y<=h]
+            y = y[y<=h]
+            return x, y
+        
+        R_1, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_sigma'],1/2*math.pi, 0.)
+        R_2, y, z = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_sigma'],1/2*math.pi, 0.)
+        
+        x, y, Z1 = ellips_to_cartesian(self.parameters['focus'],self.parameters['inner_sigma'],math.pi, 0.)
+        x, y, Z2 = ellips_to_cartesian(self.parameters['focus'],self.parameters['outer_sigma'],math.pi, 0.)
+        
+        Z_1 = abs(Z1)
+        Z_2 = abs(Z2)
+        
+        h = 2.10  
+        n = 500
+        lw = 1
+        
+        
+        # LV free wall
+        t_lvfw = np.linspace(-np.pi, np.pi, n)
+        x_endo, y_endo = ellips(R_1, R_1, t_lvfw)
+        x_epi, y_epi = ellips(R_2, R_2, t_lvfw)
+        
+        if 'xy1' in ax_keys:
+            self._ax['xy1'].plot(x_endo, y_endo, color='C3', linewidth=lw)
+            self._ax['xy1'].plot(x_epi, y_epi, color='C3', linewidth=lw)
+            self._ax['xy1'].axis('equal')
+        
+        if 'xy2' in ax_keys:
+            self._ax['xy2'].plot(x_endo, y_endo, color='C3', linewidth=lw)
+            self._ax['xy2'].plot(x_epi, y_epi, color='C3', linewidth=lw)
+            self._ax['xy2'].axis('equal')
+        
+        if 'xy3' in ax_keys:
+            self._ax['xy3'].plot(x_endo, y_endo, color='C3', linewidth=lw)
+            self._ax['xy3'].plot(x_epi, y_epi, color='C3', linewidth=lw)
+            self._ax['xy3'].axis('equal')
+        
+        # LV free wall
+        t_lvfw = np.linspace(-np.pi, np.pi, n)
+        x_endo, y_endo = ellips(R_1, Z_1, t_lvfw)
+        x_epi, y_epi = ellips(R_2, Z_2, t_lvfw)
+        x_mid, y_mid = ellips((R_1+R_2)/2, (Z_1+Z_2)/2, t_lvfw)
+        
+        # Cut off
+        x_endo, y_endo = cutoff(x_endo, y_endo, h)
+        x_epi, y_epi = cutoff(x_epi, y_epi, h)
+        x_mid, y_mid = cutoff(x_mid, y_mid, h)
+        
+        if 'xz2' in ax_keys:
+            self._ax['xz2'].plot(x_endo, y_endo, color='C3', linewidth=lw)
+            self._ax['xz2'].plot(x_epi, y_epi, color='C3', linewidth=lw)
+            self._ax['xz2'].plot(x_mid, y_mid, '--', color='C3', linewidth=lw/2)
+            self._ax['xz2'].axis('equal')
+        
+        if 'xz1' in ax_keys:
+            self._ax['xz1'].plot(x_endo, y_endo, color='C3', linewidth=lw)
+            self._ax['xz1'].plot(x_epi, y_epi, color='C3', linewidth=lw)
+            self._ax['xz1'].plot(x_mid, y_mid, '--', color='C3', linewidth=lw/2)
+            self._ax['xz1'].axis('equal')
+
 
 def common_start(sa, sb):
     """ returns the longest common substring from the beginning of sa and sb """

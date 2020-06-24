@@ -37,6 +37,9 @@ directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/
 # directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/01-05_08-38_fiber_reorientation_meshres_20/cycle_5_stress_free_ref/paraview_data'
 # directory_2 = r"C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/01-05_10-02_fiber_no_reorientation_meshres_20/cycle_5_stress_free_ref/paraview_data"
 
+directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/22-06_17-33_eikonal_8node/cycle_2_stress_free_ref/paraview_data'
+directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/Linux_results/23-06_08-17_passive_stress_20/cycle_1_stress_free_ref/paraview_data'
+
 # Specify corresponding labels for the two directories above.
 dir_labels = ['ref', 'infarct']
 
@@ -67,14 +70,19 @@ linewidth = 2
 post_1 = postprocess_paraview_new(directory_1, name='init', **inputs1)
 post_2 = postprocess_paraview_new(directory_2, name='adap', **inputs2)
 
+post_1.show_single_slice_segment_idx()
+
 post_1.plot_wall_thickness(nrsegments = [8,10,12,14,16,24])
 post_2.plot_wall_thickness(nrsegments = [8,10,12,14,16,24])
+
+post_1.show_T0_eikonal_idx()
+post_2.show_T0_eikonal_idx()
 
 post_1.plot_rotation()
 post_2.plot_rotation()
 
-post_1.show_regions_new(projection = '2d', segments = True, fontsize=fontsize, skip=None)
-post_2.show_regions_new(projection = '2d', segments = True, fontsize=fontsize, skip=None)
+post_1.plot_torsion()
+post_2.plot_torsion()
 
 # fig_ta_ls_loop = plt.figure(figsize=(15, 15), dpi=100)
 # post_1.Ta_ls_loop('--',fig=fig_ta_ls_loop,phase = False, label=dir_labels[0])
@@ -84,16 +92,11 @@ post_2.show_regions_new(projection = '2d', segments = True, fontsize=fontsize, s
 # post_1.plot_time_stress('--',fig=fig_ts,phase = False, label=dir_labels[0])
 # post_2.plot_time_stress(fig=fig_ts,label=dir_labels[1])
 
-# # plt.savefig(os.path.join(directory_1, 'selected_regions.png'),  dpi=300, bbox_inches="tight")
+# # # plt.savefig(os.path.join(directory_1, 'selected_regions.png'),  dpi=300, bbox_inches="tight")
 
 # fig_sls = plt.figure(figsize=(22, 5), dpi=100)
 # post_1.plot_stress_ls_l0('--',fig=fig_sls,label=dir_labels[0])
 # post_2.plot_stress_ls_l0(fig=fig_sls,label=dir_labels[1])
-# # fig_ss = plt.figure(figsize=(22, 5), dpi=100)
-# # post_1.plot_stress_strain_ls(fig=fig_ss, label=dir_labels[0], fontsize=fontsize, linewidth=linewidth,var='strain')
-# # post_2.plot_stress_strain('--', fig=fig_ss, label=dir_labels[1], fontsize=fontsize, linewidth=linewidth)
-# plt.legend(frameon=False, fontsize=fontsize)
-# # plt.savefig(os.path.join(directory_1, 'stress_strain_loops.png'),  dpi=300, bbox_inches="tight")
 
 # fig_tls = plt.figure(figsize=(22, 5), dpi=100)
 # post_1.plot_time_strain_ls('--', fig=fig_tls, reference='stress_free',var ='ls',phase = False, label=dir_labels[0])
@@ -104,17 +107,4 @@ post_2.show_regions_new(projection = '2d', segments = True, fontsize=fontsize, s
 # post_1.plot_pv_loops('--', color='C1', fig=fig_pv, label=dir_labels[0], fontsize=fontsize, linewidth=linewidth)
 # post_2.plot_pv_loops(color='C0', fig=fig_pv, label=dir_labels[1], fontsize=fontsize, linewidth=linewidth)
 
-# plt.legend(frameon=False, fontsize=fontsize)
 # plt.savefig(os.path.join(directory_1, 'pv_loops.png'),  dpi=300, bbox_inches="tight")
-
-# post_1.show_global_function()
-# post_2.show_global_function()
-
-# post_1.show_local_function(linewidth=linewidth)
-# post_2.show_local_function(linewidth=linewidth)
-
-# fontsize = 13
-# post_1.plot_global_function_evolution(fontsize=fontsize, linewidth=linewidth)
-# plt.savefig(os.path.join(directory_1, 'global_function_evolution.png'),  dpi=300, bbox_inches="tight")
-
-print('')
