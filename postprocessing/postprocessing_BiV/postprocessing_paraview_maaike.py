@@ -27,7 +27,7 @@ warnings.filterwarnings("ignore")
 
 from mpl_toolkits.mplot3d import Axes3D
 
-# plt.close('all')
+plt.close('all')
 
 def length(v):
     return math.sqrt(v[0]**2+v[1]**2)
@@ -802,7 +802,7 @@ class postprocess_paraview_new(object):
             plt.tick_params(labelsize=fontsize-2)
             plt.grid('on')
             plt.title(region_labels[ii], fontsize=fontsize+2) 
-            plt.axis([t0, tend, 0, 60])
+            plt.axis([t0, tend, 0, 70])
             
             # Mark the beginning of each phase
             phaselabel = ['d','ic','e','ir']
@@ -825,10 +825,10 @@ class postprocess_paraview_new(object):
                             next_index = (results['phase'] == i+1).idxmax()
                         next_phase = results['t_cycle'][next_index]
                         #plot label between the two phases
-                        plt.text((phase_time+next_phase)/2, 55, phaselabel[i-1],fontsize=13,horizontalalignment='center')
+                        plt.text((phase_time+next_phase)/2, 65, phaselabel[i-1],fontsize=13,horizontalalignment='center')
                     elif i == 4:
                         #plot the label of the last phase
-                        plt.text((phase_time+max(time))/2, 55, phaselabel[i-1],fontsize=13,horizontalalignment='center')
+                        plt.text((phase_time+max(time))/2, 65, phaselabel[i-1],fontsize=13,horizontalalignment='center')
     
                         
             ls = self.all_data[idx, h['ls_old'], :]
