@@ -232,7 +232,6 @@ class ActiveStressModel(ConstitutiveModel):
             self._tact = Function(self.Q, name='tact')
             self._tact.assign(Constant(0.0 - self.parameters['tdep']))
         else:
-
             self.eikonal(u, self.parameters['eikonal']['td_dir'])
 
         # Create, at minimum, a sarcomere length variable.
