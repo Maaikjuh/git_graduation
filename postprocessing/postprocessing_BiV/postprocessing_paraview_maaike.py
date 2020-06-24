@@ -27,7 +27,7 @@ warnings.filterwarnings("ignore")
 
 from mpl_toolkits.mplot3d import Axes3D
 
-plt.close('all')
+# plt.close('all')
 
 def length(v):
     return math.sqrt(v[0]**2+v[1]**2)
@@ -449,6 +449,8 @@ class postprocess_paraview_new(object):
             td = 'eikonal'
         elif 'f_179' in h:
             td = 'f_179'
+        elif 'f_147' in h:
+            td = 'f_147'
         data_td = self.all_data[:, h[td], 0]
         return np.where(data_td >= -20)
          
@@ -873,7 +875,7 @@ class postprocess_paraview_new(object):
             
             plt.tick_params(labelsize=fontsize-2)
             plt.grid('on')
-            plt.axis([0.95, 1.2, 0., 60.]) 
+            plt.axis([0.95, 1.3, 0., 65.]) 
             
         
     def plot_time_stress(self, *args, fig=None, phase = True, fontsize=12,**kwargs):
@@ -1209,24 +1211,28 @@ class postprocess_paraview_new(object):
         
         self.lv_drawing(self._ax)
         
-        regions = [region0,
-                   self.extract_AM_idx(), 
-                   self.extract_A_idx(), 
-                   self.extract_AL_idx(),
-                   self.extract_P_idx()]  
+        regions = [region0]
+ 
         
-        region_labels = [None,
-                         'AM',
-                         'A',
-                         'AL',
-                         'P']
+        region_labels = [None]
+
         if 'T0' in h:
             regions.append(self.extract_T0_idx())
             region_labels.append('T0')
         
-        if 'eikonal' in h or 'f_179' in h:
+        if 'eikonal' in h or 'f_179' in h or 'f_147' in h:
             regions.append(self.extract_eikonal_idx())
             region_labels.append('eikonal')
+        
+        local_points = [self.extract_AM_idx(), 
+                   self.extract_A_idx(), 
+                   self.extract_AL_idx(),
+                   self.extract_P_idx()]
+        
+        local_labels = ['AM','A','AL','P']
+        
+        [regions.append(local_points[i]) for i in range(0, len(local_points))]
+        [region_labels.append(local_labels[i]) for i in range(0, len(local_labels))]
         
         for ii, idx in enumerate(regions):
             x = self.all_data[idx, h[':0'], 0]
@@ -1283,12 +1289,12 @@ class postprocess_paraview_new(object):
                     self._ax['xz1'].scatter(x, z, color=col[ii])
                     self._ax['xz1'].set_title('front view (x-z)')
                     self._ax['xz1'].axis('equal')
-                    self._ax['xz1'].legend(frameon=False, fontsize=fontsize)
+                    # self._ax['xz1'].legend(frameon=False, fontsize=fontsize)
             else:
                 self._ax['xz1'].scatter(x, z, color=col[ii])
                 self._ax['xz1'].axis('equal')
                 self._ax['xz1'].set_title('top view (x-y)')
-                self._ax['xz1'].legend(frameon=False, fontsize=fontsize)
+                # self._ax['xz1'].legend(frameon=False, fontsize=fontsize)
                 
     def show_slices_segment_idx(self, fig = None, projection='2d', fontsize=12):
         h = self.column_headers

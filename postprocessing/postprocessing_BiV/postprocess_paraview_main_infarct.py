@@ -41,14 +41,14 @@ directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/
 directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/Linux_results/23-06_08-17_passive_stress_20/cycle_1_stress_free_ref/paraview_data'
 
 # Specify corresponding labels for the two directories above.
-dir_labels = ['ref', 'infarct']
+dir_labels = ['ref', 'eikonal']
 
 inputs1 = {  # Specify the thickness of the cube (thick longitudinal slice) with to be included nodes [cm].
           'load_pickle_file': True,
           'AM_phi': -1/4*math.pi,
           'A_phi': 0.,
           'AL_phi': 1/4*math.pi,
-          'theta': 7/10*math.pi} 
+          'theta': 1/2*math.pi} 
  
 
 inputs2 = { # Specify the thickness of the cube (thick longitudinal slice) with to be included nodes [cm].
@@ -56,7 +56,7 @@ inputs2 = { # Specify the thickness of the cube (thick longitudinal slice) with 
           'AM_phi': -1/4*math.pi,
           'A_phi': 0.,
           'AL_phi': 1/4*math.pi,
-          'theta': 7/10*math.pi} 
+          'theta': 1/2*math.pi} 
 
 
 # Plot options
@@ -70,23 +70,23 @@ linewidth = 2
 post_1 = postprocess_paraview_new(directory_1, name='init', **inputs1)
 post_2 = postprocess_paraview_new(directory_2, name='adap', **inputs2)
 
-post_1.show_single_slice_segment_idx()
+# post_1.show_single_slice_segment_idx()
 
-post_1.plot_wall_thickness(nrsegments = [8,10,12,14,16,24])
-post_2.plot_wall_thickness(nrsegments = [8,10,12,14,16,24])
+# post_1.plot_wall_thickness(nrsegments = [8,10,12,14,16,24])
+# post_2.plot_wall_thickness(nrsegments = [8,10,12,14,16,24])
 
 post_1.show_T0_eikonal_idx()
 post_2.show_T0_eikonal_idx()
 
-post_1.plot_rotation()
-post_2.plot_rotation()
+# post_1.plot_rotation()
+# post_2.plot_rotation()
 
-post_1.plot_torsion()
-post_2.plot_torsion()
+# post_1.plot_torsion()
+# post_2.plot_torsion()
 
-# fig_ta_ls_loop = plt.figure(figsize=(15, 15), dpi=100)
+fig_ta_ls_loop = plt.figure(figsize=(15, 15), dpi=100)
 # post_1.Ta_ls_loop('--',fig=fig_ta_ls_loop,phase = False, label=dir_labels[0])
-# post_2.Ta_ls_loop(fig=fig_ta_ls_loop, label=dir_labels[1])
+post_2.Ta_ls_loop(fig=fig_ta_ls_loop, label=dir_labels[1])
 
 # fig_ts = plt.figure(figsize=(22, 5), dpi=100)
 # post_1.plot_time_stress('--',fig=fig_ts,phase = False, label=dir_labels[0])
