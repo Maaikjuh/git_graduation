@@ -30,7 +30,7 @@ TIME_RELOAD = None #15042.0 #None #-1 # None  # The time (in ms) of the timestep
 # Set if Infarction should be included (False/True)
 INFARCT = False
 
-DIR_EIKONAL = '/home/maaike/Documents/Graduation_project/git_graduation/cvbtk/eikonal/15-06_10-06_mesh_50_purk_fac_kot00/td.hdf5' #None
+DIR_EIKONAL = '/home/maaike/model/cvbtk/eikonal/25-06_11-43_mesh_20_purk_fac_kot00/td.hdf5' #None
 # Use the following option if you want to load a set of inputs and start a new simulation using those inputs.
 # By specifying a path to an inputs.csv file, you can load the inputs from the file
 # instead of defining them in get_inputs(). If you do not want to load inputs from a
@@ -45,12 +45,17 @@ SET_MESH_RESOLUTION = 20.0
 # By specifying a path to an .hdf5 file, you can load the mesh from the file instead of the reference mesh. 
 # If you do not want to load an alternative mesh from a
 # file, but just use the reference lv mesh, set the below path to None.
-LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_mesh.hdf5'.format(int(SET_MESH_RESOLUTION)) #None 
+LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg20_res{}_fibers_mesh.hdf5'.format(int(SET_MESH_RESOLUTION)) #None 
 # LOAD_ALTERNATIVE_MESH = 'mesh_leftventricle_30.hdf5'
 
 # Specify output directory.
 now = datetime.datetime.now()
 DIR_OUT = 'output/{}_passive_stress_{}'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
+
+#check if eikonal mesh exists 
+if MPI.rank(mpi_comm_world()) == 0:
+    if not os.path.isfile(DIR_EIKONAL):
+        raise RuntimeError('Eikonal hdf5 file does not exist')
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
