@@ -14,3 +14,5 @@ openfile = HDF5File(mpi_comm_world(), '/mnt/c/Users/Maaike/Documents/Master/Grad
 openfile.read(active_stress, 'active_stress/vector_0')
 
 
+print(active_stress(0.329953, -2.33535, -0.723438))
+print(active_stress(0., 0., 0.))
