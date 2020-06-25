@@ -72,7 +72,6 @@ def save_to_xdmf(T0,dir_out,var):
     #otherwise it will be saved again by postprocessing
     if MPI.rank(mpi_comm_world()) == 0:
         if not os.path.exists(dir_out):
-            print_once("T0 mesh not saved")
             save = False
     
     if save == True:
@@ -254,15 +253,12 @@ class ActiveStressModel(ConstitutiveModel):
         """
         Return the time since/before activation as a variable (Constant).
         """
-        # print('activation_time (property):', self._tact)
         return self._tact
 
     @activation_time.setter
     def activation_time(self, value):
 #        self._tact.assign(float(value) - self.parameters['tdep'])
-#        print(float(value) - self.parameters['tdep'])
-#        self._tact = project(float(value) - self.parameters['tdep'], self.Q)
-#        self._tact_dummy.vector()[:]= float(value) - self.parameters['tdep']
+
         self._tact_dummy.vector()[:] += float(value)
         self._tact.assign(self._tact_dummy)
         
@@ -270,33 +266,48 @@ class ActiveStressModel(ConstitutiveModel):
     
         self.file.write(self._tact, float(self.td_save))
 
-        print_once('td: self.td_save')
-        print_once('min t_act:',min(self._tact.vector().array()))
+        # print_once('min t_act:',min(self._tact.vector().array()))
         print_once('max t_act:',min(self._tact.vector().array()))
-        # print('activation_time.setter:', self._tact)
 
-    # @activation_time_map.setter
     def activation_time_map(self, tact):
         self._tact = tact
 
     def eikonal(self, u, filename):
+        """
+        load the activation time map from the eikonal equation
+        and project it on the mechanical mesh of the model
+        
+        Args:
+            u: The displacement unknown.
+            filename: location of the hdf5 file with the activation time map
+        """
+        
+        #load the mesh of the activation time map of the eikonal equation
         mesh1 = Mesh()
         openfile = HDF5File(mpi_comm_world(), filename, 'r')
         openfile.read(mesh1, 'mesh', False)
+
+        #read the activation time map 
         V1 = FunctionSpace(mesh1, 'Lagrange', 2)
         parameters['allow_extrapolation'] = True
         td = Function(V1)
         openfile.read(td,'td/vector_0')
 
-#        V = u.ufl_function_space()
+        #project the activation time map onto the mechanical mesh
         mesh = u.ufl_domain().ufl_cargo()
         V = FunctionSpace(mesh,'Lagrange',2)
         parameters['allow_extrapolation'] = False
 
         self._tact = project(-1*td, V)
+
+        #rename the function (this will give the function a name in Paraview)
         self._tact.rename('eikonal','eikonal')
+
+        #create a dummy variable (is used to update the activation map)
+        #FIXME not sure of the dummy is necessary
         self._tact_dummy = self._tact
         
+        #save the projection to xdmf to check if the projection has been succesful
         dir_out = self.parameters['eikonal']['save_td_mesh']
         file_mesh = XDMFFile(os.path.join(dir_out, 'eikonal.xdmf'))
         file_mesh.write(self._tact)
@@ -487,6 +498,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         # Initialize with all nodal points to default value of Ta0       
         self.T0 = Function(self.Q, name='T0')
         self.T0.assign(Constant(self.parameters['Ta0']))
+        self.T0_created = False 
 
         self.f_twitch = Function(self.Q, name='f_twitch')
         self.f_twitch.assign(Constant(0))
@@ -562,45 +574,6 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 
         return prm
 
-#    @staticmethod
-#    def default_infarct_parameters():
-#        """
-#        Return a set of default parameters for this model + for the infarcted area.
-#        """
-#        prm = Parameters('active_stress')
-#
-#        prm.add('infarct', True)
-#
-#        prm.add('Ta0', float())
-#        prm.add('Ea', float())
-#        prm.add('al', float())
-#
-#        prm.add('lc0', float())
-#        prm.add('ls0', float())
-#
-#        prm.add('taur', float())
-#        prm.add('taud', float())
-#
-#        prm.add('b', float())
-#        prm.add('ld', float())
-#
-#        prm.add('beta', 0.0)
-#
-#        prm.add('v0', float())
-#        prm.add('tdep', float())
-#
-#        prm.add('restrict_lc', False)
-#
-#        prm.add('phi_min', float())
-#        prm.add('phi_max', float())
-#        prm.add('theta_min', float())
-#        prm.add('theta_max', float())
-#        prm.add('ximin', float())
-#        prm.add('focus', float())
-#        prm.add('Ta0_infarct', float())
-#        prm.add('save_T0_mesh', "./")
-#        return prm
-
     def active_stress_scalar(self, u):
         """
         Return the scalar value used to compute the additional active stress
@@ -614,11 +587,12 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         """
         prm = self.parameters
 
-        if prm['infarct']['infarct']==True: 
+        if prm['infarct']['infarct']==True and self.T0_created == False: 
+            self.T0_created = True
             # create infarct area
             t0 = time.time()
             print_once("*** creating T0 mesh... ***")
-            self.T0 = self.infarct_T0(u)                
+            self.infarct_T0(u)                
             dir_out = prm['infarct']['save_T0_mesh']
             # save infarct mesh
             save_to_xdmf(self.T0,dir_out,'T0')
@@ -641,7 +615,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
 #        print('ls:', self.ls)
 #        print('activation time:', self.activation_time)
 
-##         # Term for the time dependence.
+##        # Term for the time dependence.
         t_max = prm['b']*(self.ls - prm['ld'])
         
 #        acti_1 = Constant(min(self.activation_time.vector().array()))
@@ -654,27 +628,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         f_twitch = twitch_cond*twitch_term_1*twitch_term_2
         
         projected = project(f_twitch, self.Q)
-        print('max f_twitch originial:',max(projected.vector().array()))
-#        
         p = f_iso*f_twitch*prm['Ea']*(self.ls - self.lc)
-#        p = f_iso*project(f_twitch,self.Q)*prm['Ea']*(self.ls - self.lc)
-        
-#        t_max = project(t_max, self.Q)
-#        twitch_term_1 = Expression("pow(tanh(act_time/{taur}),2)".format(taur=prm['taur']),element = self.Q.ufl_element(), act_time = self.activation_time)
-#        twitch_term_2 = Expression("pow(tanh((t_max-act_time)/{taud}),2)".format(taud= prm['taud']),element = self.Q.ufl_element(), t_max = t_max, act_time = self.activation_time)
-#        twitch_terms = "twitch_term_1*twitch_term_2"
-#
-#        twitch_cond_if = "act_time >= 0. && act_time <= t_max"
-##        twitch_cond_if = Expression("act_time >= 0. && act_time <= t_max",element=self.Q.ufl_element(),act_time=self.activation_time,t_max=t_max)
-#        twitch_cond = "{twitch_cond}? {twitch_terms} : 0".format(twitch_cond=twitch_cond_if, twitch_terms=twitch_terms)
-#
-#        f_twitch_exp = Expression(twitch_cond, element = self.Q.ufl_element(), act_time=self.activation_time, t_max = t_max, twitch_term_1=twitch_term_1,twitch_term_2=twitch_term_2)
-#
-#        self.f_twitch.interpolate(f_twitch_exp)
-#        print('max f_twitch:', max(self.f_twitch.vector().array()))
-#
-#        # Assemble into the scalar value and return.
-#        p = f_iso*self.f_twitch*prm['Ea']*(self.ls - self.lc)
         
         return p
 
@@ -815,8 +769,6 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
                     writer.writerow(['infarct area (%)', area ])
             except:
                 pass
-       
-        return self.T0
 
     @property
     def lc(self):
