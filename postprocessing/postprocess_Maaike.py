@@ -30,7 +30,7 @@ class HemodynamicsPlot(object):
     Args:
         dataset: Dataset to create the figure from.
     """
-    def __init__(self, dataset):
+    def __init__(self, dataset, title):
         # Store the dataset.
         self._df = dataset
 
@@ -62,13 +62,13 @@ class HemodynamicsPlot(object):
         self._ax['pv'].set_ylabel('Pressure [mmHg]')
 
         # Set the global title.
-        self._fig.suptitle('Hemodynamic Relations')
+        self._fig.suptitle(title)
 
         # Remove the right and top spines.
         [ax.spines['top'].set_visible(False) for _, ax in self._ax.items()]
         [ax.spines['right'].set_visible(False) for _, ax in self._ax.items()]
         
-    def plot(self, cycle=None, legend=True):
+    def plot(self,  label,cycle=None, legend=True):
         """
         Plot the defined hemodynamic relations for output.
 
@@ -125,7 +125,7 @@ class HemodynamicsPlot(object):
             # Each cycle (if multiple) will get its own color.
             for c in df['cycle'].unique():
                 _df = df[df['cycle'] == int(c)]
-                self._ax['pv'].plot(_df['vlv'], kPa_to_mmHg(_df['plv']), 'b',label=str(c))
+                self._ax['pv'].plot(_df['vlv'], kPa_to_mmHg(_df['plv']), 'b',label=str(c) + label)
     
             # Add the legends for the three individual plots, if needed to.
             if legend:
@@ -200,7 +200,7 @@ class HemodynamicsPlot(object):
                 self._ax['pv'].get_legend().get_title().set_fontsize('7')
             
             
-    def compare_against(self, dataset,cycle):
+    def compare_against(self, label1, label2, dataset,cycle=None):
         """
         Draw additional curves on the existing figure for visual comparison.
 
@@ -269,7 +269,7 @@ class HemodynamicsPlot(object):
             if 'pcav_s' in df.keys():
                 self._ax['pv'].legend(['BiV','Lv'])
             else:
-                self._ax['pv'].legend(['ischemic','reference'])
+                self._ax['pv'].legend([label1, label2])
                 
         if 'pcav_s' in dataset.keys():
         
@@ -609,20 +609,20 @@ def print_hemodynamic_summary(hemo,cycle):
         print('CVP: {:10.2f} mmHg'.format(hemo['CVP']))  
     print('\n')
 
-def plot_results(results, dir_out='.', cycle=None):
+def plot_results(results, dir_out='.', cycle=None, title = 'Hemodynamic relations'):
             # LV only.
 #    simulation_plot = HemodynamicsPlot(results)
 #        
 #    simulation_plot.plot(cycle=cycle) #, cycle=NUM_CYCLES)
-    simulation_plot = HemodynamicsPlot(results)
+    simulation_plot = HemodynamicsPlot(results, title)
     simulation_plot.plot(cycle=cycle) #, cycle=NUM_CYCLES)
     simulation_plot.save(os.path.join(dir_out, 'hemodynamics_cycle_{}.png'.format(cycle)))
        
     #simulation_plot.plot_function()
     
     
-def plot_compare_results(results,results_infarct, dir_out='.', cycle=None):
-    simulation_plot = HemodynamicsPlot(results_infarct)
-    simulation_plot.plot(cycle=cycle) #, cycle=NUM_CYCLES)
-    simulation_plot.compare_against(results,cycle)
+def plot_compare_results(results,results_infarct, dir_out='.', cycle=None, label1='ischemic', label2='reference', title = 'Hemodynamic relations'):
+    simulation_plot = HemodynamicsPlot(results_infarct, title)
+    simulation_plot.plot(label1, cycle=cycle) #, cycle=NUM_CYCLES)
+    simulation_plot.compare_against(label1,label2,results,cycle=cycle)
     plt.savefig(os.path.join(dir_out, 'lv_function_compared.png'), dpi=300)

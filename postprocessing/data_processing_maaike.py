@@ -42,9 +42,15 @@ csv_ref = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/left
 csv_ref = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\07-05_09-26_fiber_reorientation_meshres_20\results.csv'
 
 csv_infarct = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/19-06_14-19_ta0_map_test/results.csv'
-
 csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\22-06_17-33_eikonal_8node\results.csv'
+# csv_infarct = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/23-06_13-08_eikonal_td_1node/results.csv'
+
 COMPARE = True
+
+label1 = 'eikonal'
+label2 = 'reference'
+
+title = 'hemodynamics 8 nodes'
 
 CYCLE = 2 #'all' #'last'
 
@@ -74,7 +80,7 @@ if COMPARE == True:
         [results_normal, cycle_ref] = load_reduced_dataset(csv_ref, min(cycle_ref,cycle_inf) )
         [results_infarct, cycle_inf] = load_reduced_dataset(csv_infarct, min(cycle_ref,cycle_inf))
     hemo_sum = procentual_change_hemodynamics(results_ref,results_infarct)
-    plot_compare_results(results_ref,results_infarct, dir_out=os.path.dirname(csv_infarct), cycle=None)
+    plot_compare_results(results_ref,results_infarct, dir_out=os.path.dirname(csv_infarct), cycle=None, label1= label1,label2=label2, title= title)
 else:
     if CYCLE == 'last':
         # Data from the selected cycle

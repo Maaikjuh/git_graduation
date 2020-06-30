@@ -27,7 +27,7 @@ warnings.filterwarnings("ignore")
 
 from mpl_toolkits.mplot3d import Axes3D
 
-plt.close('all')
+# plt.close('all')
 
 def length(v):
     return math.sqrt(v[0]**2+v[1]**2)
@@ -750,7 +750,7 @@ class postprocess_paraview_new(object):
         plt.axis([40, 140, 0, 120])
         plt.title('Pressure-volume loops', fontsize=fontsize+2)
         
-    def Ta_ls_loop(self,*args, fig = None, fontsize = 12, phase = True, label='', **kwargs):
+    def Ta_ls_loop(self,*args, fig = None, fontsize = 12, phase = True, label='', title = '',**kwargs):
         if fig is None:
             # Create new figure.
             fig = plt.figure()
@@ -842,7 +842,7 @@ class postprocess_paraview_new(object):
                 plt.ylabel('ls [um]', fontsize=fontsize)
             
             plt.tick_params(labelsize=fontsize-2)
-            plt.axis([min(time),max(time),1.8, 2.6])    
+            plt.axis([min(time),max(time),1.8, 2.35])    
             plt.tick_params(labelsize=fontsize-2)
             plt.grid('on')
             
@@ -876,6 +876,8 @@ class postprocess_paraview_new(object):
             plt.tick_params(labelsize=fontsize-2)
             plt.grid('on')
             plt.axis([0.95, 1.3, 0., 65.]) 
+            
+            fig.suptitle(title, fontsize = fontsize +2)
             
         
     def plot_time_stress(self, *args, fig=None, phase = True, fontsize=12,**kwargs):
@@ -1190,7 +1192,7 @@ class postprocess_paraview_new(object):
         return data_shifted
 
    
-    def show_T0_eikonal_idx(self, fig = None,fontsize=12):
+    def show_T0_eikonal_idx(self, fig = None,fontsize=12, title = ''):
         h = self.column_headers
         # Plot the regions.
         if fig is None:
@@ -1235,19 +1237,22 @@ class postprocess_paraview_new(object):
         [region_labels.append(local_labels[i]) for i in range(0, len(local_labels))]
         
         for ii, idx in enumerate(regions):
-            x = self.all_data[idx, h[':0'], 0]
-            y = self.all_data[idx, h[':1'], 0]
-            z = self.all_data[idx, h[':2'], 0]
-                    
-            self._ax['xy2'].scatter(x, y, color=col[ii], label=region_labels[ii])
-            self._ax['xy2'].axis('equal')
-            self._ax['xy2'].set_title('top view (x-y)')
-            self._ax['xy2'].legend(frameon=False, fontsize=fontsize)
-            
-            self._ax['xz2'].scatter(x, z, color=col[ii], label=region_labels[ii])
-            self._ax['xz2'].set_title('front view (x-z)')
-            self._ax['xz2'].axis('equal')
-            self._ax['xz2'].legend(frameon=False, fontsize=fontsize)  
+            if ii != 0:
+                x = self.all_data[idx, h[':0'], 0]
+                y = self.all_data[idx, h[':1'], 0]
+                z = self.all_data[idx, h[':2'], 0]
+                        
+                self._ax['xy2'].scatter(x, y, color=col[ii], label=region_labels[ii])
+                self._ax['xy2'].axis('equal')
+                self._ax['xy2'].set_title('top view (x-y)')
+                self._ax['xy2'].legend(frameon=False, fontsize=fontsize)
+                
+                self._ax['xz2'].scatter(x, z, color=col[ii], label=region_labels[ii])
+                self._ax['xz2'].set_title('front view (x-z)')
+                self._ax['xz2'].axis('equal')
+                self._ax['xz2'].legend(frameon=False, fontsize=fontsize)  
+        
+        fig.suptitle(title,  fontsize = fontsize +2)
             
     def show_single_slice_segment_idx(self, fig = None, projection='2d', fontsize=12):
         h = self.column_headers
