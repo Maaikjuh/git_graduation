@@ -16,7 +16,8 @@ warnings.simplefilter('ignore')
 
 #define parameters below
 
-meshres = 55 # choose 20, 25, 30, 35, 40, 45 or 50
+meshres = 40 # choose 20, 25, 30, 35, 40, 45 or 50
+segments = 20
 
 # factor which specifies how much larger the conductivity
 # in the purkinje fibers area ((sub)endocardial) is
@@ -25,10 +26,10 @@ sig_fac_purk = 2.
 
 # directory where the outputs are stored
 now = datetime.datetime.now()
-dirout = 'eikonal/{}_mesh_{}_purk_fac_kot00'.format(now.strftime("%d-%m_%H-%M"),meshres)
+dirout = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/seg_{}_mesh_{}_bue'.format(segments,meshres)
 
 # mesh that is selected 
-filepath = 'data/Eikonal_meshes/lv_maaike_seg20_res{}_fibers_mesh.hdf5'.format(meshres)
+filepath = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/lv_maaike_seg{}_res{}_fibers_mesh.hdf5'.format(segments,meshres)
 
 class EikonalProblem(object):
 
@@ -116,7 +117,11 @@ class EikonalProblem(object):
             phi0 = prm['phi0']
             phi1 = prm['phi1']
             phi2 = prm['phi2']
+            phi3 = prm['phi3']
             theta0 = prm['theta0']
+            theta1 = prm['theta1']
+            theta2 = prm['theta2']
+            theta3 = prm['theta3']
 
             xi_max = prm['xi_max']
             xi_min = prm['xi_min']
@@ -130,11 +135,12 @@ class EikonalProblem(object):
 
             # check if a node is within the specified values for phi for the stimulus locations
             p0 = phi < phi0 + tol and phi > phi0 - tol and theta < theta0 + tol_theta and theta > theta0 - tol_theta 
-            p1 = phi < phi1 + tol and phi > phi1 - tol and theta < theta0 + tol_theta and theta > theta0 - tol_theta 
-            p2 = phi < phi2 + tol and phi > phi2 - tol and theta < theta0 + tol_theta and theta > theta0 - tol_theta 
+            p1 = phi < phi1 + tol and phi > phi1 - tol and theta < theta1 + tol_theta and theta > theta1 - tol_theta 
+            p2 = phi < phi2 + tol and phi > phi2 - tol and theta < theta2 + tol_theta and theta > theta2 - tol_theta 
+            p3 = phi < phi3 + tol and phi > phi3 - tol and theta < theta3 + tol_theta and theta > theta3 - tol_theta 
 
             # check if a node is within a specified location of stimulus
-            return (on_xi_max and p2) or (on_xi_min and (p0 or p1)) 
+            return (on_xi_max and p2) or (on_xi_min and (p0 or p1 or p3)) 
 
         # define dirichlet boundary conditions -> td0BC for the stimulus locations
         bc = DirichletBC(self.Q, td0BC , boundary, method ='pointwise')
@@ -316,10 +322,14 @@ class EikonalProblem(object):
 
         boundary_prm = Parameters('boundary')
         boundary_prm.add('focus', 4.3)
-        boundary_prm.add('phi0', math.pi)
-        boundary_prm.add('phi1', -1/2*math.pi)
-        boundary_prm.add('phi2', 1/4*math.pi)        
+        boundary_prm.add('phi0', 0.)
+        boundary_prm.add('phi1', -1/8*math.pi) #-1/2*math.pi
+        boundary_prm.add('phi2', 1/2*math.pi)#1/4*math.pi      
+        boundary_prm.add('phi3', -3/4*math.pi)   
         boundary_prm.add('theta0', 1/2*math.pi)
+        boundary_prm.add('theta1', 9/16*math.pi)
+        boundary_prm.add('theta2', 2/3*math.pi)
+        boundary_prm.add('theta3', 1.2854)
         boundary_prm.add('xi_max', 0.67)
         boundary_prm.add('xi_min', 0.371)
         boundary_prm.add('tol', 1.e-1)
