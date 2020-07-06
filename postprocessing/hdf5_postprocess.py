@@ -1,7 +1,8 @@
 import sys
-sys.path.append("..") # Adds higher directory to python modules path.
+sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/cvbtk')
+sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/postprocessing')
 
-from postprocessing import Dataset, shift_data, get_paths
+from dataset import Dataset # shift_data, get_paths
 from dolfin import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,6 +14,13 @@ import pickle
 import random
 import csv
 import math
+import warnings
+
+def radians_to_degrees(angle):
+    """
+    Converst radians to degrees.
+    """
+    return angle/math.pi*180
 
 def ellipsoidal_to_cartesian(focus,eps,theta,phi):
     x= focus * math.sinh(eps) * math.sin(theta) * math.cos(phi)
@@ -97,8 +105,8 @@ class postprocess_hdf5(object):
                 cycle = float(os.path.split(directory)[1].split('_')[1])        
 
         self.mesh = self.load_mesh()
-        self.vector_V = VectorFunctionSpace(mesh, "Lagrange", 2)
-        self.function_V = FunctionSpace(mesh, "Lagrange", 2)
+        self.vector_V = VectorFunctionSpace(self.mesh, "Lagrange", 2)
+        self.function_V = FunctionSpace(self.mesh, "Lagrange", 2)
 
         self.cycle = cycle
         self.results = self.load_reduced_dataset(results_csv, cycle=cycle)
@@ -138,7 +146,7 @@ class postprocess_hdf5(object):
         par = {}
         par['cut_off_low'] = -3.
         par['cut_off_high'] = -2.5
-        prm['dt'] = 2.
+        par['dt'] = 2.
 
         par['theta'] = 7/10*math.pi
         par['AM_phi'] = 1/5*math.pi
@@ -174,26 +182,36 @@ class postprocess_hdf5(object):
         ax4 = fig.add_subplot(2, 2, 4)
 
         results = self.results
-        t_start_cycle = (results['cycle'] == self.cycle).idxmax()
-        t_es = (results['phase'] == 4).idxmax()
-
-        vector = (t_es - t_start_cycle) / self.parameters['dt'] 
+#        t_start_cycle = (results['cycle'] == self.cycle).idxmax()
+#        t_es = (results['phase'] == 4).idxmax()
+#
+#        vector = (t_es - t_start_cycle) / self.parameters['dt'] 
+        
+        t_es_cycle = results['t_cycle'][(results['phase'] == 4).idxmax()]
+        t_es = results['time'][(results['phase'] == 4).idxmax()]
+        vector = t_es_cycle/2
+        
         u_vector = 'u/vector_{}'.format(int(vector))
 
-        t = self.results_hdf5.attributes(u_vector)['timestamp']
+        openfile = HDF5File(mpi_comm_world(),os.path.join(self.directory,'u.hdf5'), 'r')
+        t = openfile.attributes(u_vector)['timestamp']
 
         if t_es == t:
-            u = Function(self.vector_V)
-            openfile = HDF5File(mpi_comm_world(),os.path.join(self.directory,'u.hdf5'), 'r')
-            openfile.read(u, u_vector)
+            u_vals = Function(self.vector_V)
+#            openfile = HDF5File(mpi_comm_world(),os.path.join(self.directory,'u.hdf5'), 'r')
+            openfile.read(u_vals, u_vector)
+        else:
+            raise ValueError('specified time and timestamp hdf5 do not match')
 
         if theta_vals == None:
-            theta_vals = [1.1, 4/10*math.pi, 5/10*math.pi, 6/10*math.pi, 7/10*math.pi, 8/10*math.pi]
+            theta_vals = [1.125, 4/10*math.pi, 5/10*math.pi, 6/10*math.pi, 7/10*math.pi, 8/10*math.pi]
 
         phi_int = 2*math.pi / nr_segments
         phi_range = np.arange(-1*math.pi, 1*math.pi, phi_int)
 
         focus = self.parameters['focus']
+        eps_outer = self.parameters['eps_outer']
+        eps_inner = self.parameters['eps_inner']
 
         base_epi = []
         base_endo = []
@@ -202,27 +220,37 @@ class postprocess_hdf5(object):
                 'base_endo': []}
 
         nrsegments = range(1, nr_segments+1)
+        
+#        parameters['allow_extrapolation'] = True
 
-        for slice, theta in enumerate(theta_vals): 
+        for slice_nr, theta in enumerate(theta_vals): 
             slice_shear = {'slice_epi': [],
                         'slice_endo': [],
                         'shear_epi': [],
                         'shear_endo': []}          
 
             for seg, phi in enumerate(phi_range):
-                x_epi, y_epi, z_epi = ellipsoidal_to_cartesian(focus,self.eps_outer,theta,phi)
-                tau = z_epi/(self.parameters['focus'] * self.eps_inner)
+                x_epi, y_epi, z_epi = ellipsoidal_to_cartesian(focus,eps_outer,theta,phi)
+                tau = z_epi/(focus * math.cosh(eps_inner))
                 theta_inner = math.acos(tau)
-                x_endo, y_endo, z_endo = ellipsoidal_to_cartesian(focus,self.eps_inner,theta_inner,phi)
+                x_endo, y_endo, z_endo = ellipsoidal_to_cartesian(focus,eps_inner,theta_inner,phi)
                 
-                x_epi, y_epi, z_epi = (epi + u_val for epi, u_val in zip((x_epi, y_epi, z_epi), u(x_epi, y_epi, z_epi)))
-                x_endo, y_endo, z_endo = (epi + u_val for epi, u_val in zip((x_endo, y_endo, z_endo), u(x_endo, y_endo, z_endo)))
+                parameters['allow_extrapolation'] = True
+                x,y,z = u_vals(x_epi, y_epi, z_epi)
+                x_epi += x
+                y_epi += y
+                
+                x,y,z = u_vals(x_endo, y_endo, z_endo)
+                x_endo += x
+                y_endo += y
+#                x_epi, y_epi, z_epi = (epi + u_val for epi, u_val in zip((x_epi, y_epi, z_epi), u(x_epi, y_epi, z_epi)))
+#                x_endo, y_endo, z_endo = (epi + u_val for epi, u_val in zip((x_endo, y_endo, z_endo), u(x_endo, y_endo, z_endo)))
                 
                 # x,y,z = u(x_epi, y_epi, z_epi)
                 # [x_epi, y_epi, z_epi] += u(x_epi, y_epi, z_epi)
                 # x_endo, y_endo, z_endo += u(x_endo, y_endo, z_endo)
 
-                if slice == 0:
+                if slice_nr == 0:
                     base['base_epi'].append([x_epi, y_epi])
                     base['base_endo'].append([x_endo, y_endo])
 
@@ -246,15 +274,16 @@ class postprocess_hdf5(object):
 
                         slice_shear['slice_'+ wall].append(ang_point)
                         slice_shear['shear_'+ wall].append(shear)
-
-            label_epi = '{}, average: {:.2f}'.format(ii, np.mean(slice_shear['slice_epi']))
-            label_endo = '{}, average: {:.2f}'.format(ii, np.mean(slice_shear['slice_endo']))
-            label_shear_epi = '{}, average: {:.2f}'.format(ii, np.mean(slice_shear['shear_epi']))
-            label_shear_endo = '{}, average: {:.2f}'.format(ii, np.mean(slice_shear['shear_endo']))
-            ax1.plot(nrsegments, slice_shear['slice_epi'], label = label_epi)
-            ax2.plot(nrsegments, slice_shear['slice_endo'], label = label_endo)
-            ax3.plot(nrsegments, slice_shear['shear_epi'], label = label_shear_epi)
-            ax4.plot(nrsegments, slice_shear['shear_endo'], label = label_shear_endo)
+                        
+            if slice_nr != 0:
+                label_epi = '{}, average: {:.2f}'.format(slice_nr, np.mean(slice_shear['slice_epi']))
+                label_endo = '{}, average: {:.2f}'.format(slice_nr, np.mean(slice_shear['slice_endo']))
+                label_shear_epi = '{}, average: {:.2f}'.format(slice_nr, np.mean(slice_shear['shear_epi']))
+                label_shear_endo = '{}, average: {:.2f}'.format(slice_nr, np.mean(slice_shear['shear_endo']))
+                ax1.plot(nrsegments, slice_shear['slice_epi'], label = label_epi)
+                ax2.plot(nrsegments, slice_shear['slice_endo'], label = label_endo)
+                ax3.plot(nrsegments, slice_shear['shear_epi'], label = label_shear_epi)
+                ax4.plot(nrsegments, slice_shear['shear_endo'], label = label_shear_endo)
         
         fig.suptitle(title,fontsize=fontsize+2)
         ax1.legend(frameon=False, fontsize=fontsize)
@@ -283,7 +312,7 @@ class postprocess_hdf5(object):
 # print(active_stress(0.329953, -2.33535, -0.723438))
 # print(active_stress(0., 0., 0.))
 
-directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/24-03_14-07_infarct_xi_10/cycle_2_stress_free_ref\paraview_data'
+directory_1 = '/home/maaike/Documents/Graduation_project/Results/eikonal_td_1_node/cycle_2_begin_ic_ref'
 
 post_1 = postprocess_hdf5(directory_1)
 
