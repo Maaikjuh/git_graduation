@@ -76,8 +76,8 @@ post_2 = postprocess_paraview_new(directory_2, name='adap', **inputs2)
 # post_1.plot_wall_thickness(nrsegments = [8,10,12,14,16,24])
 # post_2.plot_wall_thickness(nrsegments = [8,10,12,14,16,24])
 
-post_1.show_T0_eikonal_idx(title = 'reference')
-post_2.show_T0_eikonal_idx(title = '8 nodes')
+#post_1.show_T0_eikonal_idx(title = 'reference')
+#post_2.show_T0_eikonal_idx(title = '8 nodes')
 
 post_1.plot_rotation()
 post_2.plot_rotation()
