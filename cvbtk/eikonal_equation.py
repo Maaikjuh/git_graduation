@@ -16,17 +16,22 @@ warnings.simplefilter('ignore')
 
 #define parameters below
 
-meshres = 40 # choose 20, 25, 30, 35, 40, 45 or 50
+meshres = 20 # choose 20, 25, 30, 35, 40, 45 or 50
 segments = 20
 
 # factor which specifies how much larger the conductivity
 # in the purkinje fibers area ((sub)endocardial) is
 # set to 1 if the conductivity should not be larger in the purkinje area
-sig_fac_purk = 2.   
+sig_fac_purk = 1.
+
+sig_il = 2.5e-3
+sig_el = 2.5e-3
+sig_it = 2.5e-3
+sig_et = 2.5e-3
 
 # directory where the outputs are stored
 now = datetime.datetime.now()
-dirout = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/seg_{}_mesh_{}_bue'.format(segments,meshres)
+dirout = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/seg_{}_mesh_{}_bue_sig_equal_no_purkinje'.format(segments,meshres)
 
 # mesh that is selected 
 filepath = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/lv_maaike_seg{}_res{}_fibers_mesh.hdf5'.format(segments,meshres)
@@ -210,7 +215,7 @@ class EikonalProblem(object):
             fac = 1.833
         elif sigstr == 'sig_it' or sigstr == 'sig_et':
             fac = 2.667
-        # fac = self.parameters['sig_fac_purk']
+        fac = self.parameters['sig_fac_purk']
 
         sigval = self.parameters[sigstr]
 
@@ -224,29 +229,6 @@ class EikonalProblem(object):
         with open(filename, 'a') as f:
             writer = csv.writer(f)
             writer.writerow([sigstr +'_purkinje', sigval*fac])
-
-        # X = self.Q.tabulate_dof_coordinates().reshape(-1,3)
-        # sigma_vals = 0.5 * (np.sqrt(X[:,0]** 2 + X[:,1] ** 2 + (X[:,2] + focus) ** 2) + np.sqrt(X[:,0] ** 2 + X[:,1] ** 2 + (X[:,2] - focus) ** 2)) / focus
-        # sig_min = np.min(sigma_vals)
-        # sig_max = np.max(sigma_vals)
-
-        # v_wall_func = Function(self.Q)
-        # v_wall = np.zeros(np.shape(self.sig_il.vector().array()))
-        # for ii in range(len(self.sig_il.vector().array())):
-        #     x, y, z = X[ii,:]
-
-        #     sig_fun = GeoFunc.compute_sigma(x, y, z, focus)
-        #     tau_fun = GeoFunc.compute_tau(x, y, z, focus)
-
-        #     # Compute normalized radial coordinate v.
-        #     v_wall_ii = GeoFunc.analytical_v(sig_fun, tau_fun, sig_min, sig_max)
-        #     v_wall[ii] = v_wall_ii
-        # print(sig_min,sig_max)
-        # print(max(v_wall), min(v_wall))
-        # v_wall_func.interpolate(v_wall)
-        # sig_purk =  Expression("{sig_lt} * (1+(1.1/0.6-1)* (v_wall-0.3)/(1-0.5))".format(sig_lt = self.parameters[sigstr]),element=self.Q.ufl_element(),v_wall = v_wall_func)
-        # purk_layer = Expression("(v_wall >= 0.5)? {sig_purk}: {sig_lt}".format(sig_purk=sig_purk, sig_lt=self.parameters[sigstr]),element=self.Q.ufl_element(),v_wall = v_wall_func)
-        # sig.interpolate(purk_layer)
 
         return sig
 
@@ -340,7 +322,11 @@ class EikonalProblem(object):
         return prm
 
 if __name__ == '__main__':
-    inputs = {'sig_fac_purk': sig_fac_purk}
+    inputs = {'sig_fac_purk': sig_fac_purk,
+            'sig_il': sig_il,
+            'sig_it': sig_it,
+            'sig_el': sig_el,
+            'sig_et': sig_et}
     problem = EikonalProblem(dirout, filepath, **inputs)
     problem.eikonal()
 
