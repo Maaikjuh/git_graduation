@@ -224,7 +224,7 @@ class ActiveStressModel(ConstitutiveModel):
         self.td_save = 0.0
         dir_out = self.parameters['eikonal']['save_td_mesh']
         self.file = XDMFFile(os.path.join(dir_out, 'eikonal_td.xdmf'))
-        if self.parameters['eikonal']['td_dir'] == None:
+        if self.parameters['eikonal']['td_dir'] == None or self.parameters['eikonal']['td_dir'] == '':
             self.Q = vector_space_to_scalar_space(u.ufl_function_space())
             self._tact_dummy = Function(self.Q, name='tact_dummy')
             self._tact_dummy.assign(Constant(0.0 - self.parameters['tdep']))
