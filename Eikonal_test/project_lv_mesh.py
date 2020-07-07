@@ -8,8 +8,8 @@ comm = mpi_comm_world()
 mesh = Mesh(comm)
 print(comm)
 
-filename = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/25-06_11-43_mesh_20_purk_fac_kot00/td.hdf5'
-# filename = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/15-06_10-06_mesh_50_purk_fac_kot00/td.hdf5'
+filename = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/seg_20_mesh_20_bue/td.hdf5'
+filename = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/15-06_10-06_mesh_50_purk_fac_kot00/td.hdf5'
 
 # if MPI.rank(mpi_comm_world()) == 0:
 
@@ -31,9 +31,9 @@ parameters['allow_extrapolation'] = False
 
 # build_module("tact = project(-1*td,V)")
 # if MPI.rank(mpi_comm_world()) == 1:
-
+MPI.barrier(mpi_comm_world())
 tact = project(-1*td,V)
-
+MPI.barrier(mpi_comm_world())
 print('saving')
 tact.rename('eikonal', 'eikonal')
 file = XDMFFile('td_post_project.xdmf')

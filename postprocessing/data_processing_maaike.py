@@ -44,6 +44,7 @@ csv_ref =  r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftven
 csv_infarct = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/19-06_14-19_ta0_map_test/results.csv'
 csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\22-06_17-33_eikonal_8node\results.csv'
 # csv_infarct = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/23-06_13-08_eikonal_td_1node/results.csv'
+csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\01-07_15-48_eikonal_more_roots_mesh_20\results.csv'
 
 csv_infarct = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/Eikonal/01-07_15-48_eikonal_more_roots_mesh_20/results.csv'
 

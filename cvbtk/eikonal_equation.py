@@ -2,7 +2,6 @@ from dolfin import *
 import math as math
 import numpy as np
 import os
-import datetime
 import csv
 
 import cvbtk
@@ -33,7 +32,7 @@ sig_et = 2.5e-3
 now = datetime.datetime.now()
 dirout = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/seg_{}_mesh_{}_bue_sig_equal_no_purkinje'.format(segments,meshres)
 
-# mesh that is selected 
+# mesh that is selected for the calculation
 filepath = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/lv_maaike_seg{}_res{}_fibers_mesh.hdf5'.format(segments,meshres)
 
 class EikonalProblem(object):
@@ -41,7 +40,16 @@ class EikonalProblem(object):
     def __init__(self, dirout, filepath, **kwargs):
         self.parameters = self.default_parameters()
         self.parameters.update(kwargs)
-        
+
+        # compute epsilon from the eccentricities (given in leftventricular_meshing.py)
+        e_outer = self.parameters['boundary']['outer_eccentricity']
+        e_inner = self.parameters['boundary']['inner_eccentricity']
+        eps_outer = self.cartesian_to_ellipsoidal(self.parameters['boundary']['focus'], eccentricity = e_outer)['eps']
+        eps_inner = self.cartesian_to_ellipsoidal(self.parameters['boundary']['focus'], eccentricity = e_inner)['eps']
+
+        self.parameters['boundary']['eps_outer'] = eps_outer
+        self.parameters['boundary']['eps_inner'] = eps_inner
+
         self.dir_out = dirout
 
         #save parameters to csv   
@@ -114,38 +122,36 @@ class EikonalProblem(object):
             prm = self.parameters['boundary']
             focus = prm['focus']
 
-            phi = self.compute_coordinate_expression(x,'phi',focus)
-            theta = self.compute_coordinate_expression(x,'theta',focus)
-            xi = self.compute_coordinate_expression(x,'xi',focus)
-
-            # position of the (three) locations of stimulus
+            # ellipsoidal positions of the root points
             phi0 = prm['phi0']
             phi1 = prm['phi1']
             phi2 = prm['phi2']
-            phi3 = prm['phi3']
+            phi4 = prm['phi4']
             theta0 = prm['theta0']
             theta1 = prm['theta1']
             theta2 = prm['theta2']
-            theta3 = prm['theta3']
+            theta4 = prm['theta4']
 
-            xi_max = prm['xi_max']
-            xi_min = prm['xi_min']
+            eps_outer = prm['eps_outer']
+            eps_inner = prm['eps_inner']
 
-            tol = prm['tol']
-            tol_theta = prm['tol_theta']
+            r = prm['radius']
 
-            # check if a node is on the epicardium or on the endocardium
-            on_xi_max = xi < xi_max + tol and xi > xi_max - tol
-            on_xi_min = xi < xi_min + tol and xi > xi_min - tol
+            # get cartesian mid points of root points
+            x0, y0, z0 = self.ellipsoidal_to_cartesian(focus, eps_inner, theta0, phi0)
+            x1, y1, z1 = self.ellipsoidal_to_cartesian(focus, eps_inner, theta1, phi1)
+            x2, y2, z2 = self.ellipsoidal_to_cartesian(focus, eps_outer, theta2, phi2)
+            x3, y3, z3 = self.ellipsoidal_to_cartesian(focus, eps_inner, theta2, phi2)
+            x4, y4, z4 = self.ellipsoidal_to_cartesian(focus, eps_inner, theta4, phi4)
 
-            # check if a node is within the specified values for phi for the stimulus locations
-            p0 = phi < phi0 + tol and phi > phi0 - tol and theta < theta0 + tol_theta and theta > theta0 - tol_theta 
-            p1 = phi < phi1 + tol and phi > phi1 - tol and theta < theta1 + tol_theta and theta > theta1 - tol_theta 
-            p2 = phi < phi2 + tol and phi > phi2 - tol and theta < theta2 + tol_theta and theta > theta2 - tol_theta 
-            p3 = phi < phi3 + tol and phi > phi3 - tol and theta < theta3 + tol_theta and theta > theta3 - tol_theta 
+            # check if a node is within the area of a root point (sphere)
+            p0 = (x[0] - x0)**2 + (x[1] - y0)**2 + (x[2] - z0)**2 < r**2
+            p1 = (x[0] - x1)**2 + (x[1] - y1)**2 + (x[2] - z1)**2 < r**2
+            p2 = (x[0] - x2)**2 + (x[1] - y2)**2 + (x[2] - z2)**2 < r**2
+            p3 = (x[0] - x3)**2 + (x[1] - y3)**2 + (x[2] - z3)**2 < r**2
+            p4 = (x[0] - x4)**2 + (x[1] - y4)**2 + (x[2] - z4)**2 < r**2
 
-            # check if a node is within a specified location of stimulus
-            return (on_xi_max and p2) or (on_xi_min and (p0 or p1 or p3)) 
+            return p0 or p1 or p2 or p3 or p4
 
         # define dirichlet boundary conditions -> td0BC for the stimulus locations
         bc = DirichletBC(self.Q, td0BC , boundary, method ='pointwise')
@@ -209,7 +215,7 @@ class EikonalProblem(object):
     def purkinje_fibers(self,sig,sigstr):
         focus = self.parameters['boundary']['focus']
         tol = self.parameters['boundary']['tol']
-        xi_purk =  self.parameters['xi_purk']
+        eps_purk =  self.parameters['eps_purk']
 
         if sigstr == 'sig_il' or sigstr == 'sig_el':
             fac = 1.833
@@ -219,9 +225,15 @@ class EikonalProblem(object):
 
         sigval = self.parameters[sigstr]
 
-        xi = compute_coordinate_expression(3, self.Q.ufl_element(),'xi',focus)
-        purkinje_layer = "(xi > ({xi_purk}-{tol}) && xi < ({xi_purk}+{tol}))? ({sig}*{fac}) : {sig}".format(xi_purk=xi_purk, tol=tol, sig=sigval,fac=fac)
-        purk_exp = Expression(purkinje_layer, element=self.Q.ufl_element(), xi=xi)
+        rastr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]+{f})*(x[2]+{f}))".format(f=focus)
+        rbstr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]-{f})*(x[2]-{f}))".format(f=focus)
+
+        sigmastr="(1./(2.*{f})*({ra}+{rb}))".format(ra=rastr,rb=rbstr,f=focus)
+        
+        eps = Expression("acosh({sigma})".format(sigma=sigmastr),degree=3,element=self.Q.ufl_element())
+
+        purkinje_layer = "(eps > ({eps_purk}-{tol}) && eps < ({eps_purk}+{tol}))? ({sig}*{fac}) : {sig}".format(eps_purk=eps_purk, tol=tol, sig=sigval,fac=fac)
+        purk_exp = Expression(purkinje_layer, element=self.Q.ufl_element(), eps=eps)
 
         sig.interpolate(purk_exp)
 
@@ -231,61 +243,30 @@ class EikonalProblem(object):
             writer.writerow([sigstr +'_purkinje', sigval*fac])
 
         return sig
+    
+    def cartesian_to_ellipsoidal(self, focus, x = [0,0,0], eccentricity = None):
+        if eccentricity != None:
+            x[0] = focus*np.sqrt(1-eccentricity**2)/eccentricity
+            x[1] = 0
+            x[2] = 0
 
-    def compute_coordinate_expression_element(self,degree,element,var,focus):
-        """
-        19-03 Maaike
-        Expression for ellipsoidal coordinates (alternative definition)
-        https://en.wikipedia.org/wiki/Prolate_spheroidal_coordinates
+        ra = sqrt(x[0]**2+x[1]**2+(x[2]+focus)**2)
+        rb = sqrt(x[0]**2+x[1]**2+(x[2]-focus)**2)
 
-        Args:
-            var : string of ellipsoidal coordinate to be calculated
-            V: :class:`~dolfin.FunctionSpace` to define the coordinates on.
-            focus: Distance from the origin to the shared focus points.
-
-        Returns:
-            Expression for ellipsoidal coordinate
-        
-        TODO   get **kwargs working 
-            make dictionairy with infarct parameters in main to be passed 
-        """
-
-        rastr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]+{f})*(x[2]+{f}))".format(f=focus)
-        rbstr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]-{f})*(x[2]-{f}))".format(f=focus)
-
-        taustr= "(1./(2.*{f})*({ra}-{rb}))".format(f=focus,ra=rastr,rb=rbstr)
-        sigmastr="(1./(2.*{f})*({ra}+{rb}))".format(ra=rastr,rb=rbstr,f=focus)
-
-        expressions_dict = {"phi": "atan2(x[1],x[0])",
-                            "xi": "acosh({sigma})".format(sigma=sigmastr),
-                            "theta": "acos({tau})".format(tau=taustr)} 
-        return Expression(expressions_dict[var],degree=degree,element=element)
-
-
-    def compute_coordinate_expression(self,x,var,focus):
-        """
-        19-03 Maaike
-        Expression for ellipsoidal coordinates (alternative definition)
-        https://en.wikipedia.org/wiki/Prolate_spheroidal_coordinates
-
-        Args:
-            var : string of ellipsoidal coordinate to be calculated
-            focus: Distance from the origin to the shared focus points.
-
-        Returns:
-            Expression for ellipsoidal coordinate
-        """
-
-        rastr = sqrt(x[0]**2+x[1]**2+(x[2]+focus)**2)
-        rbstr = sqrt(x[0]**2+x[1]**2+(x[2]-focus)**2)
-
-        taustr= (1./(2.*focus)*(rastr-rbstr))
-        sigmastr=(1./(2.*focus)*(rastr+rbstr))
+        tau= (1./(2.*focus)*(ra-rb))
+        sigma=(1./(2.*focus)*(ra+rb))
 
         expressions_dict = {"phi": math.atan2(x[1],x[0]),
-                            "xi": math.acosh(sigmastr),
-                            "theta": math.acos(taustr)} 
-        return (expressions_dict[var])
+                            "eps": math.acosh(sigma),
+                            "theta": math.acos(tau)} 
+        return expressions_dict
+  
+    def ellipsoidal_to_cartesian(self,focus, eps,theta,phi):
+        x = focus * math.sinh(eps) * math.sin(theta) * math.cos(phi)
+        y = focus * math.sinh(eps) * math.sin(theta) * math.sin(phi)
+        z = focus * math.cosh(eps) * math.cos(theta) 
+
+        return x, y, z
 
     @staticmethod
     def default_parameters():
@@ -299,24 +280,25 @@ class EikonalProblem(object):
         prm.add('f', (1))
         prm.add('g', (0))
         prm.add('td0BC', 0.0)
-        prm.add('xi_purk', 0.4)
-        prm.add('sig_fac_purk', 2.)
+        prm.add('eps_purk', 0.4)
 
         boundary_prm = Parameters('boundary')
         boundary_prm.add('focus', 4.3)
+        boundary_prm.add('outer_eccentricity', 0.807075)
+        boundary_prm.add('inner_eccentricity', 0.934819)
         boundary_prm.add('phi0', 0.)
-        boundary_prm.add('phi1', -1/8*math.pi) #-1/2*math.pi
-        boundary_prm.add('phi2', 1/2*math.pi)#1/4*math.pi      
-        boundary_prm.add('phi3', -3/4*math.pi)   
+        boundary_prm.add('phi1', -1/8*math.pi) 
+        boundary_prm.add('phi2', 1/2*math.pi)    
+        boundary_prm.add('phi4', -3/4*math.pi)   
         boundary_prm.add('theta0', 1/2*math.pi)
         boundary_prm.add('theta1', 9/16*math.pi)
         boundary_prm.add('theta2', 2/3*math.pi)
-        boundary_prm.add('theta3', 1.2854)
-        boundary_prm.add('xi_max', 0.67)
-        boundary_prm.add('xi_min', 0.371)
+        boundary_prm.add('theta4', 1.2854)
+        boundary_prm.add('eps_outer', float())
+        boundary_prm.add('eps_inner', float())
+        boundary_prm.add('radius', 0.3)   
         boundary_prm.add('tol', 1.e-1)
         boundary_prm.add('tol_theta', 1.e-1)
-        
 
         prm.add(boundary_prm)
         return prm
@@ -327,6 +309,11 @@ if __name__ == '__main__':
             'sig_it': sig_it,
             'sig_el': sig_el,
             'sig_et': sig_et}
+    prm_boundary = {'radius': radius}
+
+    inputs = {'sig_il': sig_il,
+              'sig_el': sig_il,
+              'boundary': prm_boundary}
     problem = EikonalProblem(dirout, filepath, **inputs)
     problem.eikonal()
 
