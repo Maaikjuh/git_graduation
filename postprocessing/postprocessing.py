@@ -24,7 +24,7 @@ ROOT_DIRECTORY = os.path.join(
 
 # Path to the directory containing the output of the simulations. 
 # (e.g. E:\Graduation project\output)
-SIMULATION_DATA_PATH = os.path.join(ROOT_DIRECTORY, r'Results_Tim')
+SIMULATION_DATA_PATH = os.path.join(ROOT_DIRECTORY, r'Results')
 
 # Path to the cvbtk directory.
 # (e.g. E:\Graduation project\model\cvbtk)

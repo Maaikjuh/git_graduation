@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 #csv_normal = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\24-03_14-07_infarct_xi_10\results.csv'
 #csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\31-03_16-15_infarct_droplet_tao_20_meshres_30\results.csv'
 
-csv_ref = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/24-03_14-07_infarct_xi_10/results.csv'
+csv_ref =  r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/ischemic_model/24-03_14-07_infarct_xi_10/results.csv'
 #csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\09-04_15-25_big_border_meshres_20\results.csv'
 
 # csv_ref = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\27_02_default_inputs\results.csv'
@@ -39,18 +39,20 @@ csv_ref = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/left
 # csv_ref = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\21-04_16-13_with_fiber_reor_30\results.csv'
 # csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\21-04_16-14_no_fiber_reor_30\results.csv'
 
-csv_ref = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\07-05_09-26_fiber_reorientation_meshres_20\results.csv'
+csv_ref =  r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/07-05_09-26_fiber_reorientation_meshres_20/results.csv'
 
 csv_infarct = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/19-06_14-19_ta0_map_test/results.csv'
 csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\22-06_17-33_eikonal_8node\results.csv'
 # csv_infarct = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/23-06_13-08_eikonal_td_1node/results.csv'
+
+csv_infarct = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/Eikonal/01-07_15-48_eikonal_more_roots_mesh_20/results.csv'
 
 COMPARE = True
 
 label1 = 'eikonal'
 label2 = 'reference'
 
-title = 'hemodynamics 8 nodes'
+title = 'hemodynamics eikonal more roots'
 
 CYCLE = 2 #'all' #'last'
 
