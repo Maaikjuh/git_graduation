@@ -22,6 +22,7 @@ import random
 import csv
 import math
 import warnings
+from IPython import embed
 
 warnings.filterwarnings("ignore")
 
@@ -546,14 +547,14 @@ class postprocess_paraview_new(object):
                     base = ([x[0],y[0]])
                     point = ([x[1],y[1]])
                     
-                    vector1 = base/np.linalg.norm(base)
-                    vector2 = point/np.linalg.norm(point)
+                    # vector1 = base/np.linalg.norm(base)
+                    # vector2 = point/np.linalg.norm(point)
                     
-                    dot_product = np.dot(vector1,vector2)
-                    ang_point = radians_to_degrees(np.arccos(dot_product))
+                    # dot_product = np.dot(vector1,vector2)
+                    # ang_point = radians_to_degrees(np.arccos(dot_product))
                     
-                    # ang_point = np.dot(base, point) / (np.linalg.norm(base) * np.linalg.norm(point))
-                    # ang_point = np.arccos(ang_point)
+                    ang_point = np.dot(base, point) / (np.linalg.norm(base) * np.linalg.norm(point))
+                    ang_point = np.arccos(ang_point)
                     # # ang_point = math.degrees(math.atan2(point[1], point[0]) - math.atan2(base[1], base[0]))
                     # ang_point = inner_angle(base,point)
                     

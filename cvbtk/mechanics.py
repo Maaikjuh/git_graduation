@@ -223,8 +223,8 @@ class ActiveStressModel(ConstitutiveModel):
         #04-06
         self.td_save = 0.0
         dir_out = self.parameters['eikonal']['save_td_mesh']
-        self.file = XDMFFile(os.path.join(dir_out, 'eikonal_td.xdmf'))
-        if self.parameters['eikonal']['td_dir'] == None:
+        self.file = XDMFFile(os.path.join(dir_out, 'td.xdmf'))
+        if self.parameters['eikonal']['td_dir'] == None or self.parameters['eikonal']['td_dir'] == '':
             self.Q = vector_space_to_scalar_space(u.ufl_function_space())
             self._tact_dummy = Function(self.Q, name='tact_dummy')
             self._tact_dummy.assign(Constant(0.0 - self.parameters['tdep']))
@@ -262,7 +262,7 @@ class ActiveStressModel(ConstitutiveModel):
         self._tact_dummy.vector()[:] += float(value)
         self._tact.assign(self._tact_dummy)
         
-        self.td_save += (value)
+        self.td_save += self.dt #(value)
     
         self.file.write(self._tact, float(self.td_save))
 
@@ -282,20 +282,24 @@ class ActiveStressModel(ConstitutiveModel):
             filename: location of the hdf5 file with the activation time map
         """
         
-        #load the mesh of the activation time map of the eikonal equation
-        mesh1 = Mesh()
-        openfile = HDF5File(mpi_comm_world(), filename, 'r')
-        openfile.read(mesh1, 'mesh', False)
+        # #load the mesh of the activation time map of the eikonal equation
+        # mesh1 = Mesh()
+        # openfile = HDF5File(mpi_comm_world(), filename, 'r')
+        # openfile.read(mesh1, 'mesh', False)
+
+        mesh = u.ufl_domain().ufl_cargo()
 
         #read the activation time map 
-        V1 = FunctionSpace(mesh1, 'Lagrange', 2)
+        V = FunctionSpace(mesh, 'Lagrange', 2)
         parameters['allow_extrapolation'] = True
-        td = Function(V1)
+        td = Function(V)
+
+        openfile = HDF5File(mpi_comm_world(), filename, 'r')
         openfile.read(td,'td/vector_0')
 
         #project the activation time map onto the mechanical mesh
-        mesh = u.ufl_domain().ufl_cargo()
-        V = FunctionSpace(mesh,'Lagrange',2)
+        # mesh = u.ufl_domain().ufl_cargo()
+        # V = FunctionSpace(mesh,'Lagrange',2)
         parameters['allow_extrapolation'] = False
 
         self._tact = project(-1*td, V)

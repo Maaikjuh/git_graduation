@@ -1,6 +1,6 @@
 import sys
-sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/cvbtk')
-sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/postprocessing')
+sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/cvbtk')
+sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/postprocessing')
 
 from dataset import Dataset # shift_data, get_paths
 from dolfin import *
@@ -194,10 +194,6 @@ class postprocess_hdf5(object):
         col = [ 'C7','C5', 'C0', 'C1','C2','C3', 'C4','C8']
 
         results = self.results
-#        t_start_cycle = (results['cycle'] == self.cycle).idxmax()
-#        t_es = (results['phase'] == 4).idxmax()
-#
-#        vector = (t_es - t_start_cycle) / self.parameters['dt'] 
         
         t_es_cycle = results['t_cycle'][(results['phase'] == 4).idxmax()]
         t_es = results['time'][(results['phase'] == 4).idxmax()]
@@ -210,15 +206,12 @@ class postprocess_hdf5(object):
 
         if t_es == t:
             self.u_vals = Function(self.vector_V)
-#            openfile = HDF5File(mpi_comm_world(),os.path.join(self.directory,'u.hdf5'), 'r')
             openfile.read(self.u_vals, u_vector)
         else:
             raise ValueError('specified time and timestamp hdf5 do not match')
 
         theta_vals = self.parameters['theta_vals']
         nr_segments = self.parameters['nr_segments']
-#        if theta_vals == None:
-#            theta_vals = [1.125, 4/10*math.pi, 5/10*math.pi, 6/10*math.pi, 7/10*math.pi, 8/10*math.pi]
 
         phi_int = 2*math.pi / nr_segments
         phi_range = np.arange(-1*math.pi, 1*math.pi, phi_int)
@@ -235,7 +228,8 @@ class postprocess_hdf5(object):
 
         nrsegments = range(1, nr_segments+1)
         
-#        parameters['allow_extrapolation'] = True
+        parameters['allow_extrapolation'] = True
+        self.u_vals.set_allow_extrapolation(True)
 
         for slice_nr, theta in enumerate(theta_vals): 
             slice_shear = {'slice_epi': [],
@@ -270,6 +264,12 @@ class postprocess_hdf5(object):
                         base_seg = base['base_' + wall][seg]
                         wall_point = point['point_'+ wall]
                         
+                        length1 =  math.sqrt(dotproduct(base_seg,base_seg))
+                        length2 =  math.sqrt(dotproduct(wall_point,wall_point))
+                        cos_angle = np.dot(base_seg, wall_point) / (length1 * length2)
+                        rad_angle = np.acos(cos_angle)
+                        angle_point = radians_to_degrees(rad_angle)
+
                         ang_point = np.dot(base_seg, wall_point) / (np.linalg.norm(base_seg) * np.linalg.norm(wall_point))
                         ang_point = np.arccos(ang_point)
 
