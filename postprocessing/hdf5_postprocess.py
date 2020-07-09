@@ -264,6 +264,12 @@ class postprocess_hdf5(object):
                         base_seg = base['base_' + wall][seg]
                         wall_point = point['point_'+ wall]
                         
+                        length1 =  math.sqrt(dotproduct(base_seg,base_seg))
+                        length2 =  math.sqrt(dotproduct(wall_point,wall_point))
+                        cos_angle = np.dot(base_seg, wall_point) / (length1 * length2)
+                        rad_angle = np.acos(cos_angle)
+                        angle_point = radians_to_degrees(rad_angle)
+
                         ang_point = np.dot(base_seg, wall_point) / (np.linalg.norm(base_seg) * np.linalg.norm(wall_point))
                         ang_point = np.arccos(ang_point)
 
