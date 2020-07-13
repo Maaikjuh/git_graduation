@@ -8,32 +8,40 @@ comm = mpi_comm_world()
 mesh = Mesh(comm)
 print(comm)
 
-filename = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/seg_20_mesh_20_bue/td.hdf5'
-filename = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/15-06_10-06_mesh_50_purk_fac_kot00/td.hdf5'
+meshres = 40 
+
+# filename = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/seg_20_mesh_20_bue/td.hdf5'
+# filename = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/15-06_10-06_mesh_50_purk_fac_kot00/td.hdf5'
+eikonal_dir = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/seg_20_mesh_{}_bue/td.hdf5'.format(meshres)
+mesh_dir = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/lv_maaike_seg20_res{}_fibers_mesh.hdf5'.format(meshres)
 
 # if MPI.rank(mpi_comm_world()) == 0:
 
-openfile = HDF5File(mpi_comm_world(), filename, 'r')
+# openfile = HDF5File(mpi_comm_world(), eikonal_dir, 'r')
+openfile = HDF5File(mpi_comm_world(), mesh_dir, 'r')
 openfile.read(mesh, 'mesh', False)
 V = FunctionSpace(mesh, "Lagrange", 2)
+
+openfile = HDF5File(mpi_comm_world(), eikonal_dir, 'r')
 parameters['allow_extrapolation'] = True
 td = Function(V)
 openfile.read(td, 'td/vector_0')
 # file = XDMFFile('td_pre_project.xdmf')
 # file.write(td)
 
-mesh = Mesh(comm)
-openfile = HDF5File(mpi_comm_world(), '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/lv_maaike_seg20_res20_fibers_mesh.hdf5', 'r')
-openfile.read(mesh, 'mesh', False)
-V = FunctionSpace(mesh, "Lagrange", 2)
+MPI.barrier(mpi_comm_world())
+# mesh = Mesh(comm)
+# openfile = HDF5File(mpi_comm_world(), mesh_dir, 'r')
+# openfile.read(mesh, 'mesh', False)
+# V = FunctionSpace(mesh, "Lagrange", 2)
 # V = Function(V)
 parameters['allow_extrapolation'] = False
 
 # build_module("tact = project(-1*td,V)")
 # if MPI.rank(mpi_comm_world()) == 1:
-MPI.barrier(mpi_comm_world())
+# MPI.barrier(mpi_comm_world())
 tact = project(-1*td,V)
-MPI.barrier(mpi_comm_world())
+# MPI.barrier(mpi_comm_world())
 print('saving')
 tact.rename('eikonal', 'eikonal')
 file = XDMFFile('td_post_project.xdmf')
