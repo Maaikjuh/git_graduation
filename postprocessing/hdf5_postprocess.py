@@ -1,16 +1,18 @@
 import sys
 #ubuntu
-#sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/cvbtk')
-#sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/postprocessing')
+sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/cvbtk')
+sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/postprocessing')
 
-#linux
-sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/cvbtk')
-sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/postprocessing')
+# #linux
+# sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/cvbtk')
+# sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/postprocessing')
 
 
 from dataset import Dataset # shift_data, get_paths
+from utils import read_dict_from_csv
 from dolfin import *
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 from matplotlib.gridspec import GridSpec
@@ -101,7 +103,7 @@ def read_dict_from_csv(filename):
     return d_out
 
 class postprocess_hdf5(object):
-    def __init__(self, directory, results_csv=None, cycle=None, **kwargs):
+    def __init__(self, directory, results_csv=None, inputs_csv = None, cycle=None, **kwargs):
         self.directory = directory
 
         if results_csv is None:
@@ -110,17 +112,29 @@ class postprocess_hdf5(object):
             results_csv = os.path.join(results_dir, 'results.csv')
             if cycle is None:
                 # Assume it is in the cycle directory.
-                cycle = float(os.path.split(directory)[1].split('_')[1])        
+                cycle = float(os.path.split(directory)[1].split('_')[1])  
+                
+        self.cycle = cycle
+        self.results = self.load_reduced_dataset(results_csv, cycle=cycle)
+        
+        if inputs_csv is None:
+            # Directory with results file is 1 folder down.
+            inputs_dir = os.path.split(directory)[0]  
+            inputs_csv = os.path.join(results_dir, 'results.csv')        
+            
+        self.inputs = read_dict_from_csv(inputs_csv)
+        
+        if self.inputs['active_stress']['eikonal'] is not None:
+            self.eikonal_dir = self.inputs['active_stress']['eikonal']['td_dir']
 
         self.mesh = self.load_mesh()
         self.vector_V = VectorFunctionSpace(self.mesh, "Lagrange", 2)
         self.function_V = FunctionSpace(self.mesh, "Lagrange", 2)
 
-        self.cycle = cycle
-        self.results = self.load_reduced_dataset(results_csv, cycle=cycle)
-
         self._parameters = self.default_parameters()
         self._parameters.update(kwargs)
+        
+        self.parameters['ls0'] = self.inputs['active_stress']['ls0']
 
         if 'inner_eccentricity' or 'outer_eccentricity' in kwargs:
             e_outer = self.parameters['outer_eccentricity']
@@ -368,7 +382,7 @@ class postprocess_hdf5(object):
 #        plt.show()
         plt.savefig(os.path.join(self.directory, 'torsion_and_shear.png'), dpi=300, bbox_inches="tight")
         
-    def loc_mech_ker(self, fig = None, fontsize = 12):
+    def loc_mech_ker(self, strain_figs = None, stress_figs = None, work_figs = None, fontsize = 12, label = None):
         
         stress_file = HDF5File(mpi_comm_world(), os.path.join(self.directory,'fiber_stress.hdf5'), 'r')
         ls_file = HDF5File(mpi_comm_world(), os.path.join(self.directory,'ls.hdf5'), 'r')
@@ -429,90 +443,87 @@ class postprocess_hdf5(object):
                     
                     stress_cycle[long[l] + '_' + rad[r]].append(stress)
                     strain_cycle[long[l] + '_' + rad[r]].append(strain)
+        stress_file.close()
+        ls_file.close()
+        print('Generating local mechanics plots...')
         
         time = self.results['t_cycle']
+
+        if strain_figs == None:
+            strain_fig, strain_plot = plt.subplots(3,3, sharex = True, sharey = True)
+        else:
+            strain_fig =  strain_figs[0]  
+            strain_plot =  strain_figs[1]   
+        strain_plot = strain_plot.ravel()
+
+        if stress_figs == None:
+            stress_fig, stress_plot = plt.subplots(3,3, sharex = True, sharey = True)
+        else:
+            stress_fig = stress_figs[0]
+            stress_plot = stress_figs[1]
+        stress_plot = stress_plot.ravel() 
+
+        if work_figs == None:
+            work_fig, work_plot = plt.subplots(3,3, sharex = True, sharey = True)
+        else:
+            work_fig = work_figs[0]
+            work_plot = work_figs[1]
+        work_plot = work_plot.ravel() 
+
+        ii = 0
+        for l in long:
+            for r in rad:
+                strain_plot[ii].plot(time[0:len(vector_numbers)], strain_cycle[l + '_' + r], label = label)
+                stress_plot[ii].plot(time[0:len(vector_numbers)], stress_cycle[l + '_' + r], label = label)
+                work_plot[ii].plot(strain_cycle[l + '_' + r], stress_cycle[l + '_' + r], label = label)  
+                for plot in [strain_plot[ii], stress_plot[ii], work_plot[ii]]:
+                    if ii == 0:
+                        plot.set_title('endocardium', fontsize = fontsize)
+
+                    if ii == 2:
+                        plot.set_title('epicardium', fontsize = fontsize)
+                        plot.yaxis.set_label_position('right')
+                        plot.set_ylabel('equatorial')
+
+                    if ii == 5 and label != None:
+                        plot.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+                    if ii == 8:
+                        plot.yaxis.set_label_position('right')
+                        plot.set_ylabel('apical')  
+    
+                ii += 1           
+
+        strain_fig.text(0.5, 0.04, 'time [ms]', ha='center', va='center', fontsize = fontsize)
+        strain_fig.text(0.06, 0.5, 'strain', ha='center', va='center', rotation='vertical', fontsize = fontsize)
+        strain_fig.suptitle('Myofiber strain', fontsize = fontsize +2)
+
+        strain_fig.savefig(os.path.join(self.directory, 'myocardial_strain.png'), dpi=300, bbox_inches="tight")
+
+        stress_fig.text(0.5, 0.04, 'time [ms]', ha='center', va='center', fontsize = fontsize)
+        stress_fig.text(0.06, 0.5, 'stress [kPa]', ha='center', va='center', rotation='vertical', fontsize = fontsize)
+        stress_fig.suptitle('Myofiber stress', fontsize = fontsize +2)
+
+        stress_fig.savefig(os.path.join(self.directory, 'myocardial_stress.png'), dpi=300, bbox_inches="tight")
+
+        work_fig.text(0.5, 0.04, 'strain', ha='center', va='center', fontsize = fontsize)
+        work_fig.text(0.06, 0.5, 'stress [kPa]', ha='center', va='center', rotation='vertical', fontsize = fontsize)
+        work_fig.suptitle('Workloops', fontsize = fontsize +2)
+
+        work_fig.savefig(os.path.join(self.directory, 'workloops.png'), dpi=300, bbox_inches="tight")
+
+        print('Plots created!')
+
+    def show_eikonal(self):
         
-
-        fig = plt.figure()
-        plt.figure(fig.number)
-
-        ii = 0
-        for l in long:
-            for r in rad:
-                ii += 1
-                strain = fig.add_subplot(3, 3, ii)
-                strain.plot(time[0:len(vector_numbers)], strain_cycle[l + '_' + r])
-                if ii == 1:
-                    strain.set_title('endocardium', fontsize = fontsize)
-                if ii == 3:
-                    strain.set_title('epicardium', fontsize = fontsize)
-#                    strain.yaxis.set_label_position('right')
-                    strain.set_ylabel('top')
-#                if ii == 9:
-#                    strain.set_label_position("right")
-#                    strain.set_ylabel('bottom')                    
-
-        fig.text(0.5, 0.04, 'time [ms]', ha='center', va='center', fontsize = fontsize +1)
-        fig.text(0.06, 0.5, 'strain', ha='center', va='center', rotation='vertical', fontsize = fontsize)
-        fig.suptitle('Myofiber strain', fontsize = fontsize +2)
-
-        fig = plt.figure()
-        plt.figure(fig.number)                
-
-        ii = 0
-        for l in long:
-            for r in rad:
-                ii += 1
-                stress = fig.add_subplot(3, 3, ii)
-                stress.plot(time[0:len(vector_numbers)], stress_cycle[l + '_' + r])        
-                if ii == 1:
-                    stress.set_title('endocardium', fontsize = fontsize)
-                if ii == 3:
-                    stress.set_title('epicardium', fontsize = fontsize)
-#                    strain.yaxis.set_label_position('right')
-#                    stress.set_ylabel('top')
-#                if ii == 9:
-#                    strain.set_label_position("right")
-#                    stress.set_ylabel('bottom')                    
-                    
-        fig.text(0.5, 0.04, 'time [ms]', ha='center', va='center', fontsize = fontsize +1)
-        fig.text(0.06, 0.5, 'stress [kPa]', ha='center', va='center', rotation='vertical', fontsize = fontsize)
-        fig.suptitle('Myofiber stress', fontsize = fontsize +2)
-        
-        fig = plt.figure()
-        plt.figure(fig.number)                
-
-        ii = 0
-        for l in long:
-            for r in rad:
-                ii += 1
-                work = fig.add_subplot(3, 3, ii)
-                work.plot(strain_cycle[l + '_' + r], stress_cycle[l + '_' + r])  
-                if ii == 1:
-                    work.set_title('endocardium', fontsize = fontsize)
-                if ii == 3:
-                    work.set_title('epicardium', fontsize = fontsize)
-#                    strain.yaxis.set_label_position('right')
-                    work.set_ylabel('top')
-#                if ii == 9:
-#                    strain.set_label_position("right")
-#                    work.set_ylabel('bottom')                    
-            
-        fig.text(0.5, 0.04, 'strain', ha='center', va='center', fontsize = fontsize +1)
-        fig.text(0.06, 0.5, 'stress [kPa]', ha='center', va='center', rotation='vertical', fontsize = fontsize)
-        fig.suptitle('Workloops', fontsize = fontsize +2)
         
     def show_slices(self, fig = None, fontsize=12, title = ''):
         # Plot the regions.
         if fig is None:
-            # Create new figure.
             fig = plt.figure()
             
         fig.set_size_inches(20, 13)
             
-#        manager = plt.get_current_fig_manager()
-#        manager.window.showMaximized()
-
         # Make fig current.
         plt.figure(fig.number)
         col = [ 'C7','C5', 'C0', 'C1','C2','C3', 'C4','C8']
@@ -520,13 +531,11 @@ class postprocess_hdf5(object):
         gs = GridSpec(2,2)
         _xy1 = plt.subplot(gs[0,0])
         _xz1 = plt.subplot(gs[0,1])
-        _xy2 = plt.subplot(gs[1,0])
-        _xy3 = plt.subplot(gs[1,1])
-#        _xy3 = plt.subplot(gs[1,1])   
-        
-        self._ax = {'xy1': _xy1, 'xz1': _xz1, 'xy2': _xy2, 'xy3': _xy3}
+        _xy2 = plt.subplot(gs[1,:])
+   
+        self._ax = {'xy1': _xy1, 'xz1': _xz1, 'xy2': _xy2}
 
-        self.lv_drawing(side_keys = ['xy1'], top_keys = ['xz1'])
+        self.lv_drawing(top_keys = ['xy1'], side_keys = ['xz1'])
 
         theta_vals = self.parameters['theta_vals']
         nr_segments = self.parameters['nr_segments']
@@ -582,19 +591,14 @@ class postprocess_hdf5(object):
                 
                 if slice_nr == 0 or slice_nr == 4:
                     self._ax['xy2'].plot([i[0] for i in seg_ed], [i[1] for i in seg_ed], color=col[slice_nr])
-                    self._ax['xy2'].plot([i[0] for i in seg_es], [i[1] for i in seg_es], '--', color=col[slice_nr]) 
-                    self._ax['xy3'].plot([i[0] for i in seg_es], [i[1] for i in seg_es], color=col[slice_nr]) 
-                    
+                    self._ax['xy2'].plot([i[0] for i in seg_es], [i[1] for i in seg_es], '--', color=col[slice_nr])                     
                                         
             self._ax['xy1'].scatter(x_segs, y_segs, color=col[slice_nr], label= 'slice ' + str(slice_nr))           
             self._ax['xz1'].scatter(x_segs, z_segs, color=col[slice_nr], label= 'slice ' + str(slice_nr))
             
             if slice_nr == 0 or slice_nr == 4:
-                self._ax['xy3'].scatter(x_segs_es, y_segs_es, color=col[slice_nr], label= 'es ' + str(slice_nr))    
-                self._ax['xy2'].scatter(x_segs_es, y_segs_es, marker='x', color=col[slice_nr], label= 'es ' + str(slice_nr)) 
-                self._ax['xy2'].scatter(x_segs_ed, y_segs_ed, color=col[slice_nr], label= 'ed ' + str(slice_nr)) 
-#            self._ax['xy3'].scatter(x_segs, y_segs, color=col[slice_nr], label= 'slice' + str(slice_nr))
-   
+                self._ax['xy2'].scatter(x_segs_ed, y_segs_ed, color=col[slice_nr], label= 'ed slice ' + str(slice_nr)) 
+                self._ax['xy2'].scatter(x_segs_es, y_segs_es, marker='x', color=col[slice_nr], label= 'es slice ' + str(slice_nr)) 
         
         self._ax['xy1'].axis('equal')
         self._ax['xy1'].set_title('top view (x-y)')
@@ -606,20 +610,12 @@ class postprocess_hdf5(object):
         
         self._ax['xy2'].axis('equal')
         self._ax['xy2'].axis([-3.5, 3.5, -3.5, 3.5])
-        self._ax['xy2'].set_title('top view (x-y) end diastole')
+        self._ax['xy2'].set_title('top view (x-y) end diastole and end systole')
         self._ax['xy2'].legend(frameon=False, fontsize=fontsize)
-        
-        self._ax['xy3'].axis('equal')
-        self._ax['xy3'].axis([-3.5, 3.5, -3.5, 3.5])
-        self._ax['xy3'].set_title('top view (x-y) end sytole')
-        self._ax['xy3'].legend(frameon=False, fontsize=fontsize)
         
         fig.suptitle(title,fontsize=fontsize+2)
         
         plt.savefig(os.path.join(self.directory, 'slices.png'), dpi=300, bbox_inches="tight")
-#        self._ax['xy3'].set_title('front view (x-z)')
-#        self._ax['xy3'].axis('equal')
-#        self._ax['xy3'].legend(frameon=False, fontsize=fontsize)
         
     def show_ker_points(self):
         fig = plt.figure()
@@ -641,6 +637,11 @@ class postprocess_hdf5(object):
             for eps in eps_vals:
                 x, y, z = ellipsoidal_to_cartesian(focus,eps,theta,phi_free_wall)
                 plt.scatter(y, z)    
+        plt.xlabel('y-axis [cm]')
+        plt.ylabel('z-axis [cm]')
+        plt.title('Local mechanics points (Kerckhoffs 2003)')
+        
+        plt.savefig(os.path.join(self.directory, 'points_ker.png'), dpi=300, bbox_inches="tight")
 
     def lv_drawing(self, side_keys = None, top_keys = None):
         def ellips(a, b, t):
@@ -711,10 +712,10 @@ class postprocess_hdf5(object):
 # print(active_stress(0.329953, -2.33535, -0.723438))
 # print(active_stress(0., 0., 0.))
 #
-directory_1 = '/home/maaike/Documents/Graduation_project/Results/eikonal_td_1_node/cycle_2_begin_ic_ref'
+# directory_1 = '/home/maaike/Documents/Graduation_project/Results/eikonal_td_1_node/cycle_2_begin_ic_ref'
 
-post_1 = postprocess_hdf5(directory_1)
-post_1.loc_mech_ker()
-post_1.show_ker_points()
-post_1.plot_torsion()
-post_1.show_slices()
+# post_1 = postprocess_hdf5(directory_1)
+# post_1.loc_mech_ker()
+# post_1.show_ker_points()
+# post_1.plot_torsion()
+# post_1.show_slices()
