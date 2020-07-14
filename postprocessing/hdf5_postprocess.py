@@ -1,11 +1,11 @@
 import sys
 #ubuntu
-sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/cvbtk')
-sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/postprocessing')
+#sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/cvbtk')
+#sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/postprocessing')
 
-# #linux
-# sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/cvbtk')
-# sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/postprocessing')
+ #linux
+sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/cvbtk')
+sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/postprocessing')
 
 
 from dataset import Dataset # shift_data, get_paths
@@ -284,13 +284,23 @@ class postprocess_hdf5(object):
         self.u_es.set_allow_extrapolation(True)
         self.u_ed.set_allow_extrapolation(True)
 
+        av_slice_torsion = {'torsion_av_epi': [],
+                        'torsion_av_mid': [],
+                        'torsion_av_endo': []}
+        
+        av_slice_shear = {'shear_av_epi': [],
+                        'shear_av_mid': [],
+                        'shear_av_endo': []}
         for slice_nr, theta in enumerate(theta_vals): 
             slice_torsion = {'torsion_epi': [],
                         'torsion_mid': [],
                         'torsion_endo': []}
             slice_shear = {'shear_epi': [],
                         'shear_mid': [],
-                        'shear_endo': []}          
+                        'shear_endo': [],
+                        'shear_av_epi': [],
+                        'shear_av_mid': [],
+                        'shear_av_endo': []}          
 
             for seg, phi in enumerate(phi_range):
                 x_epi, y_epi, z_epi = ellipsoidal_to_cartesian(focus,eps_outer,theta,phi)
@@ -378,12 +388,14 @@ class postprocess_hdf5(object):
                         
             if slice_nr != 0:
                 for ii, key in enumerate(['epi', 'mid', 'endo']):
+                    av_slice_torsion['torsion_av_' + key].append(np.mean(slice_torsion['torsion_' + key]))
                     label = '{}, average: {:.2f}'.format(slice_nr, np.mean(slice_torsion['torsion_' + key]))
                     torsion_plot[ii].plot(nrsegments, slice_torsion['torsion_' + key], color = col[slice_nr], label = label)
                     torsion_plot[ii].legend(frameon=False, fontsize=fontsize)
                     torsion_plot[ii].set_title(key, fontsize = fontsize)
                     torsion_plot[ii].set_xlabel('Segments', fontsize = fontsize)
 
+                    av_slice_shear['shear_av_' + key].append(np.mean(slice_shear['shear_' + key]))
                     label = '{}, average: {:.2f}'.format(slice_nr, np.mean(slice_shear['shear_' + key]))
                     shear_plot[ii].plot(nrsegments, slice_shear['shear_' + key], color = col[slice_nr], label = label)
                     shear_plot[ii].legend(frameon=False, fontsize=fontsize)
@@ -393,13 +405,7 @@ class postprocess_hdf5(object):
                         torsion_plot[ii].set_ylabel('Torsion [$^\circ$]', fontsize = fontsize)
                         shear_plot[ii].set_ylabel('Shear [$^\circ$]', fontsize = fontsize)
 
-                # for key in slice_shear.keys():
-
-        table = torsion_plot[ii].table(rowLabels = ['slice 1','slice 2','slice 3','slice 4','slice 5'],
-                                colLabels = ['epi', 'mid', 'endo'],
-                                cellText = [np.mean(slice_torsion['torsion_epi']) for key in ['epi', 'mid', 'endo']],
-                                loc = 'bottom')
-        
+                # for key in slice_shear.keys():        
         torsion_fig.suptitle(title,fontsize=fontsize+2)
         shear_fig.suptitle(title,fontsize=fontsize+2)
 
@@ -764,10 +770,10 @@ class postprocess_hdf5(object):
 # print(active_stress(0.329953, -2.33535, -0.723438))
 # print(active_stress(0., 0., 0.))
 #
-# directory_1 = '/home/maaike/Documents/Graduation_project/Results/eikonal_td_1_node/cycle_2_begin_ic_ref'
+directory_1 = '/home/maaike/Documents/Graduation_project/Results/eikonal_td_1_node/cycle_2_begin_ic_ref'
 
-# post_1 = postprocess_hdf5(directory_1)
+post_1 = postprocess_hdf5(directory_1)
 # post_1.loc_mech_ker()
 # post_1.show_ker_points()
-# post_1.plot_torsion()
-# post_1.show_slices()
+post_1.plot_torsion()
+post_1.show_slices()
