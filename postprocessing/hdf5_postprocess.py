@@ -120,7 +120,7 @@ class postprocess_hdf5(object):
         if inputs_csv is None:
             # Directory with results file is 1 folder down.
             inputs_dir = os.path.split(directory)[0]  
-            inputs_csv = os.path.join(results_dir, 'results.csv')        
+            inputs_csv = os.path.join(results_dir, 'inputs.csv')        
             
         self.inputs = read_dict_from_csv(inputs_csv)
         
@@ -196,7 +196,7 @@ class postprocess_hdf5(object):
 
         return mesh
     
-    def plot_torsion(self, fig = None, fontsize=12, title=''):
+    def plot_torsion(self, torsion_fig = None, shear_fig = None, fontsize=12, title=''):
         """
         calculate and plot torsion and shear
         Torsion is difference of the rotation of a base segment and a slice segment
@@ -204,21 +204,26 @@ class postprocess_hdf5(object):
         Shear is calculated from the torsion, height between the base and the slice
         and the radius of the wall at the slice
         """
-        if fig is None:    
-            fig = plt.figure()
-        plt.figure(fig.number)
-        
-        fig.set_size_inches(20, 13)
+        if torsion_fig is None:    
+            torsion_fig, torsion_plot = plt.subplots(1,3, sharex = True, sharey = True)
+        # plt.figure(fig.number)
+        if shear_fig is None:    
+            shear_fig, shear_plot = plt.subplots(1,3, sharex = True, sharey = True)
+        # fig.set_size_inches(20, 13)
         
 #        manager = plt.get_current_fig_manager()
 #        manager.window.showMaximized()
 
-        _t_epi  = fig.add_subplot(2, 2, 1)
-        _t_endo = fig.add_subplot(2, 2, 2)
-        _s_epi  = fig.add_subplot(2, 2, 3)
-        _s_endo = fig.add_subplot(2, 2, 4)
+        # _t_epi  = fig_torsion.add_subplot(1, 3, 1)
+        # _t_mid = fig_torsion.add_subplot(1, 3, 2)
+        # _t_endo = fig_torsion.add_subplot(1, 3, 3)
+
+        # _s_epi  = fig_shear.add_subplot(1, 3, 1)
+        # _s_mid = fig_shear.add_subplot(1, 3, 2)
+        # _s_endo = fig_shear.add_subplot(1, 3, 3)
         
-        ax = {'torsion_epi':_t_epi, 'torsion_endo':_t_endo, 'shear_epi':_s_epi, 'shear_endo':_s_endo}
+        # ax_t = {'torsion_epi':_t_epi, 'torsion_mid':_t_mid, 'torsion_endo':_t_endo}
+        # ax_s = {'shear_epi':_s_epi, 'shear_mid':_s_mid, 'shear_endo':_s_endo}
         
         col = [ 'C7','C5', 'C0', 'C1','C2','C3', 'C4','C8']
 
@@ -268,9 +273,10 @@ class postprocess_hdf5(object):
         eps_inner = self.parameters['eps_inner']
 
         base = {'base_epi': [],
+                'base_mid': [],
                 'base_endo': []}
         
-        wall = ['epi', 'endo']
+        wall = ['epi', 'mid','endo']
 
         nrsegments = range(1, nr_segments+1)
         
@@ -279,9 +285,11 @@ class postprocess_hdf5(object):
         self.u_ed.set_allow_extrapolation(True)
 
         for slice_nr, theta in enumerate(theta_vals): 
-            slice_shear = {'torsion_epi': [],
-                        'torsion_endo': [],
-                        'shear_epi': [],
+            slice_torsion = {'torsion_epi': [],
+                        'torsion_mid': [],
+                        'torsion_endo': []}
+            slice_shear = {'shear_epi': [],
+                        'shear_mid': [],
                         'shear_endo': []}          
 
             for seg, phi in enumerate(phi_range):
@@ -289,9 +297,13 @@ class postprocess_hdf5(object):
                 tau = z_epi/(focus * math.cosh(eps_inner))
                 theta_inner = math.acos(tau)
                 x_endo, y_endo, z_endo = ellipsoidal_to_cartesian(focus,eps_inner,theta_inner,phi)
+
+                x_mid = (x_epi + x_endo)/2
+                y_mid = (y_epi + y_endo)/2
+                z_mid = (z_epi + z_endo)/2
                 
 #                parameters['allow_extrapolation'] = True
-                for ii, points in enumerate([[x_epi, y_epi, z_epi], [x_endo, y_endo, z_endo]]):
+                for ii, points in enumerate([[x_epi, y_epi, z_epi], [x_mid, y_mid, z_mid], [x_endo, y_endo, z_endo]]):
                     x_ed, y_ed, z_ed = (epi + u_val for epi, u_val in zip((x_epi, y_epi, z_epi), self.u_ed(points)))
                     x_es, y_es, z_es = (epi + u_val for epi, u_val in zip((x_epi, y_epi, z_epi), self.u_es(points)))
                     
@@ -315,7 +327,7 @@ class postprocess_hdf5(object):
                         height = base['base_' + wall[ii]][seg][1] - z_ed
                         
                         shear = math.atan(2*r*math.sin(torsion/2)/height)
-                        slice_shear['torsion_'+ wall[ii]].append(torsion)
+                        slice_torsion['torsion_'+ wall[ii]].append(torsion)
                         slice_shear['shear_'+ wall[ii]].append(shear)
                         
 #                x_es_epi, y_es_epi, z_es_epi = (epi + u_val for epi, u_val in zip((x_epi, y_epi, z_epi), self.u_es(x_epi, y_epi, z_epi)))
@@ -365,22 +377,43 @@ class postprocess_hdf5(object):
 #                        slice_shear['shear_'+ wall].append(shear)
                         
             if slice_nr != 0:
-                for key in slice_shear.keys():
-                    label = '{}, average: {:.2f}'.format(slice_nr, np.mean(slice_shear[key]))
-                    ax[key].plot(nrsegments, slice_shear[key], color = col[slice_nr], label = label)
-                    ax[key].legend(frameon=False, fontsize=fontsize)
-        
-        fig.suptitle(title,fontsize=fontsize+2)
+                for ii, key in enumerate(['epi', 'mid', 'endo']):
+                    label = '{}, average: {:.2f}'.format(slice_nr, np.mean(slice_torsion['torsion_' + key]))
+                    torsion_plot[ii].plot(nrsegments, slice_torsion['torsion_' + key], color = col[slice_nr], label = label)
+                    torsion_plot[ii].legend(frameon=False, fontsize=fontsize)
+                    torsion_plot[ii].set_title(key, fontsize = fontsize)
+                    torsion_plot[ii].set_xlabel('Segments', fontsize = fontsize)
 
-        ax['torsion_epi'].set_ylabel('Torsion epicardial [$^\circ$]', fontsize = fontsize)
-        ax['torsion_endo'].set_ylabel('Torsion endocardial [$^\circ$]', fontsize = fontsize)
-        ax['shear_epi'].set_ylabel('Shear epicardial [$^\circ$]', fontsize = fontsize)
-        ax['shear_endo'].set_ylabel('Shear endocardial [$^\circ$]', fontsize = fontsize)
-        ax['shear_epi'].set_xlabel('Segments', fontsize = fontsize)
-        ax['shear_endo'].set_xlabel('Segments', fontsize = fontsize)
+                    label = '{}, average: {:.2f}'.format(slice_nr, np.mean(slice_shear['shear_' + key]))
+                    shear_plot[ii].plot(nrsegments, slice_shear['shear_' + key], color = col[slice_nr], label = label)
+                    shear_plot[ii].legend(frameon=False, fontsize=fontsize)
+                    shear_plot[ii].set_title(key, fontsize = fontsize)
+                    shear_plot[ii].set_xlabel('Segments', fontsize = fontsize)
+                    if ii == 0:
+                        torsion_plot[ii].set_ylabel('Torsion [$^\circ$]', fontsize = fontsize)
+                        shear_plot[ii].set_ylabel('Shear [$^\circ$]', fontsize = fontsize)
+
+                # for key in slice_shear.keys():
+
+        table = torsion_plot[ii].table(rowLabels = ['slice 1','slice 2','slice 3','slice 4','slice 5'],
+                                colLabels = ['epi', 'mid', 'endo'],
+                                cellText = [np.mean(slice_torsion['torsion_epi']) for key in ['epi', 'mid', 'endo']],
+                                loc = 'bottom')
+        
+        torsion_fig.suptitle(title,fontsize=fontsize+2)
+        shear_fig.suptitle(title,fontsize=fontsize+2)
+
+        # ax_t['torsion_epi'].set_ylabel('Torsion epicardial [$^\circ$]', fontsize = fontsize)
+        # ax_t['torsion_mid'].set_ylabel('Torsion epicardial [$^\circ$]', fontsize = fontsize)
+        # ax_t['torsion_endo'].set_ylabel('Torsion endocardial [$^\circ$]', fontsize = fontsize)
+        # ax['shear_epi'].set_ylabel('Shear epicardial [$^\circ$]', fontsize = fontsize)
+        # ax['shear_endo'].set_ylabel('Shear endocardial [$^\circ$]', fontsize = fontsize)
+        # ax['shear_epi'].set_xlabel('Segments', fontsize = fontsize)
+        # ax['shear_endo'].set_xlabel('Segments', fontsize = fontsize)
         
 #        plt.show()
-        plt.savefig(os.path.join(self.directory, 'torsion_and_shear.png'), dpi=300, bbox_inches="tight")
+        torsion_fig.savefig(os.path.join(self.directory, 'torsion.png'), dpi=300, bbox_inches="tight")
+        shear_fig.savefig(os.path.join(self.directory, 'shear.png'), dpi=300, bbox_inches="tight")
         
     def loc_mech_ker(self, strain_figs = None, stress_figs = None, work_figs = None, fontsize = 12, label = None):
         
@@ -513,9 +546,7 @@ class postprocess_hdf5(object):
         work_fig.savefig(os.path.join(self.directory, 'workloops.png'), dpi=300, bbox_inches="tight")
 
         print('Plots created!')
-
-    def show_eikonal(self):
-        
+      
         
     def show_slices(self, fig = None, fontsize=12, title = ''):
         # Plot the regions.
@@ -532,6 +563,8 @@ class postprocess_hdf5(object):
         _xy1 = plt.subplot(gs[0,0])
         _xz1 = plt.subplot(gs[0,1])
         _xy2 = plt.subplot(gs[1,:])
+
+        ed_es_fig, ed_es_plot = plt.subplots(1,1)
    
         self._ax = {'xy1': _xy1, 'xz1': _xz1, 'xy2': _xy2}
 
@@ -540,9 +573,15 @@ class postprocess_hdf5(object):
         theta_vals = self.parameters['theta_vals']
         nr_segments = self.parameters['nr_segments']
         focus = self.parameters['focus']
+
         eps_outer = self.parameters['eps_outer']
-        eps_inner = self.parameters['eps_inner']        
-                  
+        eps_inner = self.parameters['eps_inner']     
+
+        x_epi, y_epi, z_epi = ellipsoidal_to_cartesian(focus,eps_outer,1/2*math.pi,0.)
+        x_endo, y_endo, z_endo = ellipsoidal_to_cartesian(focus,eps_inner,1/2*math.pi,0.)
+        x_mid = (x_epi + x_endo)/2
+        eps_mid = cartesian_to_ellipsoidal(self.parameters['focus'], x = [x_mid, 0.,0.])['eps']
+      
         phi_int = 2*math.pi / nr_segments
         phi_range = np.arange(-1*math.pi, 1*math.pi, phi_int)
         
@@ -560,16 +599,18 @@ class postprocess_hdf5(object):
             z_segs_ed = []
             
             x, y, z_epi = ellipsoidal_to_cartesian(focus,eps_outer,theta,0.0)
+            tau = z_epi/(focus * math.cosh(eps_mid))
+            theta_mid = math.acos(tau)
             tau = z_epi/(focus * math.cosh(eps_inner))
             theta_inner = math.acos(tau)
             
-            thetas = [theta, theta_inner]
+            thetas = [theta, theta_mid, theta_inner]
             for seg, phi in enumerate(phi_range):
                 
                 seg_es = []
                 seg_ed = []
                 
-                for ii, wall in enumerate([eps_outer, eps_inner]):
+                for ii, wall in enumerate([eps_outer, eps_mid, eps_inner]):
                     x, y, z = ellipsoidal_to_cartesian(focus,wall,thetas[ii],phi)
                     x_segs.append(x)
                     y_segs.append(y)
@@ -591,7 +632,9 @@ class postprocess_hdf5(object):
                 
                 if slice_nr == 0 or slice_nr == 4:
                     self._ax['xy2'].plot([i[0] for i in seg_ed], [i[1] for i in seg_ed], color=col[slice_nr])
-                    self._ax['xy2'].plot([i[0] for i in seg_es], [i[1] for i in seg_es], '--', color=col[slice_nr])                     
+                    self._ax['xy2'].plot([i[0] for i in seg_es], [i[1] for i in seg_es], '--', color=col[slice_nr])     
+                    ed_es_plot.plot([i[0] for i in seg_ed], [i[1] for i in seg_ed], color=col[slice_nr])     
+                    ed_es_plot.plot([i[0] for i in seg_es], [i[1] for i in seg_es], '--', color=col[slice_nr])             
                                         
             self._ax['xy1'].scatter(x_segs, y_segs, color=col[slice_nr], label= 'slice ' + str(slice_nr))           
             self._ax['xz1'].scatter(x_segs, z_segs, color=col[slice_nr], label= 'slice ' + str(slice_nr))
@@ -599,7 +642,9 @@ class postprocess_hdf5(object):
             if slice_nr == 0 or slice_nr == 4:
                 self._ax['xy2'].scatter(x_segs_ed, y_segs_ed, color=col[slice_nr], label= 'ed slice ' + str(slice_nr)) 
                 self._ax['xy2'].scatter(x_segs_es, y_segs_es, marker='x', color=col[slice_nr], label= 'es slice ' + str(slice_nr)) 
-        
+                ed_es_plot.scatter(x_segs_ed, y_segs_ed, color=col[slice_nr], label= 'ed slice ' + str(slice_nr)) 
+                ed_es_plot.scatter(x_segs_es, y_segs_es, marker='x', color=col[slice_nr], label= 'es slice ' + str(slice_nr))   
+
         self._ax['xy1'].axis('equal')
         self._ax['xy1'].set_title('top view (x-y)')
         self._ax['xy1'].legend(frameon=False, fontsize=fontsize)
@@ -612,10 +657,17 @@ class postprocess_hdf5(object):
         self._ax['xy2'].axis([-3.5, 3.5, -3.5, 3.5])
         self._ax['xy2'].set_title('top view (x-y) end diastole and end systole')
         self._ax['xy2'].legend(frameon=False, fontsize=fontsize)
+
+        ed_es_plot.axis('equal')
+        ed_es_plot.set_title('top view (x-y) end diastole and end systole')
+        ed_es_plot.legend(frameon=False, fontsize=fontsize)
         
         fig.suptitle(title,fontsize=fontsize+2)
-        
-        plt.savefig(os.path.join(self.directory, 'slices.png'), dpi=300, bbox_inches="tight")
+        ed_es_fig.suptitle(title,fontsize=fontsize+2)
+
+
+        ed_es_fig.savefig(os.path.join(self.directory, 'ed_es.png'), dpi=300, bbox_inches="tight")
+        fig.savefig(os.path.join(self.directory, 'slices.png'), dpi=300, bbox_inches="tight")
         
     def show_ker_points(self):
         fig = plt.figure()
