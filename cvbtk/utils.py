@@ -246,7 +246,7 @@ def vector_space_to_tensor_space(V):
         # Create and return a tensor function space.
         return TensorFunctionSpace(mesh, family, degree)
 
-def save_dict_to_csv(d, filename):
+def save_dict_to_csv(d, filename, write = 'w'):
     """
     Writes a (nested) dictionary to a csv file.
 
@@ -273,13 +273,13 @@ def save_dict_to_csv(d, filename):
 
         return d_out
 
-    def write_dict(d, filename):
-        with open(filename, 'w') as f:
+    def write_dict(d, filename, write):
+        with open(filename, write) as f:
             writer = csv.writer(f)
             for key, value in sorted(d.items()):
                 writer.writerow([key, value])
 
-    write_dict(flatten_dict(d), filename)
+    write_dict(flatten_dict(d), filename, write)
 
 def read_dict_from_csv(filename):
     """

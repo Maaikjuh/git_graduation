@@ -8,7 +8,7 @@ from dolfin import *
 from dolfin.cpp.common import Parameters
 from ufl import Identity, as_tensor, det, dot, exp, grad, inv, sqrt
 
-from .utils import safe_project, vector_space_to_scalar_space, quadrature_function_space, print_once
+from .utils import safe_project, vector_space_to_scalar_space, quadrature_function_space, print_once, save_dict_to_csv
 from .geometries import LeftVentricleGeometry
 
 import datetime
@@ -281,27 +281,16 @@ class ActiveStressModel(ConstitutiveModel):
             u: The displacement unknown.
             filename: location of the hdf5 file with the activation time map
         """
-        
-        # #load the mesh of the activation time map of the eikonal equation
-        # mesh1 = Mesh()
-        # openfile = HDF5File(mpi_comm_world(), filename, 'r')
-        # openfile.read(mesh1, 'mesh', False)
-
         mesh = u.ufl_domain().ufl_cargo()
 
         #read the activation time map 
         V = FunctionSpace(mesh, 'Lagrange', 2)
-        parameters['allow_extrapolation'] = True
         td = Function(V)
 
         openfile = HDF5File(mpi_comm_world(), filename, 'r')
         openfile.read(td,'td/vector_0')
 
         #project the activation time map onto the mechanical mesh
-        # mesh = u.ufl_domain().ufl_cargo()
-        # V = FunctionSpace(mesh,'Lagrange',2)
-        parameters['allow_extrapolation'] = False
-
         self._tact = project(-1*td, V)
 
         #rename the function (this will give the function a name in Paraview)
@@ -767,12 +756,14 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         filename = os.path.join(dir_out, 'inputs.csv')
 
         if MPI.rank(mpi_comm_world()) == 0:
-            try:
-                with open(filename, 'a') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(['infarct area (%)', area ])
-            except:
-                pass
+            dict_area = {'infarct area (%)': area}
+            save_dict_to_csv(dict_area, filename, write = 'a')
+            # try:
+            #     with open(filename, 'a') as f:
+            #         writer = csv.writer(f)
+            #         writer.writerow(['infarct area (%)', area ])
+            # except:
+            #     pass
 
     @property
     def lc(self):
