@@ -1,11 +1,11 @@
 import sys
 #ubuntu
-#sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/cvbtk')
-#sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/postprocessing')
+sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/cvbtk')
+sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/postprocessing')
 
- #linux
-sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/cvbtk')
-sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/postprocessing')
+#  #linux
+# sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/cvbtk')
+# sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/postprocessing')
 
 
 from dataset import Dataset # shift_data, get_paths
@@ -120,7 +120,7 @@ class postprocess_hdf5(object):
         if inputs_csv is None:
             # Directory with results file is 1 folder down.
             inputs_dir = os.path.split(directory)[0]  
-            inputs_csv = os.path.join(results_dir, 'inputs.csv')        
+            inputs_csv = os.path.join(inputs_dir, 'inputs.csv')        
             
         self.inputs = read_dict_from_csv(inputs_csv)
         
@@ -389,25 +389,36 @@ class postprocess_hdf5(object):
             if slice_nr != 0:
                 for ii, key in enumerate(['epi', 'mid', 'endo']):
                     av_slice_torsion['torsion_av_' + key].append(np.mean(slice_torsion['torsion_' + key]))
-                    label = '{}, average: {:.2f}'.format(slice_nr, np.mean(slice_torsion['torsion_' + key]))
+                    label = '{}, av: {:.2f}'.format(slice_nr, np.mean(slice_torsion['torsion_' + key]))
                     torsion_plot[ii].plot(nrsegments, slice_torsion['torsion_' + key], color = col[slice_nr], label = label)
-                    torsion_plot[ii].legend(frameon=False, fontsize=fontsize)
+                    
                     torsion_plot[ii].set_title(key, fontsize = fontsize)
-                    torsion_plot[ii].set_xlabel('Segments', fontsize = fontsize)
+                    # torsion_plot[ii].set_xlabel('Segments', fontsize = fontsize)
 
                     av_slice_shear['shear_av_' + key].append(np.mean(slice_shear['shear_' + key]))
-                    label = '{}, average: {:.2f}'.format(slice_nr, np.mean(slice_shear['shear_' + key]))
+                    label = '{}, av: {:.2f}'.format(slice_nr, np.mean(slice_shear['shear_' + key]))
                     shear_plot[ii].plot(nrsegments, slice_shear['shear_' + key], color = col[slice_nr], label = label)
-                    shear_plot[ii].legend(frameon=False, fontsize=fontsize)
+                    
                     shear_plot[ii].set_title(key, fontsize = fontsize)
-                    shear_plot[ii].set_xlabel('Segments', fontsize = fontsize)
-                    if ii == 0:
-                        torsion_plot[ii].set_ylabel('Torsion [$^\circ$]', fontsize = fontsize)
-                        shear_plot[ii].set_ylabel('Shear [$^\circ$]', fontsize = fontsize)
+                    # shear_plot[ii].set_xlabel('Segments', fontsize = fontsize)
+                    # if ii == 0:
+                    # torsion_plot[ii].set_ylabel('Torsion [$^\circ$]', fontsize = fontsize)
+                    # shear_plot[ii].set_ylabel('Shear [$^\circ$]', fontsize = fontsize)
 
+                    torsion_plot[ii].legend(frameon=False, fontsize=fontsize, bbox_to_anchor=(-0.2, -0.45, -0.2, -0.45), loc='lower left')
+                    shear_plot[ii].legend(frameon=False, fontsize=fontsize, bbox_to_anchor=(-0.2, -0.45, -0.2, -0.45), loc='lower left')
+
+                    # else:
+                    #     torsion_plot[ii].annotate('{:.2f}'.format(np.mean(slice_shear['shear_' + key])), xy = (0.0, -0.1))
                 # for key in slice_shear.keys():        
         torsion_fig.suptitle(title,fontsize=fontsize+2)
         shear_fig.suptitle(title,fontsize=fontsize+2)
+
+        torsion_fig.text(0.5, 0.03, 'Segments', ha = 'center')
+        torsion_fig.text(0.04, 0.5, 'Torsion [$^\circ$]', va='center', rotation='vertical')
+
+        shear_fig.text(0.5, 0.03, 'Segments', ha = 'center')
+        shear_fig.text(0.04, 0.5, 'Shear [$^\circ$]', va='center', rotation='vertical')
 
         # ax_t['torsion_epi'].set_ylabel('Torsion epicardial [$^\circ$]', fontsize = fontsize)
         # ax_t['torsion_mid'].set_ylabel('Torsion epicardial [$^\circ$]', fontsize = fontsize)
@@ -636,7 +647,7 @@ class postprocess_hdf5(object):
                     
                     seg_ed.append([x,y])
                 
-                if slice_nr == 0 or slice_nr == 4:
+                if slice_nr == 0 or slice_nr == len(theta_vals)-2:
                     self._ax['xy2'].plot([i[0] for i in seg_ed], [i[1] for i in seg_ed], color=col[slice_nr])
                     self._ax['xy2'].plot([i[0] for i in seg_es], [i[1] for i in seg_es], '--', color=col[slice_nr])     
                     ed_es_plot.plot([i[0] for i in seg_ed], [i[1] for i in seg_ed], color=col[slice_nr])     
@@ -645,7 +656,7 @@ class postprocess_hdf5(object):
             self._ax['xy1'].scatter(x_segs, y_segs, color=col[slice_nr], label= 'slice ' + str(slice_nr))           
             self._ax['xz1'].scatter(x_segs, z_segs, color=col[slice_nr], label= 'slice ' + str(slice_nr))
             
-            if slice_nr == 0 or slice_nr == 4:
+            if slice_nr == 0 or slice_nr == len(theta_vals)-2:
                 self._ax['xy2'].scatter(x_segs_ed, y_segs_ed, color=col[slice_nr], label= 'ed slice ' + str(slice_nr)) 
                 self._ax['xy2'].scatter(x_segs_es, y_segs_es, marker='x', color=col[slice_nr], label= 'es slice ' + str(slice_nr)) 
                 ed_es_plot.scatter(x_segs_ed, y_segs_ed, color=col[slice_nr], label= 'ed slice ' + str(slice_nr)) 
@@ -770,10 +781,10 @@ class postprocess_hdf5(object):
 # print(active_stress(0.329953, -2.33535, -0.723438))
 # print(active_stress(0., 0., 0.))
 #
-directory_1 = '/home/maaike/Documents/Graduation_project/Results/eikonal_td_1_node/cycle_2_begin_ic_ref'
+# directory_1 = '/home/maaike/Documents/Graduation_project/Results/eikonal_td_1_node/cycle_2_begin_ic_ref'
 
-post_1 = postprocess_hdf5(directory_1)
-# post_1.loc_mech_ker()
-# post_1.show_ker_points()
-post_1.plot_torsion()
-post_1.show_slices()
+# post_1 = postprocess_hdf5(directory_1)
+# # post_1.loc_mech_ker()
+# # post_1.show_ker_points()
+# post_1.plot_torsion()
+# post_1.show_slices()
