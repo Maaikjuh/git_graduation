@@ -5,8 +5,8 @@ This module provides classes that construct common figures.
 import csv
 import warnings
 
-from dolfin import parameters, Function, project, det, dot, dx, sign, inv, Identity, sqrt, as_tensor, \
-    VectorFunctionSpace
+from dolfin import parameters, Constant, Function, project, det, dot, dx, sign, inv, Identity, sqrt, as_tensor, \
+    VectorFunctionSpace, Expression
 from dolfin.cpp.common import mpi_comm_world, MPI, mpi_comm_self
 from dolfin.cpp.io import XDMFFile, HDF5File
 
@@ -15,7 +15,7 @@ from cvbtk.models import FiberReorientation
 from cvbtk.basis_vectors import GeoFunc
 from cvbtk.dataset import Dataset
 from cvbtk.geometries import BiventricleGeometry, LeftVentricleGeometry
-from cvbtk.mechanics import deformation_gradient, ArtsKerckhoffsActiveStress
+from cvbtk.mechanics import deformation_gradient, ArtsKerckhoffsActiveStress, fiber_stretch_ratio
 from cvbtk.resources import reference_biventricle, reference_left_ventricle_pluijmert
 from cvbtk.routines import create_materials, check_heart_type_from_inputs, create_model, \
     load_model_state_from_hdf5
@@ -721,6 +721,12 @@ class Export(object):
         # Remove duplicates.
         self.variables = list(set(self.variables))
 
+        if 'work' in self.variables:
+            if 'fiber_stress' not in self.variables:
+                self.variables.append('fiber_stress')
+            if 'strain' not in self.variables:
+                self.variables.append('strain') 
+
         # Read inputs.
         if os.path.exists(os.path.join(self.directory, 'inputs.csv')):
             self.inputs = read_dict_from_csv(os.path.join(self.directory, 'inputs.csv'))
@@ -1266,13 +1272,16 @@ class Export(object):
                     'Err',
                     'Ecr',
                     'Ell',
-                    'curves_file'
+                    'strain',
+                    'curves_file',
+                    'work'
                      ]
         return variables
 
     def initialize_functions(self, V, Q):
         # Add new variables here.
         self.functions['active_stress'] = Function(Q, name='active_stress')
+        self.functions['u'] = Function(V, name='u')
         self.functions['ef'] = Function(V, name='fiber_vector')
         self.functions['Ecc'] = Function(Q, name='Ecc')
         self.functions['Ell'] = Function(Q, name='Ell')
@@ -1283,10 +1292,13 @@ class Export(object):
         self.functions['passive_fiber_stress'] = Function(Q, name='passive_fiber_stress')
         self.functions['J'] = Function(Q, name='J')
         self.functions['lc_old'] = Function(Q, name='lc_old')
+        self.functions['strain'] = Function(Q, name= 'strain')
         self.functions['sign_active_stress'] = Function(Q, name='sign_active_stress')
         self.functions['sign_ls_min_lc'] = Function(Q, name='sign_ls_min_lc')
         self.functions['sign_ls_old_min_lc_old'] = Function(Q, name='sign_ls_old_min_lc_old')
         self.functions['von_mises'] = Function(Q, name='von_mises')
+        self.functions['work_func'] = Function(Q, name='work_func')
+        self.functions['work'] = Function(Q, name='work')
 
     def load_reduced_dataset(self, time, cycle):
         # Read CSV results file if it exists.
@@ -1330,6 +1342,11 @@ class Export(object):
         V = self.model.u.ufl_function_space()
         Q = vector_space_to_scalar_space(V)
 
+        self._ls0 = None
+        self._strain_old = Function(Q)
+        # self.strain_old.assign(Constant(0.0))
+        self._stress_old = Function(Q)
+
         # Check if fiber reorientation is enabled.
         ncycles_pre = self.inputs['model']['fiber_reorientation']['ncycles_pre']
         ncycles_reorient = self.inputs['model']['fiber_reorientation']['ncycles_reorient']
@@ -1347,6 +1364,9 @@ class Export(object):
 
         # Create hdf5 files.
         self.open_hdf5_files()
+
+        filename = os.path.join(self.dir_out, 'ls0.xdmf')
+        self.xdmf_files['ls0'] = XDMFFile(filename)
 
         #save mesh to hdf5
         filename = os.path.join(self.dir_out, 'mesh.hdf5')
@@ -1391,6 +1411,12 @@ class Export(object):
 
             if 'curves_file' in self.variables:
                 self.update_curves()
+            
+            if idx > 7:
+                self.xdmf_files['work'].write(project(self.functions['work'] * 10**-6, Q))
+                self.xdmf_files['work'].close()
+            #     self.xdmf_files['strain'].close()
+            #     self.xdmf_files['ls0'].close()
 
             t_old = t*1
 
@@ -1404,6 +1430,8 @@ class Export(object):
 
         # Close the hdf5 file.
         self.results_hdf5.close()
+
+        self.xdmf_files['work'].write(project(self.functions['work']*10**-6, Q))
 
         # Close the XDMF files.
         self.close_xdmf_files()
@@ -1533,7 +1561,10 @@ class Export(object):
 
         # Save the average fiber stress for this timestep.
         avg_stress = global_function_average(fiber_stress)
+        self.stress = fiber_stress
         self.avg_fiber_stress[t] = avg_stress
+
+        # return fiber_stress
 
     def save_J(self, **kwargs):
         t = kwargs['t']
@@ -1564,6 +1595,113 @@ class Export(object):
             # Save the average fiber strain for this timestep.
             avg_ls = global_function_average(self.model.active_stress.ls_old)
             self.avg_fiber_strain[t_old] = avg_ls/self.model.active_stress.parameters['ls0']
+
+    def ls0(self, **kwargs):
+        t_old = kwargs['t_old']
+        Q = kwargs['Q']
+
+        # check if ls0 has already been created
+        if self._ls0 == None:
+            if not self.strain_reference == 'stress_free':
+                if self.strain_reference == 'begin_ic':
+                    # for the begin_ic reference state,
+                    # ls0 is the length of the fibers at begin_ic
+
+                    data = self.data
+                    # Read in the displacements at begin isovolumic contraction (phase 2) to use for a reference.
+                    if 'vlv' in data.keys():
+                        phase_key = 'phase'
+                    elif 'vcav_s' in data.keys():
+                        phase_key = 'phase_s'
+                    else:
+                        raise ValueError('Cannot find LV phase in results.csv file.')
+                    vector_number_ref = min(data[data[phase_key] == 2]['vector_number'])
+
+                    # read the displacement vector at begin_ic
+                    u_func = self.functions['u']
+                    u_vector = 'displacement/vector_{}'.format(vector_number_ref)
+                    self.results_hdf5.read(u_func, u_vector)
+
+                    # read the fiber vectors
+                    # Note: assumes fiber vectors do not change (no fiber reorientation)
+                    # takes the fiber vectors at model state
+                    ef = self.model.geometry.fiber_vectors()[0].to_function(None)
+
+                    # calculate ls at begin_ic -> ls0
+                    ls0 = self.inputs['active_stress']['ls0'] * fiber_stretch_ratio(u_func, ef)
+                    self._ls0 = project(ls0, Q)
+                else:
+                    raise ValueError('Invalid reference state for strains specified.')
+            else:
+                # for the stress_free reference state, 
+                # ls0 is equal to the input variable for ls0 in the model
+                self._ls0 = self.inputs['active_stress']['ls0']
+
+        return self._ls0
+
+    def save_myofiber_strain(self, **kwargs):
+        t_old = kwargs['t_old']
+        Q = kwargs['Q']
+        if t_old >= 0:
+            ls0 = self.ls0(**kwargs)
+
+            strain_exp = Expression('log(ls/ls0)', 
+                ls = self.model.active_stress.ls_old, ls0 =ls0, 
+                element = Q.ufl_element())
+
+            strain = self.functions['strain']
+            project(strain_exp, Q, function=strain)      
+
+            self.xdmf_files['strain'].write(strain, t_old)
+            self.hdf5_files['strain'].write(strain, 'myofiber_strain', t_old)    
+
+            self.strain = strain
+
+
+    @property
+    def strain_old(self):
+        """
+        Return the previous strain.
+        """
+        return self._strain_old
+
+    @strain_old.setter
+    def strain_old(self, strain):
+        try:
+            self.strain_old.vector()[:] = strain
+            self.strain_old.vector().apply('')
+        except IndexError:
+            self.strain_old.assign(strain)
+
+    @property
+    def stress_old(self):
+        """
+        Return the previous stress.
+        """
+        return self._stress_old
+
+    @stress_old.setter
+    def stress_old(self, stress):
+        try:
+            self.stress_old.vector()[:] = stress
+            self.stress_old.vector().apply('')
+        except IndexError:
+            self.stress_old.assign(stress)
+
+    def save_work(self, **kwargs):
+        Q = kwargs['Q']
+        t_old = kwargs['t_old']
+        if t_old >= 0:
+            # if self.strain_old != None and self.stress_old != None:
+            work_exp = Expression('(stressn1 + stressn)/2 * (strainn1 - strainn)', 
+                stressn1 = self.stress, stressn = self.stress_old, 
+                strainn1 = self.strain, strainn = self.strain_old, element = Q.ufl_element())
+
+            work_func = project(work_exp, Q)
+            self.functions['work'] += work_func 
+
+            self.strain_old = self.strain
+            self.stress_old = self.stress
 
     def save_passive_fiber_stress(self, **kwargs):
         t = kwargs['t']
@@ -1652,6 +1790,9 @@ class Export(object):
         if 'ls' in vari:
             self.save_ls(**kwargs)
 
+        if 'strain' in vari:
+            self.save_myofiber_strain(**kwargs)
+
         if 'passive_fiber_stress' in vari:
             self.save_passive_fiber_stress(**kwargs)
 
@@ -1669,6 +1810,9 @@ class Export(object):
 
         if 'u' in vari:
             self.save_u(**kwargs)
+        
+        if 'work' in vari:
+            self.save_work(**kwargs)
 
     def save_von_mises(self, **kwargs):
         t = kwargs['t']
