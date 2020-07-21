@@ -41,12 +41,14 @@ csv_ref =  r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftven
 
 csv_ref =  r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/07-05_09-26_fiber_reorientation_meshres_20/results.csv'
 
-csv_infarct = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/19-06_14-19_ta0_map_test/results.csv'
-csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\22-06_17-33_eikonal_8node\results.csv'
-# csv_infarct = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/23-06_13-08_eikonal_td_1node/results.csv'
-csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\01-07_15-48_eikonal_more_roots_mesh_20\results.csv'
+csv_var = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/19-06_14-19_ta0_map_test/results.csv'
+csv_var = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\22-06_17-33_eikonal_8node\results.csv'
+# csv_var = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/23-06_13-08_eikonal_td_1node/results.csv'
+csv_var = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\01-07_15-48_eikonal_more_roots_mesh_20\results.csv'
 
-csv_infarct = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/Eikonal/01-07_15-48_eikonal_more_roots_mesh_20/results.csv'
+csv_var = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/Eikonal/01-07_15-48_eikonal_more_roots_mesh_20/results.csv'
+csv_var = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/Eikonal/16-07_10-23_bue_root_kot_sig_higher_20/results.csv'
+
 
 COMPARE = True
 
@@ -68,29 +70,29 @@ if COMPARE == False:
 if CYCLE == 'last':
     # Load results
     [results_ref, cycle_ref] = load_reduced_dataset(csv_ref)
-    [results_infarct, cycle_inf] = load_reduced_dataset(csv_infarct)
+    [results_var, cycle_var] = load_reduced_dataset(csv_var)
 elif CYCLE == 'all':
     results_cycs = Dataset(filename=csv_ref)
-    results_cycs_2 = Dataset(filename=csv_infarct)   
+    results_cycs_2 = Dataset(filename=csv_var)   
 else:
     [results_ref, cycle_ref] = load_reduced_dataset(csv_ref, cycle = CYCLE)
-    [results_infarct, cycle_inf] = load_reduced_dataset(csv_infarct, cycle = CYCLE) 
+    [results_var, cycle_var] = load_reduced_dataset(csv_var, cycle = CYCLE) 
 
 
 if COMPARE == True:
-    if cycle_ref != cycle_inf:
-        print('infarct and normal data not of same length, continuing with cycle {}'.format(min(cycle_ref,cycle_inf)))
-        [results_normal, cycle_ref] = load_reduced_dataset(csv_ref, min(cycle_ref,cycle_inf) )
-        [results_infarct, cycle_inf] = load_reduced_dataset(csv_infarct, min(cycle_ref,cycle_inf))
-    hemo_sum = procentual_change_hemodynamics(results_ref,results_infarct)
-    plot_compare_results(results_ref,results_infarct, dir_out=os.path.dirname(csv_infarct), cycle=None, label1= label1,label2=label2, title= title)
+    if cycle_ref != cycle_var:
+        print('infarct and normal data not of same length, continuing with cycle {}'.format(min(cycle_ref,cycle_var)))
+        [results_normal, cycle_ref] = load_reduced_dataset(csv_ref, min(cycle_ref,cycle_var) )
+        [results_var, cycle_var] = load_reduced_dataset(csv_infarct, min(cycle_ref,cycle_var))
+    hemo_sum = procentual_change_hemodynamics(results_ref,results_var)
+    plot_compare_results(results_ref,results_var, dir_out=os.path.dirname(csv_var), cycle=None, label1= label1,label2=label2, title= title)
 else:
     if CYCLE == 'last':
         # Data from the selected cycle
         if ANALYZE == 'infarct':
-            data_cycle = results_infarct
-            pathname = csv_infarct
-            cycle = cycle_inf
+            data_cycle = results_var
+            pathname = csv_var
+            cycle = cycle_var
         else:
             data_cycle = results_ref
             pathname = csv_ref
