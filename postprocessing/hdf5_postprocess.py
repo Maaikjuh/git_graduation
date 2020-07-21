@@ -127,6 +127,8 @@ class postprocess_hdf5(object):
         if self.inputs['active_stress']['eikonal'] is not None:
             self.eikonal_dir = self.inputs['active_stress']['eikonal']['td_dir']
 
+        self.parameters['ls0'] = self.inputs['active_stress']['ls0']
+
         self.mesh = self.load_mesh()
         self.vector_V = VectorFunctionSpace(self.mesh, "Lagrange", 2)
         self.function_V = FunctionSpace(self.mesh, "Lagrange", 2)
@@ -134,8 +136,6 @@ class postprocess_hdf5(object):
         self._parameters = self.default_parameters()
         self._parameters.update(kwargs)
         
-        self.parameters['ls0'] = self.inputs['active_stress']['ls0']
-
         if 'inner_eccentricity' or 'outer_eccentricity' in kwargs:
             e_outer = self.parameters['outer_eccentricity']
             e_inner = self.parameters['inner_eccentricity']
@@ -209,21 +209,6 @@ class postprocess_hdf5(object):
         # plt.figure(fig.number)
         if shear_fig is None:    
             shear_fig, shear_plot = plt.subplots(1,3, sharex = True, sharey = True)
-        # fig.set_size_inches(20, 13)
-        
-#        manager = plt.get_current_fig_manager()
-#        manager.window.showMaximized()
-
-        # _t_epi  = fig_torsion.add_subplot(1, 3, 1)
-        # _t_mid = fig_torsion.add_subplot(1, 3, 2)
-        # _t_endo = fig_torsion.add_subplot(1, 3, 3)
-
-        # _s_epi  = fig_shear.add_subplot(1, 3, 1)
-        # _s_mid = fig_shear.add_subplot(1, 3, 2)
-        # _s_endo = fig_shear.add_subplot(1, 3, 3)
-        
-        # ax_t = {'torsion_epi':_t_epi, 'torsion_mid':_t_mid, 'torsion_endo':_t_endo}
-        # ax_s = {'shear_epi':_s_epi, 'shear_mid':_s_mid, 'shear_endo':_s_endo}
         
         col = [ 'C7','C5', 'C0', 'C1','C2','C3', 'C4','C8']
 
@@ -279,8 +264,7 @@ class postprocess_hdf5(object):
         wall = ['epi', 'mid','endo']
 
         nrsegments = range(1, nr_segments+1)
-        
-#        parameters['allow_extrapolation'] = True
+
         self.u_es.set_allow_extrapolation(True)
         self.u_ed.set_allow_extrapolation(True)
 
@@ -291,6 +275,7 @@ class postprocess_hdf5(object):
         av_slice_shear = {'shear_av_epi': [],
                         'shear_av_mid': [],
                         'shear_av_endo': []}
+
         for slice_nr, theta in enumerate(theta_vals): 
             slice_torsion = {'torsion_epi': [],
                         'torsion_mid': [],
@@ -312,7 +297,6 @@ class postprocess_hdf5(object):
                 y_mid = (y_epi + y_endo)/2
                 z_mid = (z_epi + z_endo)/2
                 
-#                parameters['allow_extrapolation'] = True
                 for ii, points in enumerate([[x_epi, y_epi, z_epi], [x_mid, y_mid, z_mid], [x_endo, y_endo, z_endo]]):
                     x_ed, y_ed, z_ed = (epi + u_val for epi, u_val in zip((x_epi, y_epi, z_epi), self.u_ed(points)))
                     x_es, y_es, z_es = (epi + u_val for epi, u_val in zip((x_epi, y_epi, z_epi), self.u_es(points)))
@@ -339,52 +323,6 @@ class postprocess_hdf5(object):
                         shear = math.atan(2*r*math.sin(torsion/2)/height)
                         slice_torsion['torsion_'+ wall[ii]].append(torsion)
                         slice_shear['shear_'+ wall[ii]].append(shear)
-                        
-#                x_es_epi, y_es_epi, z_es_epi = (epi + u_val for epi, u_val in zip((x_epi, y_epi, z_epi), self.u_es(x_epi, y_epi, z_epi)))
-#                x_es_endo, y_es_endo, z_es_endo = (epi + u_val for epi, u_val in zip((x_endo, y_endo, z_endo), self.u_es(x_endo, y_endo, z_endo)))
-#                
-#                x_ed_epi, y_ed_epi, z_ed_epi = (epi + u_val for epi, u_val in zip((x_epi, y_epi, z_epi), self.u_ed(x_epi, y_epi, z_epi)))
-#                x_ed_endo, y_ed_endo, z_ed_endo = (epi + u_val for epi, u_val in zip((x_endo, y_endo, z_endo), self.u_ed(x_endo, y_endo, z_endo)))
-#                
-#                point_es = [x_es_epi, y_es_epi]
-#                point_ed = [x_ed_epi, y_ed_epi]
-#                
-#                length1 =  math.sqrt(np.dot(point_ed,point_ed))
-#                length2 =  math.sqrt(np.dot(point_es,point_es))
-#                cos_angle = np.dot(point_ed, point_es) / (length1 * length2)
-#                rad_angle = np.arccos(cos_angle)
-#                rot = radians_to_degrees(rad_angle)
-                
-                # x,y,z = u(x_epi, y_epi, z_epi)
-                # [x_epi, y_epi, z_epi] += u(x_epi, y_epi, z_epi)
-                # x_endo, y_endo, z_endo += u(x_endo, y_endo, z_endo)
-
-#                if slice_nr == 0:
-##                    base['base_epi'].append([x_epi, y_epi, z_epi])
-##                    base['base_endo'].append([x_endo, y_endo, z_endo])
-#                    base['base'].append([rot, z_ed_epi])
-#                else:
-##                    point = {'point_epi': ([x_epi, y_epi, z_epi]),
-##                            'point_endo': ([x_endo, y_endo, z_endo])}
-#                    
-#
-#                    for wall in ['epi', 'endo']:
-#                        base_seg = base['base_' + wall][seg][0:2]
-#                        wall_point = point['point_'+ wall][0:2]
-#                        
-#                        length1 =  math.sqrt(np.dot(base_seg,base_seg))
-#                        length2 =  math.sqrt(np.dot(wall_point,wall_point))
-#                        cos_angle = np.dot(base_seg, wall_point) / (length1 * length2)
-#                        rad_angle = np.arccos(cos_angle)
-#                        torsion = radians_to_degrees(rad_angle)
-#
-#                        r = math.sqrt(wall_point[0]**2 + wall_point[1]**2)
-#                        height = base['base_' + wall][seg][2] - point['point_'+ wall][2]
-#                        
-#                        shear = math.atan(2*r*math.sin(torsion/2)/height)
-#
-#                        slice_shear['torsion_'+ wall].append(torsion)
-#                        slice_shear['shear_'+ wall].append(shear)
                         
             if slice_nr != 0:
                 for ii, key in enumerate(['epi', 'mid', 'endo']):
