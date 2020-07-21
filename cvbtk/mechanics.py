@@ -264,7 +264,7 @@ class ActiveStressModel(ConstitutiveModel):
         
         self.td_save += self.dt #(value)
     
-        self.file.write(self._tact, float(self.td_save))
+        self.file.write(self._tact, (self.td_save))
 
         # print_once('min t_act:',min(self._tact.vector().array()))
         print_once('max t_act:',min(self._tact.vector().array()))
@@ -300,10 +300,11 @@ class ActiveStressModel(ConstitutiveModel):
         #FIXME not sure of the dummy is necessary
         self._tact_dummy = self._tact
         
-        #save the projection to xdmf to check if the projection has been succesful
-        dir_out = self.parameters['eikonal']['save_td_mesh']
-        file_mesh = XDMFFile(os.path.join(dir_out, 'eikonal.xdmf'))
-        file_mesh.write(self._tact)
+        if not os.path.isfile('eikonal.xdmf'):
+            #save the projection to xdmf to check if the projection has been succesful
+            dir_out = self.parameters['eikonal']['save_td_mesh']
+            file_mesh = XDMFFile(os.path.join(dir_out, 'eikonal.xdmf'))
+            file_mesh.write(self._tact)
 
     @property
     def dt(self):
