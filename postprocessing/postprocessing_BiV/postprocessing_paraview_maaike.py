@@ -494,25 +494,25 @@ class postprocess_paraview_new(object):
         
         reduced = full[full['cycle'] == cycle].copy(deep=True)
         return reduced    
-    
-    def plot_torsion(self, fig = None, fontsize=12,nr_segments = 8, theta_vals = None,title=''):
+       
+    def plot_torsion(self, fig = None, fontsize=12,nr_segments = 8, theta_vals = None,title='Torsion'):
         self.show_slices_segment_idx()
         
-        if fig is None:    
-            fig = plt.figure()
-        plt.figure(fig.number)
+        # if fig is None:    
+        #     fig = plt.figure()
+        # plt.figure(fig.number)
         
         col = ['C0', 'C1','C2','C3', 'C4','C8']
         
-        ax1 = fig.add_subplot(2, 2, 1)
-        ax2 = fig.add_subplot(2, 2, 2)
-        ax3 = fig.add_subplot(2,2,3)
-        ax4 = fig.add_subplot(2,2,4)
-        
+        torsion_fig, torsion_plot = plt.subplots(1,3, sharex = True, sharey = True)
+
         h = self.column_headers
         results = self.results
-  
-        index_es = (results['phase'] ==4).idxmax() - results.index[0] - 1
+        
+        begin_phase = results['phase'][results.index[0]]
+        
+        index_ed = (results['phase'] == begin_phase+1).idxmax() - results.index[0] - 1
+        index_es = (results['phase'] == begin_phase+3).idxmax() - results.index[0] - 1
         
         slices_idx = self.extract_torsion_idx(nr_segments) 
         nrsegments = range(1, nr_segments+1)
@@ -523,6 +523,7 @@ class postprocess_paraview_new(object):
             tor_slice = slices_idx[ii]
             
             slice_epi= []
+            slice_mid = []
             slice_endo = []
             shear_epi= []
             shear_endo = []
@@ -534,18 +535,40 @@ class postprocess_paraview_new(object):
                 # epi_base = seg_base[0]
                 # endo_base = seg_base[2]
                 
-                for i in [0, 2]:
+                for i in [0, 1, 2]:
                     seg_point = seg_slice[i]
                     base_point = seg_base[i]
                     
                     x = self.all_data[[base_point, seg_point], h[':0'], 0]
-                    x = x + self.all_data[[base_point, seg_point], h['displacement:0'], index_es]
+                    x_es = x + self.all_data[[base_point, seg_point], h['displacement:0'], index_es]
+                    x_ed = x + self.all_data[[base_point, seg_point], h['displacement:0'], index_ed]
                 
                     y = self.all_data[[base_point, seg_point], h[':1'], 0]
-                    y = y + self.all_data[[base_point, seg_point], h['displacement:1'], index_es]
+                    y_es = y + self.all_data[[base_point, seg_point], h['displacement:1'], index_es]
+                    y_ed = y + self.all_data[[base_point, seg_point], h['displacement:1'], index_ed]
                     
-                    base = ([x[0],y[0]])
-                    point = ([x[1],y[1]])
+                    base_es = ([x_es[0],y_es[0]])
+                    base_ed = ([x_ed[0],y_ed[0]])
+                    
+                    # base_rot = np.dot(base_ed, base_es) / (np.linalg.norm(base_ed) * np.linalg.norm(base_es))
+                    # base_rot = radians_to_degrees(np.arccos(base_rot))
+                    
+                    length1 =  math.sqrt(np.dot(base_ed,base_ed))
+                    length2 =  math.sqrt(np.dot(base_es,base_es))
+                    cos_angle = np.dot(base_ed, base_es) / (length1 * length2)
+                    rad_angle = np.arccos(cos_angle)
+                    base_rot = radians_to_degrees(rad_angle)
+                    
+                    point_es = ([x_es[1],y_es[1]])
+                    point_ed = ([x_ed[1],y_ed[1]])
+                    
+                    length1 =  math.sqrt(np.dot(point_ed,point_ed))
+                    length2 =  math.sqrt(np.dot(point_es,point_es))
+                    cos_angle = np.dot(point_ed, point_es) / (length1 * length2)
+                    rad_angle = np.arccos(cos_angle)
+                    point_rot = radians_to_degrees(rad_angle)
+                    
+                    torsion = point_rot - base_rot
                     
                     # vector1 = base/np.linalg.norm(base)
                     # vector2 = point/np.linalg.norm(point)
@@ -553,41 +576,50 @@ class postprocess_paraview_new(object):
                     # dot_product = np.dot(vector1,vector2)
                     # ang_point = radians_to_degrees(np.arccos(dot_product))
                     
-                    ang_point = np.dot(base, point) / (np.linalg.norm(base) * np.linalg.norm(point))
-                    ang_point = np.arccos(ang_point)
+                    # ang_point = np.dot(base, point) / (np.linalg.norm(base) * np.linalg.norm(point))
+                    # ang_point = np.arccos(ang_point)
                     # # ang_point = math.degrees(math.atan2(point[1], point[0]) - math.atan2(base[1], base[0]))
                     # ang_point = inner_angle(base,point)
                     
-                    r = math.sqrt(point[0]**2 + point[1]**2)
-                    height = 1 #self.all_data[base_point, h[':2'], 0] - self.all_data[seg_point, h[':2'], 0] 
-                    shear = math.atan(2*r*math.sin(ang_point/2)/height)
+                    # r = math.sqrt(point[0]**2 + point[1]**2)
+                    # height = 1 #self.all_data[base_point, h[':2'], 0] - self.all_data[seg_point, h[':2'], 0] 
+                    # shear = math.atan(2*r*math.sin(ang_point/2)/height)
                     if i == 0:
-                        slice_epi.append(ang_point)
-                        shear_epi.append(shear)
+                        slice_epi.append(torsion)
+                        # shear_epi.append(shear)
+                    elif i == 1:
+                        slice_mid.append(torsion)
                     elif i == 2:
-                        slice_endo.append(ang_point)
-                        shear_endo.append(shear)
+                        slice_endo.append(torsion)
+                        # shear_endo.append(shear)
                     
             label_epi = '{}, average: {:.2f}'.format(ii, np.mean(slice_epi))
+            label_mid = '{}, average: {:.2f}'.format(ii, np.mean(slice_mid))
             label_endo = '{}, average: {:.2f}'.format(ii, np.mean(slice_endo))
-            label_shear_epi = '{}, average: {:.2f}'.format(ii, np.mean(shear_epi))
-            label_shear_endo = '{}, average: {:.2f}'.format(ii, np.mean(shear_epi))
-            ax1.plot(nrsegments, slice_epi, color = col[ii-1], label = label_epi)
-            ax2.plot(nrsegments, slice_endo, color = col[ii-1], label = label_endo)
-            ax3.plot(nrsegments, shear_epi, color = col[ii-1], label = label_shear_epi)
-            ax4.plot(nrsegments, shear_endo, color = col[ii-1], label = label_shear_endo)
+            # label_shear_epi = '{}, average: {:.2f}'.format(ii, np.mean(shear_epi))
+            # label_shear_endo = '{}, average: {:.2f}'.format(ii, np.mean(shear_epi))
+            torsion_plot[0].plot(nrsegments, slice_epi, color = col[ii-1], label = label_epi)
+            torsion_plot[1].plot(nrsegments, slice_mid, color = col[ii-1], label = label_mid)
+            torsion_plot[2].plot(nrsegments, slice_endo, color = col[ii-1], label = label_endo)
+            # ax3.plot(nrsegments, shear_epi, color = col[ii-1], label = label_shear_epi)
+            # ax4.plot(nrsegments, shear_endo, color = col[ii-1], label = label_shear_endo)
         
-        fig.suptitle(title,fontsize=fontsize+2)
-        ax1.legend(frameon=False, fontsize=fontsize)
-        ax2.legend(frameon=False, fontsize=fontsize)
-        ax3.legend(frameon=False, fontsize=fontsize)
-        ax4.legend(frameon=False, fontsize=fontsize)
-        ax1.set_ylabel('Torsion epicardial [$^\circ$]', fontsize = fontsize)
-        ax2.set_ylabel('Torsion endocardial [$^\circ$]', fontsize = fontsize)
-        ax3.set_ylabel('Shear epicardial [$^\circ$]', fontsize = fontsize)
-        ax4.set_ylabel('Shear endocardial [$^\circ$]', fontsize = fontsize)
-        ax3.set_xlabel('Segments', fontsize = fontsize)
-        ax4.set_xlabel('Segments', fontsize = fontsize)
+        torsion_fig.suptitle(title,fontsize=fontsize+2)
+        torsion_fig.subplots_adjust(bottom=0.2)
+        # torsion_fig.tight_layout()
+        torsion_plot[0].legend(frameon=False, fontsize=fontsize, bbox_to_anchor=(0.5,-0.2), loc='center')
+        torsion_plot[1].legend(frameon=False, fontsize=fontsize, bbox_to_anchor=(0.5,-0.2), loc='center')
+        torsion_plot[2].legend(frameon=False, fontsize=fontsize, bbox_to_anchor=(0.5,-0.2), loc='center')
+        # ax3.legend(frameon=False, fontsize=fontsize)
+        # ax4.legend(frameon=False, fontsize=fontsize)
+        torsion_plot[0].set_title('epicardial', fontsize = fontsize)
+        torsion_plot[1].set_title('midwall', fontsize = fontsize)
+        torsion_plot[2].set_title('endocardial', fontsize = fontsize)
+        torsion_plot[0].set_ylabel('torsion [$^\circ$]', fontsize = fontsize)
+        # ax3.set_ylabel('Shear epicardial [$^\circ$]', fontsize = fontsize)
+        # ax4.set_ylabel('Shear endocardial [$^\circ$]', fontsize = fontsize)
+        torsion_plot[1].set_xlabel('Segments', fontsize = fontsize)
+
                     
     def plot_rotation(self, fig = None, fontsize=12, title = ''):
         h = self.column_headers
@@ -631,14 +663,16 @@ class postprocess_paraview_new(object):
                 ang_point = np.arccos(ang_point)
                 # ang_point = inner_angle(p_ed[:,i],p_es[:,i])
                 ang_points_seg.append(ang_point)
+     
+                    
                 
             ang_tot_seg = np.mean(ang_points_seg)
             angles.append(radians_to_degrees(ang_tot_seg))
             
-            ls0 = self.all_data[idx_segment, h['ls_old'], index_ed]
-            ls = self.all_data[idx_segment, h['ls_old'], index_es]
-            strain = np.log( ls/ls0 )
-            strains.append(np.mean(strain))
+            # ls0 = self.all_data[idx_segment, h['ls_old'], index_ed]
+            # ls = self.all_data[idx_segment, h['ls_old'], index_es]
+            # strain = np.log( ls/ls0 )
+            # strains.append(np.mean(strain))
             nrsegments.append(ii+1)
             
         if fig is None:    
@@ -650,7 +684,7 @@ class postprocess_paraview_new(object):
         ax1.plot(nrsegments, angles)
         ax1.set_ylabel('Rotation [$^\circ$]', fontsize = fontsize)
         ax2 = fig.add_subplot(2, 1, 2)
-        ax2.plot(nrsegments, strains)
+        # ax2.plot(nrsegments, strains)
         ax2.set_ylabel('strain', fontsize = fontsize)
         ax2.set_xlabel('Segments', fontsize = fontsize)
         
@@ -659,8 +693,141 @@ class postprocess_paraview_new(object):
         #     ax1a.set_ylabel('T0')
         #     ax1a.plot(nrsegments, T0)
         
-        ax1.axis(ymin=0.,ymax=7.)
-        ax2.axis(ymin=-0.2,ymax=0.2)
+        # ax1.axis(ymin=0.,ymax=7.)
+        # ax2.axis(ymin=-0.2,ymax=0.2)
+        
+    def plot_rot_time(self, theta = None, fontsize = 12, title = 'Rotation'):
+        h = self.column_headers
+        results = self.results       
+        
+        focus = self.parameters['focus']
+        eps_inner = self.parameters['inner_sigma']
+        eps_outer = self.parameters['outer_sigma']
+        eps_mid = (eps_outer + eps_inner)/2
+        
+        fig = plt.figure()
+        
+        gs = GridSpec(1,2)
+        _rot = plt.subplot(gs[:,0])
+        _z = plt.subplot(gs[:,1])
+        
+        for slice_nr, theta in enumerate([1.1, 6/10*math.pi, 7/10*math.pi, 8/10*math.pi]):
+            segment = self.extract_segment_idx( nr_segments = 1, theta= theta)
+            
+            x_epi, y_epi, z_epi = ellips_to_cartesian(focus ,eps_outer ,theta,0.)
+            
+            tau = z_epi/(focus * math.cosh(eps_mid))
+            theta_mid = math.acos(tau)
+            x_mid, y_mid, z_mid = ellips_to_cartesian(focus ,eps_mid ,theta_mid,0.)
+            
+            tau = z_epi/(focus * math.cosh(eps_inner))
+            theta_inner = math.acos(tau)
+            x_endo, y_endo, z_endo = ellips_to_cartesian(focus ,eps_inner ,theta_inner,0.)
+            
+            x_pos = [x_epi, x_mid, x_endo]
+            y_pos = [y_epi, y_mid, y_endo]
+            z_pos = [z_epi, z_mid, z_endo]
+            
+            # x_pos = self.all_data[segment, h[':0'], 0]
+            # y_pos = self.all_data[segment, h[':1'], 0]
+            # z_pos = self.all_data[segment, h[':2'], 0]
+            
+            begin_phase = results['phase'][results.index[0]]
+            
+            index_ed = (results['phase'] == begin_phase + 1).idxmax() - results.index[0] -1
+            x_ed  = x_pos + self.all_data[segment, h['displacement:0'], index_ed]
+            y_ed  = y_pos + self.all_data[segment, h['displacement:1'], index_ed]
+            z_ed  = z_pos + self.all_data[segment, h['displacement:2'], index_ed]
+            
+    
+            
+            rot_dict = {'epi': [],
+                        'mid': [],
+                        'endo': [],
+                        'z_mid': []}
+            
+            time = []
+            
+            for t_idx in range(results.index[0], results.index[-1] ):
+                time.append(results['time'][t_idx])
+                for ii, wall in enumerate(['epi','mid', 'endo']):
+                    x  = x_pos[ii] + self.all_data[segment[0][ii], h['displacement:0'], t_idx - results.index[0]]
+                    y  = y_pos[ii] + self.all_data[segment[0][ii], h['displacement:1'], t_idx - results.index[0]]
+                    z  = z_pos[ii] + self.all_data[segment[0][ii], h['displacement:2'], t_idx - results.index[0]]
+                    
+                    point_ed = [x_ed[0][ii], y_ed[0][ii]]
+                    length_ed =  math.sqrt(np.dot(point_ed,point_ed))
+                    
+                    point = [x,y]
+                    length = math.sqrt(np.dot(point,point))
+                    cos_angle = np.dot(point_ed, point) / (length_ed * length)
+                    rad_angle = np.arccos(cos_angle)
+                    rot1 = radians_to_degrees(rad_angle)  
+                    
+                    signed_angle = math.atan2(y,x) - math.atan2(y_ed[0][ii],x_ed[0][ii])
+                    
+                    if signed_angle < -6.:
+                        signed_angle = 1
+                    # if y > y_ed[0][ii]:
+                    #     signed_angle = -1
+                    
+                    rot = math.copysign(rot1, signed_angle)
+                    
+                    rot_dict[wall].append(rot)
+                    # if ii == 2:
+                    #     print(results['time'][t_idx],signed_angle, rot1, rot)
+                    
+                    if wall == 'mid':
+                        rot_dict['z_mid'].append( z - z_ed[0][ii])
+            
+            # _rot.plot(time, rot_dict['epi'], label = 'epi slice {}'.format(slice_nr))
+            # _rot.plot(time, rot_dict['mid'], label = 'mid')   
+            _rot.plot(time, rot_dict['endo'], label = 'endo slice {}'.format(slice_nr))
+            _z.plot(time, rot_dict['z_mid'], label = 'slice {}'.format(slice_nr)) 
+        
+        min_rot = np.floor(min([min(rot_dict['epi']), min(rot_dict['mid']), min(rot_dict['endo'])]))
+        max_rot = np.ceil(max([max(rot_dict['epi']), max(rot_dict['mid']), max(rot_dict['endo'])]))
+        
+        min_z = np.floor(min(rot_dict['z_mid']))
+        max_z = np.ceil(max(rot_dict['z_mid']))
+        
+        # _epi.axis([time[0], time[-1],min_rot, max_rot])
+        # _mid.axis([time[0], time[-1], min_rot, max_rot])
+        # _endo.axis([time[0], time[-1], min_rot, max_rot])
+        # _z.axis([time[0], time[-1], min_z, max_z])
+            
+        # Mark the beginning of each phase
+        phaselabel = ['d','ic','e','ir']
+        
+        min_max = [[min_rot, max_rot], [min_z, max_z]]
+        for ii, plot_idx in enumerate([_rot, _z]):
+            for i in range(begin_phase , begin_phase + 4):
+                index = (results['phase'] == i).idxmax()
+                if i != begin_phase:
+                    index -= 1
+                phase_time = results['time'][index]
+                plot_idx.plot([phase_time, phase_time], min_max[ii],'C7')
+                
+              
+                    #plot phase labels
+                if i != begin_phase + 3:
+                    #get the begin time of the next phase
+                    next_index = (results['phase'] == i+1).idxmax() -1
+                    next_phase = results['time'][next_index]
+                    #plot label between the two phases
+                    plot_idx.text((phase_time+next_phase)/2, min_max[ii][1] - min_max[ii][1]/6, phaselabel[i- begin_phase],fontsize=13,horizontalalignment='center')
+                elif i == begin_phase + 3:
+                    #plot the label of the last phase
+                    plot_idx.text((phase_time+max(time))/2, min_max[ii][1] - min_max[ii][1]/6, phaselabel[i- begin_phase],fontsize=13,horizontalalignment='center')
+        
+        fig.suptitle(title, fontsize = fontsize +2)
+        _rot.set_title('rotation (ref ed)')
+        _rot.set_xlabel('time [ms]')
+        _rot.set_ylabel('rotation [$^\circ$]', fontsize = fontsize)
+        _z.legend(frameon=False, fontsize=fontsize, loc='center left', bbox_to_anchor=(1, 0.5)) 
+        _z.set_title('change in height mid point (ref ed)')
+        _z.set_xlabel('time [ms]')
+        _z.set_ylabel('z - z_ed [cm]')
    
     def plot_wall_thickness(self, fig = None, fontsize=12, nrsegments=None):
         if fig is None:
@@ -1309,22 +1476,25 @@ class postprocess_paraview_new(object):
         if fig is None:
             # Create new figure.
             fig = plt.figure()
-        index_es = (results['phase'] ==4).idxmax() - results.index[0]
+            
+        begin_phase = results['phase'][results.index[0]]
+        
+        index_ed = (results['phase'] == begin_phase + 1).idxmax() - results.index[0]
+        index_es = (results['phase'] == begin_phase + 3).idxmax() - results.index[0]
         # Make fig current.
         plt.figure(fig.number)
         col = [ 'C7','C5', 'C0', 'C1','C2','C3', 'C4','C8']
         
-        region0 = np.where((self.all_data[:, h[':1'], 0]) >= -4.)
+        region0 = np.where((self.all_data[:, h[':1'], 0]))
 
         gs = GridSpec(2,2)
         _xy1 = plt.subplot(gs[0,0])
         _xz1 = plt.subplot(gs[0,1])
-        _xy2 = plt.subplot(gs[1,0])
-        _xy3 = plt.subplot(gs[1,1])   
+        _xy2 = plt.subplot(gs[1,:])   
         
-        self._ax = {'xy1': _xy1, 'xz1': _xz1, 'xy2': _xy2, 'xy3': _xy3}
+        self._ax = {'xy1': _xy1, 'xz1': _xz1, 'xy2': _xy2}
         
-        lv_keys = {'xy1', 'xz1', 'xy3'}
+        lv_keys = {'xy1', 'xz1'}
         self.lv_drawing(lv_keys)
         
         regions = [region0]
@@ -1346,8 +1516,11 @@ class postprocess_paraview_new(object):
             y = self.all_data[idx, h[':1'], 0]
             z = self.all_data[idx, h[':2'], 0]
             
-            xdis = x + self.all_data[idx, h['displacement:0'], index_es]
-            ydis = y + self.all_data[idx, h['displacement:1'], index_es]
+            x_ed = x + self.all_data[idx, h['displacement:0'], index_ed]
+            y_ed = y + self.all_data[idx, h['displacement:1'], index_ed]
+            
+            x_es = x + self.all_data[idx, h['displacement:0'], index_es]
+            y_es = y + self.all_data[idx, h['displacement:1'], index_es]
             
             self._ax['xy1'].scatter(x, y, color=col[ii], label=region_labels[ii])
             self._ax['xy1'].axis('equal')
@@ -1358,6 +1531,10 @@ class postprocess_paraview_new(object):
             self._ax['xz1'].set_title('front view (x-z)')
             self._ax['xz1'].axis('equal')
             self._ax['xz1'].legend(frameon=False, fontsize=fontsize)
+            
+            self._ax['xy2'].axis('equal')
+            self._ax['xy2'].legend(frameon=False, fontsize=fontsize)
+            
             
             ii_inf = len(regions)
             if infarct == True:
@@ -1370,17 +1547,32 @@ class postprocess_paraview_new(object):
                     # self._ax['xy2'].plot(x[i], y[i], color=col[ii])
                     
                     if ii == 1 or ii == 5:
-                        self._ax['xy2'].scatter(x[i], y[i], color=col[ii])
-                        self._ax['xy2'].plot(x[i], y[i], color=col[ii])
+                        # self._ax['xy2'].scatter(x[i], y[i], color=col[ii])
+                        # self._ax['xy2'].plot(x[i], y[i], color=col[ii])
+                        
+ 
+                        
+                        if i == 0:
+                            self._ax['xy2'].scatter(x_ed[i], y_ed[i], color=col[ii], label='ed')
+                            self._ax['xy2'].plot(x_ed[i], y_ed[i], color=col[ii]) 
+                            self._ax['xy2'].scatter(x_es[i], y_es[i], marker = 'x', color=col[ii], label='es')
+                            self._ax['xy2'].plot(x_es[i], y_es[i], '--', color=col[ii])
+                        else:
+                            self._ax['xy2'].scatter(x_ed[i], y_ed[i], color=col[ii])
+                            self._ax['xy2'].plot(x_ed[i], y_ed[i], color=col[ii]) 
+                            
+                            self._ax['xy2'].scatter(x_es[i], y_es[i], marker = 'x', color=col[ii])
+                            self._ax['xy2'].plot(x_es[i], y_es[i], '--', color=col[ii])                             
+                            
               
-                        self._ax['xy3'].scatter(xdis[i], ydis[i], color=col[ii])
-                        self._ax['xy3'].plot(xdis[i], ydis[i], color=col[ii])
+                        # self._ax['xy3'].scatter(xdis[i], ydis[i], color=col[ii])
+                        # self._ax['xy3'].plot(xdis[i], ydis[i], color=col[ii])
                     if ii == 1:
-                        nr_x = np.mean(np.append(x[i],x[i-1]))
-                        nr_y = np.mean(np.append(y[i],y[i-1]))
-                        self._ax['xy2'].text(nr_x,nr_y,'{}'.format(i+1), ha='center', va='center')
-                        self._ax['xy3'].text(nr_x,nr_y,'{}'.format(i+1), ha='center', va='center')
-            
+                        nr_x = np.mean(np.append(x_ed[i],x_ed[i-1]))
+                        nr_y = np.mean(np.append(y_ed[i],y_ed[i-1]))
+                        # self._ax['xy2'].text(nr_x,nr_y,'{}'.format(i+1), ha='center', va='center')
+                        # self._ax['xy3'].text(nr_x,nr_y,'{}'.format(i+1), ha='center', va='center')
+        
               
     def lv_drawing(self, ax_keys):
         def ellips(a, b, t):
