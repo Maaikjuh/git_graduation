@@ -25,8 +25,8 @@ import math
 # directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/31-03_16-15_infarct_droplet_tao_20_meshres_30/cycle_2_stress_free_ref/Paraview_data'
 # directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/20-04_10-22_infarct_no_border_meshres_30/paraview_data'
 
-directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/24-03_14-07_infarct_xi_10/cycle_2_stress_free_ref\paraview_data'
-directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/20-04_10-22_infarct_no_border_meshres_30/cycle_2_stress_free_ref\paraview_data'
+directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/ischemic_model/24-03_14-07_infarct_xi_10/cycle_2_stress_free_ref\paraview_data'
+# directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/20-04_10-22_infarct_no_border_meshres_30/cycle_2_stress_free_ref\paraview_data'
 
 # directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/21-04_16-13_with_fiber_reor_30/cycle_1_stress_free_ref\paraview_data'
 # directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/21-04_16-14_no_fiber_reor_30/cycle_1_stress_free_ref/paraview_data'
@@ -34,16 +34,19 @@ directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/
 # directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/Biventricular model/20-04_14-23_ADAPTED_BAYER_2cyc_no_infarct/cycle_2_stress_free_ref/paraview_dat'
 # directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/Biventricular model/20-04_11-24_ADAPTED_BAYER_2cyc_with_infarct/cycle_2_stress_free_ref/paraview data'
 
-# directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/01-05_08-38_fiber_reorientation_meshres_20/cycle_5_stress_free_ref/paraview_data'
+# directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/01-05_08-38_fiber_reorientation_meshres_20/cycle_5_stress_free_ref/paraview_data'
 # directory_2 = r"C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/01-05_10-02_fiber_no_reorientation_meshres_20/cycle_5_stress_free_ref/paraview_data"
 
 # directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/22-06_17-33_eikonal_8node/cycle_2_stress_free_ref/paraview_data'
 # directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/Linux_results/23-06_08-17_passive_stress_20/cycle_1_stress_free_ref/paraview_data'
 # directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/23-06_13-08_eikonal_td_1node/cycle_2_stress_free_ref/paraview_data'
-directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/Eikonal/23-06_13-08_eikonal_td_1node/cycle_2_stress_free_ref/paraview_data'
+# directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/Eikonal/23-06_13-08_eikonal_td_1node/cycle_2_stress_free_ref/paraview_data'
+directory_2 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/Beatit/paraview_data'
+beatit_results = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/Beatit/results.csv'
 
+directory_1 = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/Eikonal/06-07_15-56_ref(no_eikonal)_2_cycles_mesh_20/cycle_2_begin_ic_ref/paraview_data'
 # Specify corresponding labels for the two directories above.
-dir_labels = ['ref', 'eikonal']
+dir_labels = ['ref', 'Beatit']
 
 inputs1 = {  # Specify the thickness of the cube (thick longitudinal slice) with to be included nodes [cm].
           'load_pickle_file': True,
@@ -58,7 +61,8 @@ inputs2 = { # Specify the thickness of the cube (thick longitudinal slice) with 
           'AM_phi': 1/8*math.pi,
           'A_phi': 0.,
           'AL_phi': 1/4*math.pi,
-          'theta': 1/2*math.pi} 
+          'theta': 1/2*math.pi,
+          'focus': 43} 
 
 
 # Plot options
@@ -69,22 +73,25 @@ linewidth = 2
 
 # common_dir = common_start(directory_1, directory_2)
 
-# post_1 = postprocess_paraview_new(directory_1, name='init', **inputs1)
-post_2 = postprocess_paraview_new(directory_2, name='adap', **inputs2)
+post_1 = postprocess_paraview_new(directory_1, name='init', **inputs1)
+post_2 = postprocess_paraview_new(directory_2, name='adap', results_csv = beatit_results, cycle= 0,**inputs2)
 
 # post_1.show_single_slice_segment_idx()
+
+post_1.plot_rot_time(theta = 7/10*math.pi, title= dir_labels[0])
+post_2.plot_rot_time(theta = 7/10*math.pi, title= dir_labels[1])
 
 # post_1.plot_wall_thickness(nrsegments = [8,10,12,14,16,24])
 # post_2.plot_wall_thickness(nrsegments = [8,10,12,14,16,24])
 
 #post_1.show_T0_eikonal_idx(title = 'reference')
-post_2.show_T0_eikonal_idx(title = '8 nodes')
+# post_2.show_T0_eikonal_idx(title = '8 nodes')
 
 # post_1.plot_rotation()
-post_2.plot_rotation()
+# post_2.plot_rotation()
 
-# post_1.plot_torsion()
-post_2.plot_torsion()
+# post_1.plot_torsion(title = 'Tosion {}'.format(dir_labels[0]))
+# post_2.plot_torsion(title = 'Tosion {}'.format(dir_labels[1]))
 
 # fig_ta_ls_loop = plt.figure(figsize=(15, 15), dpi=100)
 # post_1.Ta_ls_loop('--',fig=fig_ta_ls_loop,phase = False, label=dir_labels[0])
