@@ -5,6 +5,7 @@ This module provides standard routines for LV and BiV simulations.
 from dolfin import parameters, DirichletBC, project
 from dolfin.cpp.common import mpi_comm_world, MPI, info
 from dolfin.cpp.io import HDF5File
+from dolfin import *
 
 import cvbtk
 from cvbtk.utils import print_once, reset_values, read_dict_from_csv, \
@@ -22,6 +23,7 @@ from cvbtk.resources import reference_biventricle, reference_left_ventricle_plui
 
 import os
 import time
+import math
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -756,7 +758,37 @@ def set_boundary_conditions(model):
     V = u.ufl_function_space()
 
     # Dirichlet boundary conditions fix the base.
-    model.bcs = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
+    # model.bcs = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
+    # model.bcs = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
+   
+    def on_basal_ring_x_boundary(x, on_boundary):
+        tol = 1.e-1
+
+        ra = math.sqrt(x[0]**2+x[1]**2+(x[2]+4.3)**2)
+        rb = math.sqrt(x[0]**2+x[1]**2+(x[2]-4.3)**2)
+
+        sigma=(1./(2.*4.3)*(ra+rb))
+
+        eps = math.acosh(sigma)
+
+        return abs(x[1]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol and x[0] < 0.
+
+    def on_basal_ring_y_boundary(x, on_boundary):
+        tol = 1.e-1
+
+        ra = math.sqrt(x[0]**2+x[1]**2+(x[2]+4.3)**2)
+        rb = math.sqrt(x[0]**2+x[1]**2+(x[2]-4.3)**2)
+
+        sigma=(1./(2.*4.3)*(ra+rb))
+
+        eps = math.acosh(sigma)
+        return abs(x[0]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol and x[1] < 0.
+
+    bcs0 = DirichletBC(V.sub(1), 0.0, on_basal_ring_x_boundary, method='pointwise')
+    bcs1 = DirichletBC(V.sub(0), 0.0, on_basal_ring_y_boundary, method='pointwise')
+    bcs2 = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
+    # model.bcs = [bcs0, bcs1, bcs2]
+    model.bcs = [bcs1, bcs2]
 
     # We have not fully eliminated rigid body motion yet. To do so, we will
     # define a nullspace of rigid body motions and use a iterative method which
@@ -1256,7 +1288,7 @@ def timestep_lv(t_active_stress, dt, cycle, wk_dict, lv, solver, fiber_reorienta
     vven_new = wk.parameters['total_volume'] - vart_new - vlv_new - wk.volume.get('lvad', 0)
     wk.volume = {'art': vart_new, 'ven': vven_new}
 
-    # Compute new pressures from new volumes        .
+    # Compute new pressures from new volumes  
     wk.pressure = wk.compute_pressure(wk.volume)
 
     # Compute new flowrates from new pressures.
