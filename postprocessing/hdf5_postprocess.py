@@ -3,9 +3,9 @@ import sys
 sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/cvbtk')
 sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/postprocessing')
 
-#  #linux
-# sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/cvbtk')
-# sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/postprocessing')
+  #linux
+sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/cvbtk')
+sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/postprocessing')
 
 
 from dataset import Dataset # shift_data, get_paths
@@ -953,6 +953,8 @@ class postprocess_hdf5(object):
         Err = {'tot': []}
         Ell = {'tot_epi': [],
                 'tot_endo': []}
+        Ecr = {'tot_epi': [],
+                'tot_endo': []}        
 
         slice_prev_ed = {}
         slice_prev_es = {}
@@ -1002,24 +1004,71 @@ class postprocess_hdf5(object):
 
                 Err['slice_{}'.format(slice_nr)].append(Err_es)
                 Err['tot'].append(Err_es)
+                
+                p0_epi_2 = np.array([x_ed_epi, y_ed_epi, z_ed_epi])
+                p0_endo_2 = np.array([x_ed_endo, y_ed_endo, z_ed_endo])
+                p_epi_2 = np.array([x_es_epi, y_es_epi, z_es_epi]) 
+                p_endo_2 = np.array([x_es_endo, y_es_endo, z_es_endo])
+                
+                # Ecr                
+                if seg != 0:
+                    prev_seg_ed = slice_prev_ed['seg_{}'.format(seg - 1)]
+                    prev_seg_es = slice_prev_es['seg_{}'.format(seg - 1)]
 
+                    length1 =  math.sqrt(np.dot(prev_seg_ed[0][0:2],prev_seg_ed[0][0:2]))
+                    length2 =  math.sqrt(np.dot(p0_epi_2[0:2],p0_epi_2[0:2]))
+                    cos_angle = np.dot(prev_seg_ed[0][0:2], p0_epi_2[0:2]) / (length1 * length2)
+                    rad_epi_ed = np.arccos(cos_angle)     
+                    r = math.sqrt(x_ed_epi**2 + y_ed_epi**2)
+                    length_epi_ed = (rad_epi_ed/(2*pi) * 2*pi * r)
+                    
+                    length1 =  math.sqrt(np.dot(prev_seg_ed[1][0:2],prev_seg_ed[1][0:2]))
+                    length2 =  math.sqrt(np.dot(p0_endo_2[0:2],p0_endo_2[0:2]))
+                    cos_angle = np.dot(prev_seg_ed[1][0:2], p0_endo_2[0:2]) / (length1 * length2)
+                    rad_endo_ed = np.arccos(cos_angle) 
+                    r = math.sqrt(x_ed_endo**2 + y_ed_endo**2)
+                    length_endo_ed = (rad_endo_ed/(2*pi) * 2*pi* r)
+                    
+                    length1 =  math.sqrt(np.dot(prev_seg_es[0][0:2],prev_seg_es[0][0:2]))
+                    length2 =  math.sqrt(np.dot(p_epi_2[0:2],p_epi_2[0:2]))
+                    cos_angle = np.dot(prev_seg_es[0][0:2], p_epi_2[0:2]) / (length1 * length2)
+                    rad_epi_es = np.arccos(cos_angle)
+                    r = math.sqrt(x_es_epi**2 + y_es_epi**2)
+                    length_epi_es = (rad_epi_es/(2*pi) * 2*pi* r)
+                    
+                    length1 =  math.sqrt(np.dot(prev_seg_es[1][0:2],prev_seg_es[1][0:2]))
+                    length2 =  math.sqrt(np.dot(p_endo_2[0:2],p_endo_2[0:2]))
+                    cos_angle = np.dot(prev_seg_es[1][0:2], p_endo_2[0:2]) / (length1 * length2)
+                    rad_endo_es = np.arccos(cos_angle)
+                    r = math.sqrt(x_es_endo**2 + y_es_endo**2)
+                    length_endo_es = (rad_endo_es/(2*pi) * 2*pi* r)
+                    
+                    Ecr_epi = (length_epi_es - length_epi_ed)/length_epi_ed
+                    Ecr_endo = (length_endo_es - length_endo_ed)/length_endo_ed
+                    
+                    if seg == 1:
+                        Ecr['slice_{}_epi'.format(slice_nr)] = [Ecr_epi]
+                        Ecr['slice_{}_endo'.format(slice_nr)] = [Ecr_endo]
+                    else:
+                        Ecr['slice_{}_epi'.format(slice_nr)].append(Ecr_epi)
+                        Ecr['slice_{}_endo'.format(slice_nr)].append(Ecr_endo)                        
+                    
+                    Ecr['tot_epi'].append(Ecr_epi)
+                    Ecr['tot_endo'].append(Ecr_endo)                
+                # Ell
                 if slice_nr != 0:
                     # point data from the slice above te current slice
                     slice_ed = slice_prev_ed['slice_{}'.format(slice_nr-1)][seg]
                     slice_es = slice_prev_es['slice_{}'.format(slice_nr-1)][seg]
 
-                    p0_epi_1 = np.array([slice_ed[0]]) 
-                    p0_epi_2 = np.array([x_ed_epi, y_ed_epi, z_ed_epi]) 
+                    p0_epi_1 = np.array(slice_ed[0])         
 
-                    p0_endo_1 = np.array([slice_ed[1]]) 
-                    p0_endo_2 = np.array([x_ed_endo, y_ed_endo, z_ed_endo]) 
-
-                    p_epi_1 = np.array([slice_es[0]]) 
-                    p_epi_2 = np.array([x_es_epi, y_es_epi, z_es_epi]) 
-
-                    p_endo_1 = np.array([slice_es[1]]) 
-                    p_endo_2 = np.array([x_es_endo, y_es_endo, z_es_endo]) 
-
+                    p0_endo_1 = np.array(slice_ed[1]) 
+                     
+                    p_epi_1 = np.array(slice_es[0]) 
+                    
+                    p_endo_1 = np.array(slice_es[1]) 
+                     
                     L0_epi_squared_dist = np.sum((p0_epi_1-p0_epi_2)**2, axis=0)
                     L0_epi = np.sqrt(L0_epi_squared_dist)
 
@@ -1050,24 +1099,32 @@ class postprocess_hdf5(object):
 
                     Ell['tot_epi'].append(Ell_epi)
                     Ell['tot_endo'].append(Ell_endo)
+                    
+                slice_prev_ed['seg_{}'.format(seg)] = [[x_ed_epi, y_ed_epi, z_ed_epi], [x_ed_endo, y_ed_endo, z_ed_endo]]
+                slice_prev_es['seg_{}'.format(seg)] = [[x_es_epi, y_es_epi, z_es_epi], [x_es_endo, y_es_endo, z_es_endo]]
 
                 slice_prev_ed['slice_{}'.format(slice_nr)].append([[x_ed_epi, y_ed_epi, z_ed_epi], [x_ed_endo, y_ed_endo, z_ed_endo]])
                 slice_prev_es['slice_{}'.format(slice_nr)].append([[x_es_epi, y_es_epi, z_es_epi], [x_es_endo, y_es_endo, z_es_endo]])
 
-        print("\n{:<8} {:>10} {:>12}".format('','Ell','Err'))
-        print("{:<8} {:>6} {:>8}".format('','epi','endo'))
+        print("\n{:<8} {:>10} {:>12} {:>14}".format('','Ell','Err', 'Ecr'))
+        print("{:<8} {:>6} {:>8} {:>9} {:>8} {:>8}".format('','epi','endo', '','epi','endo'))
 
         for slice_nr, theta in enumerate(theta_vals):
             Err_slice = np.mean(Err['slice_{}'.format(slice_nr)])*100
-            print("{:<8} {:>7} {:>5} {:=10.2f}".format('slice {}'.format(slice_nr),'', '', Err_slice))
+            
+            Ecr_slice_epi = np.mean(Ecr['slice_{}_epi'.format(slice_nr)])*100
+            Ecr_slice_endo = np.mean(Ecr['slice_{}_endo'.format(slice_nr)])*100
+            
+            print("{:<8} {:>7} {:>5} {:=10.2f} {:9.2f} {:8.2f}".format('slice {}'.format(slice_nr),'', '', Err_slice, Ecr_slice_epi, Ecr_slice_endo))
 
             if theta != (theta_vals[-1]):
                 Ell_slice_epi = np.mean(Ell['slice_{}-{}_epi'.format(slice_nr, slice_nr+1)]) * 100
                 Ell_slice_endo = np.mean(Ell['slice_{}-{}_endo'.format(slice_nr, slice_nr+1)]) * 100
                 print("{:<8} {:6.2f} {:8.2f}".format('', Ell_slice_epi, Ell_slice_endo))
-
-        print("\n{:<8} {:6.2f} {:8.2f} {:=8.2f}".format('average', 
-                    np.mean(Ell['tot_epi']) * 100, np.mean(Ell['tot_endo']) * 100, np.mean(Err['tot']) * 100))
+                
+        print("\n{:<8} {:6.2f} {:8.2f} {:=8.2f} {:9.2f} {:8.2f}".format('average', 
+                    np.mean(Ell['tot_epi']) * 100, np.mean(Ell['tot_endo']) * 100, np.mean(Err['tot']) * 100,
+                    np.mean(Ecr['tot_epi']) * 100, np.mean(Ecr['tot_endo']) * 100))
 
     def show_slices(self, fig = None, fontsize=12, title = ''):
         """
@@ -1335,10 +1392,12 @@ class postprocess_hdf5(object):
 # print(active_stress(0.329953, -2.33535, -0.723438))
 # print(active_stress(0., 0., 0.))
 #
-# directory_1 = '/home/maaike/Documents/Graduation_project/Results/eikonal_td_1_node/cycle_2_begin_ic_ref'
-
-# post_1 = postprocess_hdf5(directory_1)
+directory_1 = '/home/maaike/Documents/Graduation_project/Results/eikonal_td_1_node/cycle_2_begin_ic_ref'
+directory_1 = '/home/maaike/Documents/Graduation_project/Results/beatit'
+dict_vals = {'theta_vals' : [9/20*math.pi, 11/20*math.pi, 13/20*math.pi, 15/20*math.pi]}
+post_1 = postprocess_hdf5(directory_1, model = 'beatit', **dict_vals)
 # # post_1.loc_mech_ker()
 # # post_1.show_ker_points()
 # post_1.plot_torsion()
+post_1.calc_strain()
 # post_1.show_slices()
