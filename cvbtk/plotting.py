@@ -722,8 +722,8 @@ class Export(object):
         self.variables = list(set(self.variables))
 
         if 'work' in self.variables:
-            if 'fiber_stress' not in self.variables:
-                self.variables.append('fiber_stress')
+            if 'active_stress' not in self.variables:
+                self.variables.append('active_stress')
             if 'strain' not in self.variables:
                 self.variables.append('strain') 
 
@@ -1003,6 +1003,7 @@ class Export(object):
 
         # Create the model.
         model = create_model(geometry, self.inputs, heart_type)
+        model.geometry.save_mesh_to_hdf5(os.path.join(self.dir_out,'mesh.hdf5'), save_fiber_vector=False)
 
         # Add materials.
         create_materials(model, self.inputs)
@@ -1262,18 +1263,18 @@ class Export(object):
         # Default set of variables.
         variables = ['u',
                     'ls',
-                    'ef',
+                    #'ef',
                     'lc',
                     'active_stress',
-                    'von_mises',
+                    #'von_mises',
                     'fiber_stress',
-                    'sign_active_stress',
+                    #'sign_active_stress',
                     'Ecc',
                     'Err',
                     'Ecr',
                     'Ell',
                     'strain',
-                    'curves_file',
+                    #'curves_file',
                     'work'
                      ]
         return variables
@@ -1347,6 +1348,16 @@ class Export(object):
         # self.strain_old.assign(Constant(0.0))
         self._stress_old = Function(Q)
 
+        # check if t_act is saved as a function of float
+        # for the eikonal model, t_act is saved in hdf5
+        # t_act is saved to the results file as well, but because it is a Function
+        # only the Function name ('t_act') is saved.
+        # FIXME kan mooier
+        if isinstance(self.data['t_act'][0], str):
+            self.t_act_hdf5 = True
+        else:
+            self.t_act_hdf5 = False
+
         # Check if fiber reorientation is enabled.
         ncycles_pre = self.inputs['model']['fiber_reorientation']['ncycles_pre']
         ncycles_reorient = self.inputs['model']['fiber_reorientation']['ncycles_reorient']
@@ -1368,11 +1379,11 @@ class Export(object):
         filename = os.path.join(self.dir_out, 'ls0.xdmf')
         self.xdmf_files['ls0'] = XDMFFile(filename)
 
-        #save mesh to hdf5
-        filename = os.path.join(self.dir_out, 'mesh.hdf5')
-        self.hdf5_files['mesh'] = HDF5File(mpi_comm_world(), filename,'w')
-        self.hdf5_files['mesh'].write(self.model.geometry.mesh(),'mesh')
-        self.hdf5_files['mesh'].close()
+        # #save mesh to hdf5
+        # filename = os.path.join(self.dir_out, 'mesh.hdf5')
+        # self.hdf5_files['mesh'] = HDF5File(mpi_comm_world(), filename,'w')
+        # self.hdf5_files['mesh'].write(self.model.geometry.mesh(),'mesh')
+        # self.hdf5_files['mesh'].close()
 
         # Create FEniCS functions.
         self.initialize_functions(V, Q)
@@ -1389,15 +1400,26 @@ class Export(object):
                 # Read time information from hdf5 file.
                 u_vector = 'displacement/vector_{}'.format(vector)
                 t = self.results_hdf5.attributes(u_vector)['timestamp']
-                # t_act = -1
-                tact_vector = 'activation_time/vector_{}'.format(vector)
-                t_act = self.results_hdf5.read(self.model.active_stress.activation_time, tact_vector)
+
+
+                if self.t_act_hdf5:
+                    # t_act is a function (saved in hdf5)
+                    
+                    tact_vector = 'activation_time/vector_{}'.format(vector)
+                    t_act = self.results_hdf5.read(self.model.active_stress.activation_time, tact_vector)
+                else:
+                    # t_act is a float
+                    t_act = -1
+
             else:
-                # Get time information from csv file.
+                if self.t_act_hdf5:
+                    tact_vector = 'activation_time/vector_{}'.format(vector)
+                    t_act = self.results_hdf5.read(self.model.active_stress.activation_time, tact_vector)
+                else:
+                    # Get time information from csv file.
+                    t_act = self.data['t_act'].values.tolist()[idx]
+
                 t = self.data['time'].values.tolist()[idx]
-                # t_act = self.data['t_act'].values.tolist()[idx]
-                tact_vector = 'activation_time/vector_{}'.format(vector)
-                t_act = self.results_hdf5.read(self.model.active_stress.activation_time, tact_vector)
 
             # Check if fiber reorientation is enabled.
             current_cycle = list(self.data['cycle'])[idx]
@@ -1412,9 +1434,9 @@ class Export(object):
             if 'curves_file' in self.variables:
                 self.update_curves()
             
-            if idx > 7:
-                self.xdmf_files['work'].write(project(self.functions['work'] * 10**-6, Q))
-                self.xdmf_files['work'].close()
+            # if idx > 7:
+            #     self.xdmf_files['work'].write(project(self.functions['work'] * 10**-6, Q))
+            #     self.xdmf_files['work'].close()
             #     self.xdmf_files['strain'].close()
             #     self.xdmf_files['ls0'].close()
 
@@ -1431,7 +1453,9 @@ class Export(object):
         # Close the hdf5 file.
         self.results_hdf5.close()
 
-        self.xdmf_files['work'].write(project(self.functions['work']*10**-6, Q))
+        # self.xdmf_files['work'].write(project(self.functions['work']*10**-6, Q))
+        if 'work' in self.variables:
+            self.xdmf_files['work'].write(project(self.functions['work'], Q))
 
         # Close the XDMF files.
         self.close_xdmf_files()
@@ -1463,6 +1487,8 @@ class Export(object):
 
         active_stress = self.functions['active_stress']
         project(self.active_stress(), Q, function=active_stress)
+
+        self.stress = active_stress
 
         self.xdmf_files['active_stress'].write(active_stress, t)
         self.hdf5_files['active_stress'].write(active_stress,'active_stress', t)
@@ -1499,7 +1525,7 @@ class Export(object):
         Ecc = self.functions['Ecc']
         project(E_cyl[1, 1], Q, function=Ecc)
         self.xdmf_files['Ecc'].write(Ecc, t)
-        # self.hdf5_files['Ecc'].write(Ecc, t)
+        self.hdf5_files['Ecc'].write(Ecc,'Ecc', t)
 
     def save_Ell(self, **kwargs):
         t = kwargs['t']
@@ -1509,7 +1535,7 @@ class Export(object):
         Ell = self.functions['Ell']
         project(E_car[1, 1], Q, function=Ell)
         self.xdmf_files['Ell'].write(Ell, t)
-        # self.hdf5_files['Ell'].write(Ell, t)
+        self.hdf5_files['Ell'].write(Ell,'Ell', t)
 
     def save_Ett(self, **kwargs):
         t = kwargs['t']
@@ -1519,7 +1545,7 @@ class Export(object):
         Ett = self.functions['Ett']
         project(E_car[2, 2], Q, function=Ett)
         self.xdmf_files['Ett'].write(Ett, t)
-        # self.hdf5_files['Ett'].write(Ett, t)
+        self.hdf5_files['Ett'].write(Ett,'Ett', t)
 
     def save_Err(self, **kwargs):
         t = kwargs['t']
@@ -1529,7 +1555,7 @@ class Export(object):
         Err = self.functions['Err']
         project(E_cyl[0, 0], Q, function=Err)
         self.xdmf_files['Err'].write(Err, t)
-        # self.hdf5_files['Err'].write(Err, t)
+        self.hdf5_files['Err'].write(Err,'Err', t)
 
     def save_Ecr(self, **kwargs):
         t = kwargs['t']
@@ -1539,7 +1565,7 @@ class Export(object):
         Ecr = self.functions['Ecr']
         project(E_cyl[1, 0], Q, function=Ecr)
         self.xdmf_files['Ecr'].write(Ecr, t)
-        # self.hdf5_files['Ecr'].write(Ecr, t)
+        self.hdf5_files['Ecr'].write(Ecr,'Ecr', t)
 
     def save_fiber_stress(self, **kwargs):
         t = kwargs['t']
@@ -1557,11 +1583,11 @@ class Export(object):
         project(fs, Q, function=fiber_stress)
 
         self.xdmf_files['fiber_stress'].write(fiber_stress, t)
-        # self.hdf5_files['fiber_stress'].write(fiber_stress, t)
+        self.hdf5_files['fiber_stress'].write(fiber_stress, 'fiber_stress', t)
 
         # Save the average fiber stress for this timestep.
         avg_stress = global_function_average(fiber_stress)
-        self.stress = fiber_stress
+        # self.stress = fiber_stress
         self.avg_fiber_stress[t] = avg_stress
 
         # return fiber_stress
@@ -1953,8 +1979,10 @@ class Export(object):
 
         # Activation time.
         if self.model.active_stress is not None:
-            self.model.active_stress.activation_time_map = t_act
-            # self.model.active_stress.activation_time = float(t_act + self.model.active_stress.parameters['tdep'])
+            if self.t_act_hdf5:
+                self.model.active_stress.activation_time_map = t_act
+            else:
+                self.model.active_stress.activation_time = float(t_act + self.model.active_stress.parameters['tdep'])
 
         # Fiber vectors.
         if fiber_reorientation:
