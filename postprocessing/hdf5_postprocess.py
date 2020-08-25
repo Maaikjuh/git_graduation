@@ -4,8 +4,8 @@ sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_gra
 sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/postprocessing')
 
 #   linux
-# sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/cvbtk')
-# sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/postprocessing')
+sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/cvbtk')
+sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/postprocessing')
 
 
 from dataset import Dataset # shift_data, get_paths
@@ -653,8 +653,15 @@ class postprocess_hdf5(object):
         print('Extracting strains from hdf5...')
         results = self.results
         par = self.parameters
-
+        # find the time of end systole
+        begin_phase = results[par['phase']][results.index[0]]
+        t_es_cycle = results[par['t_cycle']][(results[par['phase']] == begin_phase + 3).idxmax()]
+        t_es = results[par['time']][(results[par['phase']] == begin_phase + 3).idxmax()]
+        
         if self.model == 'cvbtk':
+            dt = results[par['time']][results.index[1]] - results[par['time']][results.index[0]]
+            vector_es = t_es_cycle/dt
+            
             # create a read handel for the longitudinal, circumferential and radial strains
             Ell_file = HDF5File(mpi_comm_world(), os.path.join(self.directory,'Ell.hdf5'), 'r')
             Ecc_file = HDF5File(mpi_comm_world(), os.path.join(self.directory,'Ecc.hdf5'), 'r')
@@ -670,6 +677,8 @@ class postprocess_hdf5(object):
             Err_vector = 'Err/vector_{}'  
 
         elif self.model == 'beatit':
+            vector_es = t_es_cycle
+            
             Ell_file = HDF5File(mpi_comm_world(), os.path.join(self.directory,'postprocess/postprocess.h5'), 'r')
             Ecc_file = HDF5File(mpi_comm_world(), os.path.join(self.directory,'postprocess/postprocess_cylindrical.h5'), 'r')
             Err_file = HDF5File(mpi_comm_world(), os.path.join(self.directory,'postprocess/postprocess_cylindrical.h5'), 'r')    
@@ -750,28 +759,32 @@ class postprocess_hdf5(object):
                 timestep_wall = {}
 
                 x_epi, y_epi, z_epi = ellipsoidal_to_cartesian(focus,eps_outer,theta,0.)
-                tau = z_epi/(focus * math.cosh(eps_mid))
-                theta_mid = math.acos(tau)
+                # tau = z_epi/(focus * math.cosh(eps_mid))
+                # theta_mid = math.acos(tau)
 
-                tau = z_epi/(focus * math.cosh(eps_inner))
-                theta_inner = math.acos(tau)
+                # tau = z_epi/(focus * math.cosh(eps_inner))
+                # theta_inner = math.acos(tau)
 
-                thetas = [theta, theta_mid, theta_inner]
+                # thetas = [theta, theta_mid, theta_inner]
 
                 for seg, phi in enumerate(phi_range):
                     # loop over segments
                     for phi_step in phi_seg:
                         # per segments, 5 points are used
-                        for wall, eps in enumerate([eps_outer, eps_mid, eps_inner]):
+                        # for wall, eps in enumerate([eps_outer, eps_mid, eps_inner]):
+                        for wall, eps in enumerate(eps_vals):
                             # loop over wall location (epi, mid, endo)
-                            x, y, z = ellipsoidal_to_cartesian(focus,eps,thetas[wall], phi + phi_step)
+                            theta = math.acos(z_epi/(focus * math.cosh(eps)))
+                            x, y, z = ellipsoidal_to_cartesian(focus,eps,theta, phi + phi_step)
 
                             Ell = Ell_func(x, y, z)
                             Ecc = Ecc_func(x, y, z)
                             Err = Err_func(x, y, z)
 
                             for name, strain in enumerate([Ell, Ecc, Err]):
-                                save_slice_wall = '{}_slice_{}_{}'.format(strain_var[name], slice_nr, wall_vals[wall])
+                                # save_slice_wall = '{}_slice_{}_{}'.format(strain_var[name], slice_nr, wall_vals[wall])
+                                save_slice_wall = '{}_slice_{}_{}'.format(strain_var[name], slice_nr, str(wall))
+
                                 save_slice = '{}_slice_{}'.format(strain_var[name], slice_nr)
 
                                 all_seg[strain_var[name]].append(strain * 100)
@@ -790,26 +803,35 @@ class postprocess_hdf5(object):
                                     slices_strains_wall[save_slice_wall].append(strain * 100)
 
                                 if seg == 0 and phi_step == 0:
-                                    timestep_wall[strain_var[name] + '_' + wall_vals[wall]] = [strain * 100]
-
+                                    # timestep_wall[strain_var[name] + '_' + wall_vals[wall]] = [strain * 100]
+                                    timestep_wall[strain_var[name] + '_' + str(wall)] = [strain * 100]
                                 else:
-                                    timestep_wall[strain_var[name] + '_' + wall_vals[wall]].append(strain*100)
+                                    # timestep_wall[strain_var[name] + '_' + wall_vals[wall]].append(strain*100)
+                                    timestep_wall[strain_var[name] + '_' + str(wall)].append(strain*100)
+
 
                                 if seg == 0 and phi_step == 0 and wall == 0:
                                     timestep_wall[save_slice] = [strain * 100]
                                 else:
                                     timestep_wall[save_slice].append(strain*100)
+                                    
+                                if vector == vector_es and seg == 0 and phi_step == 0 and wall == 0:
+                                    time_strain[save_slice + '_trans']  = [strain * 100]
+                                elif vector == vector_es and seg == 0 and phi_step == 0 and wall != 0:
+                                    time_strain[save_slice + '_trans'].append(strain * 100)
+                                    
 
                 for strain_name in ['Ell', 'Ecc', 'Err']:
                     if vector == 0:
                         time_strain['{}_slice_{}'.format(strain_name, slice_nr)] = [np.mean(timestep_wall['{}_slice_{}'.format(strain_name, slice_nr)])]
                     else:
                         time_strain['{}_slice_{}'.format(strain_name, slice_nr)].append(np.mean(timestep_wall['{}_slice_{}'.format(strain_name, slice_nr)]))
-                    for wall in wall_vals:
+                    # for wall in wall_vals:
+                    for wall in range(len(eps_vals)):
                         if vector == 0:
-                            time_strain[strain_name + '_slice_{}_'.format(slice_nr) + wall] = [np.mean(timestep_wall[strain_name + '_' + wall])]
+                            time_strain[strain_name + '_slice_{}_'.format(slice_nr) + str(wall)] = [np.mean(timestep_wall[strain_name + '_' + str(wall)])]
                         else:
-                            time_strain[strain_name + '_slice_{}_'.format(slice_nr) + wall].append(np.mean(timestep_wall[strain_name + '_' + wall]))
+                            time_strain[strain_name + '_slice_{}_'.format(slice_nr) + str(wall)].append(np.mean(timestep_wall[strain_name + '_' + str(wall)]))
             for strain_name in ['Ell', 'Ecc', 'Err']:
                 if vector == 0:
                     time_strain[strain_name] = [np.mean(all_seg[strain_name])]
@@ -862,11 +884,16 @@ class postprocess_hdf5(object):
             endo.tick_params(labelleft=False)
 
             plot = [epi, mid, endo]
+            epi.set_ylabel('strain [%]')
+            av.set_ylabel('strain [%]')
+            av.set_xlabel('time [ms]')
+            walls = [0, int(len(eps_vals)/2), len(eps_vals) - 1]
+            wall_names = ['endo', 'mid', 'epi']
             for slice_nr in range(0, len(theta_vals)):
-                for ii, wall in enumerate(wall_vals):
+                for ii, wall in enumerate(walls):
                     strain_dict = strain_name + '_slice_{}_{}'.format(slice_nr,  wall)
                     plot[ii].plot(time , time_strain[strain_dict], label = 'Slice {}'.format(slice_nr))
-                    plot[ii].set_title(wall)
+                    plot[ii].set_title(wall_names[ii])
 
                     if ii == 2:
                         plot[ii].legend(loc='center left', bbox_to_anchor=(1, 0.5))
@@ -876,8 +903,17 @@ class postprocess_hdf5(object):
 
             fig.suptitle(strain_name + ' ' + title)
             fig.savefig(os.path.join(self.directory, strain_name + '_model.png'), dpi=300, bbox_inches="tight")
-
-
+            
+            fig = plt.figure()     
+            for slice_nr in range(0, len(theta_vals)):
+                plt.plot(range(len(eps_vals)), time_strain['{}_slice_{}_trans'.format(strain_name, slice_nr)], label = 'Slice {}'.format(slice_nr))
+            plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            plt.title(strain_name + ' transmural at end systole' + title)
+            plt.ylabel('strain [%]')
+            plt.xticks([])
+            plt.xlabel('endocardial -> epicardial')
+            
+            fig.savefig(os.path.join(self.directory, strain_name + '_transmural_model.png'), dpi=300, bbox_inches="tight")
 
     def calc_strain(self, title = ''):
         print('Calculating strain...')
@@ -1536,10 +1572,13 @@ class postprocess_hdf5(object):
 #
 # directory_1 = '/home/maaike/Documents/Graduation_project/Results/eikonal_td_1_node/cycle_2_begin_ic_ref'
 # directory_1 = '/home/maaike/Documents/Graduation_project/Results/beatit'
+directory_1 = '/home/maaike/Documents/Graduation_project/Results/ref_2_cyc_mesh_20/cycle_2_begin_ic_ref'
 # dict_vals = {'theta_vals' : [9/20*math.pi, 11/20*math.pi, 13/20*math.pi, 15/20*math.pi]}
-# post_1 = postprocess_hdf5(directory_1, model = 'beatit', **dict_vals)
+dict_vals = {'theta_vals' : [9/20*math.pi, 11/20*math.pi, 13/20*math.pi, 15/20*math.pi]}
+
+post_1 = postprocess_hdf5(directory_1, **dict_vals)
 # # post_1.loc_mech_ker()
 # # post_1.show_ker_points()
 # post_1.plot_torsion()
-# post_1.calc_strain()
+post_1.plot_strain()
 # post_1.show_slices()
