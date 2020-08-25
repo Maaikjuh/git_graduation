@@ -151,21 +151,13 @@ class postprocess_hdf5(object):
 
         self._parameters.update(kwargs)
 
-        if 'inner_eccentricity' or 'outer_eccentricity' in kwargs:
-            e_outer = self._parameters['outer_eccentricity']
-            e_inner = self._parameters['inner_eccentricity']
-            eps_outer = cartesian_to_ellipsoidal(self.parameters['focus'], eccentricity = e_outer)['eps']
-            eps_inner = cartesian_to_ellipsoidal(self.parameters['focus'], eccentricity = e_inner)['eps']
-            self.parameters['eps_outer'] = eps_outer
-            self.parameters['eps_inner'] = eps_inner
-
         # calculate eps_mid:
         # get x_epi and x_endo at the equatorial point (theta = 1/2*pi)
         # calculate x_mid -> calculate eps_mid using the focus
         focus = self.parameters['focus']
-        x_epi, y_epi, z_epi = ellipsoidal_to_cartesian(focus,eps_outer,1/2*math.pi,0.)
-        x_endo, y_endo, z_endo = ellipsoidal_to_cartesian(focus,eps_inner,1/2*math.pi,0.)
-        x_mid = (x_epi + x_endo)/2
+        self.x_epi, self.y_epi, self.z_epi = ellipsoidal_to_cartesian(focus,self._parameters['eps_outer'],1/2*math.pi,0.)
+        self.x_endo, self.y_endo, self.z_endo = ellipsoidal_to_cartesian(focus,self._parameters['eps_inner'],1/2*math.pi,0.)
+        x_mid = (self.x_epi + self.x_endo)/2
         eps_mid = cartesian_to_ellipsoidal(self._parameters['focus'], x = [x_mid, 0.,0.])['eps']
         self._parameters['eps_mid'] = eps_mid
 
@@ -239,10 +231,16 @@ class postprocess_hdf5(object):
             try:
                 geometry = openfile.attributes('geometry')
                 print('yep')
-                self._parameters['eps_outer'] = geometry['outer_eccentricity']
-                self._parameters['eps_inner'] = geometry['inner_eccentricity']
+                self._parameters['outer_eccentricity'] = geometry['outer_eccentricity']
+                self._parameters['inner_eccentricity'] = geometry['inner_eccentricity']
                 self._parameters['focus'] = geometry['focus_height']
                 self._parameters['cut_off'] = geometry['truncation_height']
+
+                eps_outer = cartesian_to_ellipsoidal(geometry['focus_height'], eccentricity = geometry['outer_eccentricity'])['eps']
+                eps_inner = cartesian_to_ellipsoidal(geometry['focus_height'], eccentricity = geometry['inner_eccentricity'])['eps']
+
+                self._parameters['eps_outer'] = eps_outer
+                self._parameters['eps_inner'] = eps_inner
 
             except RuntimeError:
                 print('No geometry parameters saved, continuing with default values...')
@@ -651,7 +649,7 @@ class postprocess_hdf5(object):
 
         print('Plots created!')
 
-    def plot_strain(self, title = ''):
+    def plot_strain(self, title = '', wall_points = 10):
         print('Extracting strains from hdf5...')
         results = self.results
         par = self.parameters
@@ -707,10 +705,18 @@ class postprocess_hdf5(object):
         focus = self.parameters['focus']
         tol = self.parameters['tol']
 
+        delta_x = (self.x_epi - self.x_endo) / wall_points
+        eps_vals = []
+        for dx in range(wall_points + 1):
+            x_pos = self.x_endo + dx * delta_x
+            eps = cartesian_to_ellipsoidal(focus, x = [x_pos, 0.,0.])['eps']
+            eps_vals.append(eps)
+
         eps_outer = self.parameters['eps_outer'] - tol
         eps_mid = self.parameters['eps_mid']
         eps_inner = self.parameters['eps_inner'] + tol
         wall_vals = ['epi', 'mid', 'endo']
+        strain_var = ['Ell', 'Ecc', 'Err']
 
         # create dictionary to store average strain values per slice
         slices_strains = {}
@@ -763,8 +769,6 @@ class postprocess_hdf5(object):
                             Ell = Ell_func(x, y, z)
                             Ecc = Ecc_func(x, y, z)
                             Err = Err_func(x, y, z)
-
-                            strain_var = ['Ell', 'Ecc', 'Err']
 
                             for name, strain in enumerate([Ell, Ecc, Err]):
                                 save_slice_wall = '{}_slice_{}_{}'.format(strain_var[name], slice_nr, wall_vals[wall])
@@ -951,6 +955,7 @@ class postprocess_hdf5(object):
         eps_inner = self.parameters['eps_inner'] + tol     
 
         print(eps_outer, eps_mid, eps_inner)  
+        print(self.parameters['outer_eccentricity'], self.parameters['inner_eccentricity'] )
 
         Err = {'tot': []}
         Ell = {'tot_epi': [],
@@ -1177,7 +1182,7 @@ class postprocess_hdf5(object):
         for slice_nr in range(0, len(theta_vals)-1):
             for ii, wall in enumerate(wall_vals):
                 Ell_name = 'Ell_slice_{slicenr_1}-{slicenr}_{wall}'.format(slicenr_1 = slice_nr, slicenr = slice_nr+1,wall=wall)
-                plot[ii].plot(time , time_strain[Ell_name], label = 'Slice {}'.format(slice_nr))
+                plot[ii].plot(time , time_strain[Ell_name], label = 'Slice {} - {}'.format(slice_nr, slice_nr+1))
                 plot[ii].set_title(wall)
         endo.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         av.plot(time, time_strain['Ell_tot'], label = 'average')
