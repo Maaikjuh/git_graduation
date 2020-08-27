@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 csv_ref =  r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/ischemic_model/24-03_14-07_infarct_xi_10/results.csv'
 #csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\09-04_15-25_big_border_meshres_20\results.csv'
 
-# csv_ref = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\27_02_default_inputs\results.csv'
+csv_ref = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/27_02_default_inputs/results.csv'
 # csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\Biventricular model\default\results.csv'
 
 #csv_ref = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\Biventricular model\default\results.csv'
@@ -39,7 +39,7 @@ csv_ref =  r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftven
 # csv_ref = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\21-04_16-13_with_fiber_reor_30\results.csv'
 # csv_infarct = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\21-04_16-14_no_fiber_reor_30\results.csv'
 
-csv_ref =  r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/07-05_09-26_fiber_reorientation_meshres_20/results.csv'
+# csv_ref =  r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/07-05_09-26_fiber_reorientation_meshres_20/results.csv'
 
 csv_var = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results_Tim/leftventricular model/19-06_14-19_ta0_map_test/results.csv'
 csv_var = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\leftventricular model\22-06_17-33_eikonal_8node\results.csv'
@@ -49,60 +49,72 @@ csv_var = r'C:\Users\Maaike\Documents\Master\Graduation_project\Results_Tim\left
 csv_var = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/Eikonal/01-07_15-48_eikonal_more_roots_mesh_20/results.csv'
 csv_var = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/Eikonal/16-07_10-23_bue_root_kot_sig_higher_20/results.csv'
 
+csv_ref = r'C:/Users/Maaike/Documents/Master/Graduation_project/Results/leftventricular model/Eikonal/06-07_15-56_ref(no_eikonal)_2_cycles_mesh_20/results.csv'
+csv_var = r'C:/Users/Maaike/Documents/Master/Graduation_project/beatit-master/beatit/pV.csv'
+
+## Enter Variables ##
+
+# enter the type of model for the ref and the var datasets: 'cvbtk' or 'beatit' 
+model_ref = 'cvbtk'
+model_var = 'beatit'
+
+label_ref = 'cvbtk'
+label_var = 'beatit'
 
 COMPARE = True
 
-label1 = 'eikonal'
-label2 = 'reference'
+title = 'Cvbtk versus Beatit'
 
-title = 'hemodynamics eikonal more roots'
-
-CYCLE = 2 #'all' #'last'
+# select cycle
+# - number (same cycle is selected for all datasets (advised))
+# - None (last cycle is selected for all datasets)
+# - all (all the cycles are selected, cannot compare datasets)
+CYCLE = 1 # None #None #'all' #None
 
 #if the datasets should not be compared, select which dataset should be analyzed
 if COMPARE == False:
-    ANALYZE = 'normal'
+    ANALYZE = 'var' #'var'
+    
+## End of variable selection ##
 
-# Take the last cycle, or specify the cycle directly
-#cycle=10
-#cycle = cycle = max(results_normal['cycle']) - 1
-
-if CYCLE == 'last':
-    # Load results
-    [results_ref, cycle_ref] = load_reduced_dataset(csv_ref)
-    [results_var, cycle_var] = load_reduced_dataset(csv_var)
-elif CYCLE == 'all':
+if CYCLE == 'all':
     results_cycs = Dataset(filename=csv_ref)
     results_cycs_2 = Dataset(filename=csv_var)   
 else:
-    [results_ref, cycle_ref] = load_reduced_dataset(csv_ref, cycle = CYCLE)
-    [results_var, cycle_var] = load_reduced_dataset(csv_var, cycle = CYCLE) 
+    [results_ref, cycle_ref] = load_reduced_dataset(csv_ref, cycle = CYCLE, model = model_ref)
+    [results_var, cycle_var] = load_reduced_dataset(csv_var, cycle = CYCLE, model = model_var) 
 
 
 if COMPARE == True:
-    if cycle_ref != cycle_var:
-        print('infarct and normal data not of same length, continuing with cycle {}'.format(min(cycle_ref,cycle_var)))
-        [results_normal, cycle_ref] = load_reduced_dataset(csv_ref, min(cycle_ref,cycle_var) )
-        [results_var, cycle_var] = load_reduced_dataset(csv_infarct, min(cycle_ref,cycle_var))
-    hemo_sum = procentual_change_hemodynamics(results_ref,results_var)
-    plot_compare_results(results_ref,results_var, dir_out=os.path.dirname(csv_var), cycle=None, label1= label1,label2=label2, title= title)
+    # if cycle_ref != cycle_var:
+    #     print('infarct and normal data not of same length, continuing with cycle {}'.format(min(cycle_ref,cycle_var)))
+    #     [results_normal, cycle_ref] = load_reduced_dataset(csv_ref, min(cycle_ref,cycle_var), model = model_ref)
+    #     [results_var, cycle_var] = load_reduced_dataset(csv_var, min(cycle_ref,cycle_var), model = model_var)
+    hemo_sum = procentual_change_hemodynamics(results_ref,results_var, title1 = label_ref, title2 = label_var, model1 = model_ref, model2 = model_var)
+    plot_compare_results(results_ref,results_var, dir_out=os.path.dirname(csv_var), 
+                         cycle=cycle_ref, label_ref= label_ref, label_var=label_var, title= title, model1 = model_ref, model2 = model_var)
 else:
-    if CYCLE == 'last':
+    if CYCLE == 'all':
+        fig = plt.figure()
+        cycles_plot = Hemodynamics_all_cycles(results_cycs, fig = fig)
+        cycles_plot.plot()
+        
+    else:
         # Data from the selected cycle
-        if ANALYZE == 'infarct':
+        if ANALYZE == 'var':
             data_cycle = results_var
             pathname = csv_var
             cycle = cycle_var
+            model = model_var
         else:
             data_cycle = results_ref
             pathname = csv_ref
             cycle = cycle_ref
-        hemo_sum = hemodynamic_summary(data_cycle)
+            model = model_ref
+            
+        hemo_sum = hemodynamic_summary(data_cycle, model)
         print_hemodynamic_summary(hemo_sum,cycle)
-        plot_results(data_cycle,dir_out=os.path.dirname(pathname), cycle=cycle)
-    elif CYCLE == 'all':
-        fig = plt.figure()
-        cycles_plot = Hemodynamics_all_cycles(results_cycs, fig = fig)
-        cycles_plot.plot()
+        plot_results(data_cycle,model = model, title = title, dir_out=os.path.dirname(pathname), cycle=cycle)
+
 
     
