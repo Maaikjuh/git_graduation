@@ -18,22 +18,42 @@ warnings.simplefilter('ignore')
 meshres = 20 # choose 20, 25, 30, 35, 40, 45 or 50
 segments = 20
 
+project_td = False
+project_meshres = 20
+project_segments = 20
+
 # factor which specifies how much larger the conductivity
 # in the purkinje fibers area ((sub)endocardial) is
 # set to 1 if the conductivity should not be larger in the purkinje area
 sig_fac_purk = 1.
+radius = 0.5
 
-sig_il = 2.5e-3
-sig_el = 2.5e-3
-sig_it = 2.5e-3
-sig_et = 2.5e-3
+sig_il = 1.5e-3 *0.3
+sig_el = 1.5e-3*0.3
+sig_it = 1.5e-3*0.3
+sig_et = 1.5e-3*0.3
+
+theta0 = 1/2*math.pi
+theta1 = 1/2*math.pi
+theta2 = 1/2*math.pi
+theta3 = 1/2*math.pi
+theta4 = 1/2*math.pi
+
+phi0 = 0.
+phi1 = 0.
+phi2 = 0.
+phi3 = 0.
+phi4 = 0.
 
 # directory where the outputs are stored
-now = datetime.datetime.now()
-dirout = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/seg_{}_mesh_{}_bue_sig_equal_no_purkinje'.format(segments,meshres)
+# now = datetime.datetime.now()
+dirout = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/seg_{}_mesh_{}_bue_sig_higher'.format(segments,meshres)
+dirout_project = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/seg_{}_mesh_{}_bue_default'.format(project_segments,project_meshres)
+print('saving output to: ' + dirout)
 
 # mesh that is selected for the calculation
 filepath = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/lv_maaike_seg{}_res{}_fibers_mesh.hdf5'.format(segments,meshres)
+filepath_project = '/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/lv_maaike_seg{}_res{}_fibers_mesh.hdf5'.format(project_segments,project_meshres)
 
 class EikonalProblem(object):
 
@@ -54,7 +74,11 @@ class EikonalProblem(object):
 
         #save parameters to csv   
         save_dict_to_csv(self.parameters, os.path.join(self.dir_out, 'inputs.csv'))
-        save_dict_to_csv(self.parameters['boundary'], os.path.join(self.dir_out, 'inputs.csv'))
+        save_dict_to_csv(self.parameters['boundary'], os.path.join(self.dir_out, 'inputs.csv'), write = 'a')
+        # with open(os.path.join(self.dir_out, 'inputs.csv'), 'a') as f:
+        #     writer = csv.writer(f)
+        #     writer.writerow(self.parameters['boundary'])
+        # save_dict_to_csv(self.parameters['boundary'], os.path.join(self.dir_out, 'inputs.csv'))
 
         #set parameters, quadrature degree should be the same to the loaded fiber vectors
         parameters["form_compiler"]["quadrature_degree"] = 4
@@ -65,12 +89,13 @@ class EikonalProblem(object):
         self.Q = FunctionSpace(self.mesh, 'Lagrange', 2)
 
         #extract fiber vectors
+        print('extracting fiber vectors')
         self.ef = geometry.fiber_vectors()[0].to_function(None)
 
         #save loaded fiber vectors
         V1 = scalar_space_to_vector_space(self.Q)
-        ofile = XDMFFile(mpi_comm_world(), os.path.join(self.dir_out,"ef.xdmf"))
-        ofile.write(project(self.ef,V1))
+        # ofile = XDMFFile(mpi_comm_world(), os.path.join(self.dir_out,"ef.xdmf"))
+        # ofile.write(project(self.ef,V1))
 
         #Initialize sigma vals, might be changed by purkinje definition
         self.sig_il = Function(self.Q)
@@ -95,6 +120,7 @@ class EikonalProblem(object):
         # conductivity coefficients:
         #       intracellular(i), extracellular(e)
         #       parallel (l), perpendicular (t) to fiber directions
+        print('purkinje fibers')
         sig_il = self.purkinje_fibers(self.sig_il, 'sig_il')
         sig_it = self.purkinje_fibers(self.sig_it, 'sig_it')
         sig_el = self.purkinje_fibers(self.sig_el, 'sig_el')
@@ -133,6 +159,11 @@ class EikonalProblem(object):
             theta4 = prm['theta4']
 
             eps_outer = prm['eps_outer']
+
+            # for de test, vergeet dit niet te uncommenten!!!
+            # eps_outer= prm['eps_inner']
+
+
             eps_inner = prm['eps_inner']
 
             r = prm['radius']
@@ -151,10 +182,18 @@ class EikonalProblem(object):
             p3 = (x[0] - x3)**2 + (x[1] - y3)**2 + (x[2] - z3)**2 < r**2
             p4 = (x[0] - x4)**2 + (x[1] - y4)**2 + (x[2] - z4)**2 < r**2
 
-            return p0 or p1 or p2 or p3 or p4
+            eps = self.cartesian_to_ellipsoidal(focus, x=x)['eps']
+
+            # return (p0 or p1 or p3 or p4) and eps <= eps_inner + 0.001 or (p2 and eps >= eps_outer - 0.001)
+            return ((p0 or p1 or p3 or p4) and on_boundary) or (p2 and on_boundary)
+            # tol = 1.e-1
+            # return (abs(x[1]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol) or (abs(x[0]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol)
+            # return eps <= eps_inner + 0.01
 
         # define dirichlet boundary conditions -> td0BC for the stimulus locations
+        print('Creating boundary conditions')
         bc = DirichletBC(self.Q, td0BC , boundary, method ='pointwise')
+        # bc = DirichletBC(self.Q, td0BC , boundary)
 
         # initial guess: Poisson equation
         I = Identity(3)
@@ -204,8 +243,12 @@ class EikonalProblem(object):
         # solve Eikonal equation 
         solver.solve()
 
+        self.td = td
+
+        self.td.rename('eikonal','eikonal')
+
         file = File(os.path.join(self.dir_out,"td_solution.pvd"))
-        file << td
+        file << self.td
 
         # save mesh and solution for td as hdf5 to be used later on in the model
         with HDF5File(mpi_comm_world(), os.path.join(self.dir_out,'td.hdf5'), 'w') as f:
@@ -219,9 +262,11 @@ class EikonalProblem(object):
 
         if sigstr == 'sig_il' or sigstr == 'sig_el':
             fac = 1.833
+            # #test niet vergeten weg te halen!!
+            # fac = 4.
         elif sigstr == 'sig_it' or sigstr == 'sig_et':
             fac = 2.667
-        fac = self.parameters['sig_fac_purk']
+        # fac = self.parameters['sig_fac_purk']
 
         sigval = self.parameters[sigstr]
 
@@ -237,10 +282,13 @@ class EikonalProblem(object):
 
         sig.interpolate(purk_exp)
 
-        filename = os.path.join(self.dir_out, 'inputs.csv')
-        with open(filename, 'a') as f:
-            writer = csv.writer(f)
-            writer.writerow([sigstr +'_purkinje', sigval*fac])
+        # filename = os.path.join(self.dir_out, 'inputs.csv')
+        sig_dict = {sigstr +'_purkinje': sigval*fac}
+        save_dict_to_csv(sig_dict, os.path.join(self.dir_out, 'inputs.csv'), write = 'a')
+
+        # with open(filename, 'a') as f:
+        #     writer = csv.writer(f)
+        #     writer.writerow([sigstr +'_purkinje', sigval*fac])
 
         return sig
     
@@ -273,10 +321,11 @@ class EikonalProblem(object):
         prm = Parameters('eikonal')
         prm.add('cm', (5*10**-3))
         prm.add('rho', (1.41421))
-        prm.add('sig_il', (2e-3))
-        prm.add('sig_it', (4.16e-4))
-        prm.add('sig_el', (2.5e-3))
-        prm.add('sig_et', (1.25e-3))
+        prm.add('sig_fac_purk', 2.)
+        prm.add('sig_il', (2e-3)*2)
+        prm.add('sig_it', (4.16e-4)*2)
+        prm.add('sig_el', (2.5e-3)*2)
+        prm.add('sig_et', (1.25e-3)*2)
         prm.add('f', (1))
         prm.add('g', (0))
         prm.add('td0BC', 0.0)
@@ -296,25 +345,61 @@ class EikonalProblem(object):
         boundary_prm.add('theta4', 1.2854)
         boundary_prm.add('eps_outer', float())
         boundary_prm.add('eps_inner', float())
-        boundary_prm.add('radius', 0.3)   
+        boundary_prm.add('radius', 0.5)   
         boundary_prm.add('tol', 1.e-1)
         boundary_prm.add('tol_theta', 1.e-1)
 
         prm.add(boundary_prm)
         return prm
 
+    def project(self, filepath, dirout):
+        print('projecting onto {}'.format(os.path.split(filepath)[1]))
+        mesh = Mesh()
+
+        openfile = HDF5File(mpi_comm_world(), filepath, 'r')
+        openfile.read(mesh, 'mesh', False)
+        V = FunctionSpace(mesh, "Lagrange", 2)
+
+        self.td.set_allow_extrapolation(True)
+
+        td_project = project(self.td, V)
+
+        td_project.rename('eikonal','eikonal')
+
+        file = File(os.path.join(dirout,"td_solution.pvd"))
+        file << td_project
+
+        # save mesh and solution for td as hdf5 to be used later on in the model
+        with HDF5File(mpi_comm_world(), os.path.join(dirout,'td.hdf5'), 'w') as f:
+            f.write(td_project, 'td')
+            f.write(mesh, 'mesh')
+
 if __name__ == '__main__':
+
+    prm_boundary = {'radius': radius,
+                    'phi0': phi0,
+                    'phi1': phi1,
+                    'phi2': phi2,
+                    #'phi3': phi3,
+                    'phi4': phi4,
+                    'theta0': theta0,
+                    'theta1': theta1,
+                    'theta2': theta2,
+                    #'theta3': theta3,
+                    'theta4': theta4}
+
     inputs = {'sig_fac_purk': sig_fac_purk,
             'sig_il': sig_il,
             'sig_it': sig_it,
             'sig_el': sig_el,
-            'sig_et': sig_et}
-    prm_boundary = {'radius': radius}
+            'sig_et': sig_et,
+            'boundary': prm_boundary}
 
-    inputs = {'sig_il': sig_il,
-              'sig_el': sig_il,
-              'boundary': prm_boundary}
-    problem = EikonalProblem(dirout, filepath, **inputs)
+    # problem = EikonalProblem(dirout, filepath, **inputs)
+    problem = EikonalProblem(dirout, filepath)
     problem.eikonal()
+
+    if project_td == True:
+        problem.project(filepath_project, dirout_project)
 
 
