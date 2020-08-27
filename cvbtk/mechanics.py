@@ -262,9 +262,9 @@ class ActiveStressModel(ConstitutiveModel):
         self._tact_dummy.vector()[:] += float(value)
         self._tact.assign(self._tact_dummy)
         
-        self.td_save += self.dt #(value)
+        # self.td_save += self.dt #(value)
     
-        self.file.write(self._tact, (self.td_save))
+        # self.file.write(self._tact, (self.td_save))
 
         # print_once('min t_act:',min(self._tact.vector().array()))
         print_once('max t_act:',min(self._tact.vector().array()))
