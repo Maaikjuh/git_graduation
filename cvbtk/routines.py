@@ -2,7 +2,7 @@
 This module provides standard routines for LV and BiV simulations.
 """
 
-from dolfin import parameters, DirichletBC, project
+from dolfin import parameters, DirichletBC, project, Constant
 from dolfin.cpp.common import mpi_comm_world, MPI, info
 from dolfin.cpp.io import HDF5File
 from dolfin import *
@@ -24,6 +24,8 @@ from cvbtk.resources import reference_biventricle, reference_left_ventricle_plui
 import os
 import time
 import math
+import numpy as np
+from numpy.linalg import norm
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -757,9 +759,56 @@ def set_boundary_conditions(model):
     u = model.u
     V = u.ufl_function_space()
 
+    mesh = V.ufl_domain().ufl_cargo()
+    coor = mesh.coordinates()
+    zz = coor.reshape(1, -1, order='F')
+    zz = zz.flatten()
+    z = zz[int(2*len(zz)/3):]
+    zbase = max(z)
+
+    tol = 0.1
+    ax_points = []
+    for xx in coor:
+        if abs(xx[1]) < tol and abs(xx[2]-zbase) < tol:
+            ax_points.append(xx)
+
+    xx = np.array(ax_points)
+    print(xx)
+
+    xx = np.reshape(xx, (1, -1), order='F')
+    xx = xx.flatten()
+    dim = len(xx)
+    x = xx[0:int(dim/3)]
+    # quick and dirty, split around the average
+    x_ave = np.average(x)
+    xm = x[x<x_ave]
+    xp = x[x>=x_ave]
+    y = xx[int(dim/3):int(dim/3*2)]
+    y_ave = np.average(y)
+    ym = y[y<y_ave]
+    yp = y[y>=y_ave]
+    points = []
+    if len(xp) > 0:
+        index_p = np.argmin(xp)
+        index_x = np.where(x == xp[index_p])
+        points.append(np.array([xp[index_p], y[index_x] , zbase]))
+    if len(xm) > 0:
+        index_m = np.argmax(xm)
+        index_x = np.where(x == xm[index_m])
+        points.append(np.array([xm[index_m], y[index_x] , zbase]))
+    print(points)
     # Dirichlet boundary conditions fix the base.
     # model.bcs = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
     # model.bcs = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
+    def inside(x, on_boundary):
+        tol = 1.e-2
+        inside = False
+        for xx in points:
+            if (norm(xx-x) < tol):
+                inside = True
+                print(xx)
+                # self.found(x)
+        return inside
    
     def on_basal_ring_x_boundary(x, on_boundary):
         tol = 1.e-1
@@ -771,7 +820,15 @@ def set_boundary_conditions(model):
 
         eps = math.acosh(sigma)
 
-        return abs(x[1]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol and x[0] < 0.
+        on_y = abs(x[1]) < tol
+        on_base = abs(x[2]-2.4) < tol
+        on_endo = eps <= 0.3713 + tol
+        endo_base_x = on_y and on_base and on_endo
+        if endo_base_x == True:
+
+            print(endo_base_x)
+
+        return abs(x[1]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol #and x[0] < 0.
 
     def on_basal_ring_y_boundary(x, on_boundary):
         tol = 1.e-1
@@ -782,13 +839,15 @@ def set_boundary_conditions(model):
         sigma=(1./(2.*4.3)*(ra+rb))
 
         eps = math.acosh(sigma)
-        return abs(x[0]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol and x[1] < 0.
+        return abs(x[0]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol #and x[1] < 0.
 
-    bcs0 = DirichletBC(V.sub(1), 0.0, on_basal_ring_x_boundary, method='pointwise')
-    bcs1 = DirichletBC(V.sub(0), 0.0, on_basal_ring_y_boundary, method='pointwise')
+    # bcs0 = DirichletBC(V.sub(1), Constant(0), on_basal_ring_x_boundary, method='pointwise')
+    bcs0 = DirichletBC(V.sub(1), Constant(0), inside, method='pointwise')
+    bcs1 = DirichletBC(V.sub(0), Constant(0), on_basal_ring_y_boundary, method='pointwise')
     bcs2 = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
-    # model.bcs = [bcs0, bcs1, bcs2]
-    model.bcs = [bcs1, bcs2]
+    model.bcs = [bcs2, bcs0]
+    # model.bcs = bcs2
+    # model.bcs = [bcs1, bcs2]
 
     # We have not fully eliminated rigid body motion yet. To do so, we will
     # define a nullspace of rigid body motions and use a iterative method which
