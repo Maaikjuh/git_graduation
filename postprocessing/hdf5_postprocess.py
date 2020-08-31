@@ -126,8 +126,11 @@ class postprocess_hdf5(object):
 
             self.inputs = read_dict_from_csv(inputs_csv)
 
-            if self.inputs['active_stress']['eikonal'] is not None:
-                self.eikonal_dir = self.inputs['active_stress']['eikonal']['td_dir']
+            try:
+                if self.inputs['active_stress']['eikonal'] is not None:
+                    self.eikonal_dir = self.inputs['active_stress']['eikonal']['td_dir']
+            except KeyError:
+                self.eikonal_dir = None 
 
             self._parameters['ls0'] = self.inputs['active_stress']['ls0']
             self.vector_V = VectorFunctionSpace(self.mesh, "Lagrange", 2)
@@ -221,7 +224,9 @@ class postprocess_hdf5(object):
         par['phase'] = 'phase'
         par['time'] = 'time' 
         par['t_cycle'] = 't_cycle'
-        par['cycle'] = 'cycle' 
+        par['cycle'] = 'cycle'
+
+        par['load_pickle'] = True 
         return par
 
     def load_mesh(self):
@@ -665,10 +670,34 @@ class postprocess_hdf5(object):
             self.functions[vari] = Function(self.function_V)
             self.functions[vari].set_allow_extrapolation(True)
 
-    def plot_strain(self, title = '', wall_points = 10, variables = ['Ell', 'Ecc', 'Err']):
-        print('Extracting strains from hdf5...')
-        self.show_slices(title = title)
+    def plot_strain(self, title = '', wall_points = 10, variables = ['Ell', 'Ecc', 'Err', 'Ecr', 'myofiber_strain']):
+        """
+        Extracts and plots the strain, calculated by the postprocessing module of the model (saved as hdf5)
+        For multiple slices, segments and wall locations strains are extracted from the hdf5 file.
 
+        Args:
+            - title: additional title of the plots
+            - wall points: number of transmural points that will be analysed
+            - variables: the types of strains that are analysed, the options are:
+                'Ell': longitudinal strain
+                'Ecc': circumferential strain
+                'Err': radial strain
+                'Ecr': circumferential-radial shear strain
+                'Ett': transmural strain
+                'myofiber_strain': myofiber strain
+        
+        If 'Ell', 'Ecc' and 'Err' exist, a table will be generated with the total average values of these 
+        strains at end systole
+
+        For every strain variable, the average of the strain, as well as the average of the strain for 
+        the different slices and endo, mid and epi locations over the time will be generated. 
+        For every strain variable, the average strain of the different slices transmurally will be plotted
+        """
+        print('Extracting strains from hdf5...')
+
+        # create a figure to show which slices and transumural points will be analysed
+        self.show_slices(title = title, wall_points = wall_points)
+    
         self.variables = variables
         self.hdf5_files = {}
         self.hdf5_vectors ={}
@@ -676,19 +705,21 @@ class postprocess_hdf5(object):
 
         results = self.results
         par = self.parameters
+
         # find the time of end systole
         begin_phase = results[par['phase']][results.index[0]]
         t_es_cycle = results[par['t_cycle']][(results[par['phase']] == begin_phase + 3).idxmax()]
         
         # find the time of end diastole
         t_ed_cycle = results[par['t_cycle']][(results[par['phase']] == begin_phase + 1).idxmax()]
- 
+
         if self.model == 'cvbtk':
+            # define the vector numbers containing the strain data at end systole and end diastole
             dt = results[par['time']][results.index[1]] - results[par['time']][results.index[0]]
             vector_es = t_es_cycle/dt
             vector_ed = t_ed_cycle/dt
             
-            # create a read handel for the longitudinal, circumferential and radial strains
+            # create a handel for the strains
             self.open_hdf5()
 
             # extract the number of vectors (timesteps) in the files
@@ -696,15 +727,17 @@ class postprocess_hdf5(object):
 
             vector_numbers = list(range(nsteps))
             vector_numbers = list(map(int, vector_numbers))
-            index_ed = vector_numbers.index(vector_ed)
 
+            # for easy comparision with experimental data, the time loop starts at end diastole
+            index_ed = vector_numbers.index(vector_ed)
             vector_numbers = vector_numbers[index_ed:] +  vector_numbers[:index_ed]
 
         elif self.model == 'beatit':
+            # define the vector numbers containing the strain data at end systole and end diastole
             vector_es = t_es_cycle
             vector_ed = t_ed_cycle
 
-            # create a read handel for the longitudinal, circumferential and radial strains
+            # create a handel for the strains
             self.open_hdf5()
 
             vector_numbers = results[par['time']][(results[par['cycle']] == self.cycle)]
@@ -716,134 +749,103 @@ class postprocess_hdf5(object):
 
         # extract the theta values of the slices
         theta_vals = self.parameters['theta_vals']
-
-        # define 6 segments, 5 points per segment
-        phi_int = 2*math.pi / 6
-        phi_seg = phi_int/ 5
-        phi_range = np.arange(-1*math.pi, 1*math.pi, phi_int)
-        phi_seg = np.arange(0., phi_int, phi_seg)
-
         focus = self.parameters['focus']
+        eps_outer = self.parameters['eps_outer']
 
+        # define segments, 5 points per segment
+        nr_segments = self.parameters['nr_segments']
+        phi_int = 2*math.pi / nr_segments
+        phi_range = np.arange(-1*math.pi, 1*math.pi, phi_int)
+
+        # define the epsilon values of the transmural wall points
         delta_x = (self.x_epi - self.x_endo) / wall_points
         eps_vals = []
         for dx in range(wall_points + 1):
             x_pos = self.x_endo + dx * delta_x
             eps = cartesian_to_ellipsoidal(focus, x = [x_pos, 0.,0.])['eps']
             eps_vals.append(eps)
+        
+        if not par['load_pickle'] or not os.path.exists(os.path.join(self.directory, 'data.pkl')):
 
-        eps_outer = self.parameters['eps_outer']
+            # df =  pd.DataFrame({'strain': [], 'time': [], 'slice': [], 'seg': [], 'wall': [], 'value': []})
+            strain_function = {}
+            data = {}
+            progress = nsteps/10
+            i = 0
 
-        # create dictionary to store average strain values per slice
-        slices_strains = {}
-        slices_strains_wall = {}
-        time_strain = {}
-        strain_function = {}
+            count = 0 
+            for steps, vector in enumerate(vector_numbers):
+                # loop over time (vector numbers)
+                if i >= progress:
+                    print('{0:.2f}% '.format(steps/nsteps*100))
+                    i = 0
+                i += 1
 
-        progress = nsteps/10
-        i = 0
-        for steps, vector in enumerate(vector_numbers):
-            # loop over time (vector numbers)
-            if i >= progress:
-                print('{0:.2f}% '.format(steps/nsteps*100))
-                i = 0
-            i += 1
+                # read the strain data of the current vector number
+                for vari in variables:
+                    vector_time_name = self.hdf5_vectors[vari].format(vector)
+                    self.hdf5_files[vari].read(self.functions[vari], vector_time_name)
 
-            for vari in variables:
-                vector_time_name = self.hdf5_vectors[vari].format(vector)
-                self.hdf5_files[vari].read(self.functions[vari], vector_time_name)
+                for slice_nr, theta in enumerate(theta_vals):
+                    # loop over slices
 
-            all_seg = {vari:[] for vari in variables}
+                    # heigth of the epi point of the current slice
+                    z_epi = ellipsoidal_to_cartesian(focus,eps_outer,theta,0.)[2]
 
-            for slice_nr, theta in enumerate(theta_vals):
-                # loop over slices
-
-                # empyt dictionary for every timestep and slice 
-                timestep_wall = {}
-                x_epi, y_epi, z_epi = ellipsoidal_to_cartesian(focus,eps_outer,theta,0.)
-
-                for seg, phi in enumerate(phi_range):
-                    # loop over segments
-                    for phi_step in phi_seg:
-                        # per segments, 5 points are used
-                        # for wall, eps in enumerate([eps_outer, eps_mid, eps_inner]):
+                    for seg, phi in enumerate(phi_range):
+                        # loop over segments
                         for wall, eps in enumerate(eps_vals):
-                            # loop over wall location (epi, mid, endo)
+                            # loop over wall locations
+
+                            # the height of all the wall locations has to be the same, which means
+                            # that for each epsilon value, the theta value has to be calculated
                             theta = math.acos(z_epi/(focus * math.cosh(eps)))
-                            x, y, z = ellipsoidal_to_cartesian(focus,eps,theta, phi + phi_step)
+
+                            # coordinates of the current point
+                            x, y, z = ellipsoidal_to_cartesian(focus,eps,theta, phi)
 
                             for vari in variables:
                                 strain_function[vari] = self.functions[vari](x, y, z)
 
                             for vari in strain_function:
-                                save_slice_wall = '{}_slice_{}_{}'.format(vari, slice_nr, str(wall))
-                                save_slice = '{}_slice_{}'.format(vari, slice_nr)
+                                # strain = strain_function[vari]
+                                # strain = (np.sqrt(1+ 2*strain_function[vari]) - 1) * 100 
+                                strain = strain_function[vari] * 100
 
-                                strain = strain_function[vari]
+                                data[count] = {'strain': vari, 'time': steps, 'slice': slice_nr, 'seg': seg, 'wall': wall, 'value': strain}
 
-                                all_seg[vari].append(strain * 100)
+                                # df[count] = data
 
-                                if steps == 0 and seg == 0 and phi_step == 0 and wall == 0:
-                                    slices_strains[save_slice] = [strain * 100]
-                                else:
-                                    slices_strains[save_slice].append(strain * 100)
+                                count += 1
 
-                                if steps == 0 and seg == 0 and phi_step == 0:
-                                    slices_strains_wall[save_slice_wall] = [strain * 100]
-                                else:
-                                    slices_strains_wall[save_slice_wall].append(strain * 100)
+            # save the dataframe
+            df = pd.DataFrame.from_dict(data, "index")
+            df.to_pickle(os.path.join(self.directory, 'data.pkl'))
 
-                                if seg == 0 and phi_step == 0:
-                                    timestep_wall[vari + '_' + str(wall)] = [strain * 100]
-                                else:
-                                    timestep_wall[vari + '_' + str(wall)].append(strain*100)
-
-                                if seg == 0 and phi_step == 0 and wall == 0:
-                                    timestep_wall[save_slice] = [strain * 100]
-                                else:
-                                    timestep_wall[save_slice].append(strain*100)
-                                    
-                                if vector == vector_es and seg == 0 and phi_step == 0 and wall == 0:
-                                    time_strain[save_slice + '_trans']  = [strain * 100]
-                                elif vector == vector_es and seg == 0 and phi_step == 0 and wall != 0:
-                                    time_strain[save_slice + '_trans'].append(strain * 100)
-                                    
-
-                for strain_name in variables:
-                    if steps == 0:
-                        time_strain['{}_slice_{}'.format(strain_name, slice_nr)] = [np.mean(timestep_wall['{}_slice_{}'.format(strain_name, slice_nr)])]
-                    else:
-                        time_strain['{}_slice_{}'.format(strain_name, slice_nr)].append(np.mean(timestep_wall['{}_slice_{}'.format(strain_name, slice_nr)]))
-
-                    for wall in range(len(eps_vals)):
-                        if steps == 0:
-                            time_strain[strain_name + '_slice_{}_'.format(slice_nr) + str(wall)] = [np.mean(timestep_wall[strain_name + '_' + str(wall)])]
-                        else:
-                            time_strain[strain_name + '_slice_{}_'.format(slice_nr) + str(wall)].append(np.mean(timestep_wall[strain_name + '_' + str(wall)]))
-            for strain_name in variables:
-                if steps == 0:
-                    time_strain[strain_name] = [np.mean(all_seg[strain_name])]
-                else:
-                    time_strain[strain_name].append(np.mean(all_seg[strain_name]))
+        else:
+            df = pd.read_pickle(os.path.join(self.directory, 'data.pkl'))
 
         # make the table
         if ('Ell' and 'Ecc' and 'Err') in variables:
-            begin_phase = results[par['phase']][results.index[0]]
-            t_es_cycle = results[par['t_cycle']][(results[par['phase']] == begin_phase + 3).idxmax()]
-
             # find the corresponding vector name for u
             dt = results[par['time']][results.index[1]] - results[par['time']][results.index[0]]
-            index = int(t_es_cycle/dt)
+            index = int((t_es_cycle- t_ed_cycle)/dt)
+
+            data_es = df[df['time'] == index]
+
+            Ell = data_es[data_es['strain'] == 'Ell']
+            Ecc = data_es[data_es['strain'] == 'Ecc']
+            Err = data_es[data_es['strain'] == 'Err']
 
             cell_text = []
-            for row in range(0, len(theta_vals)):
-                mean_Ell = round((time_strain['Ell_slice_{}'.format(row)][index]), 2)
-                mean_Ecc = round((time_strain['Ecc_slice_{}'.format(row)][index]), 2)
-                mean_Err = round((time_strain['Err_slice_{}'.format(row)][index]), 2)
+            for slice_nr in range(0, len(theta_vals)):
+                mean_Ell = round(Ell['value'][Ell['slice'] == slice_nr].mean(), 2)
+                mean_Ecc = round(Ecc['value'][Ecc['slice'] == slice_nr].mean(), 2)
+                mean_Err = round(Err['value'][Err['slice'] == slice_nr].mean(), 2)
                 cell_text.append([mean_Ell, mean_Err, mean_Ecc])
-            mean_Ell = round((time_strain['Ell'][index]), 2)
-            mean_Ecc = round((time_strain['Ecc'][index]), 2)
-            mean_Err = round((time_strain['Err'][index]), 2)
+            mean_Ell = round(Ell['value'].mean(), 2)
+            mean_Ecc = round(Ecc['value'].mean(), 2)
+            mean_Err = round(Err['value'].mean(), 2)
             cell_text.append([mean_Ell, mean_Err, mean_Ecc])
 
             rowLabels = ['slice ' + str(nr) for nr in range(0, len(theta_vals))]
@@ -865,6 +867,7 @@ class postprocess_hdf5(object):
         spec = GridSpec(2, 3)
         time = (results[par['t_cycle']])
 
+        # extract the times of the beginning of the end of the phases
         if self.model == 'beatit':
             phase2 = time[(results[par['phase']] == 2).idxmax() - 1] - t_ed_cycle
         else:
@@ -888,10 +891,16 @@ class postprocess_hdf5(object):
             av.set_xlabel('time [ms]')
             walls = [0, int(len(eps_vals)/2), len(eps_vals) - 1]
             wall_names = ['endo', 'mid', 'epi']
+
+            strain = df[df['strain'] == strain_name]
             for slice_nr in range(0, len(theta_vals)):
-                for ii, wall in enumerate(walls):
-                    strain_dict = strain_name + '_slice_{}_{}'.format(slice_nr,  wall)
-                    plot[ii].plot(time , time_strain[strain_dict], label = 'Slice {}'.format(slice_nr))
+                slice = strain[strain['slice'] == slice_nr]
+                for ii, wall in enumerate(walls): 
+                    wall = slice[slice['wall'] == wall]
+                    grouped = wall.groupby('time', as_index=False).mean()
+                    time_strain = grouped['value']
+
+                    plot[ii].plot(time , time_strain, label = 'Slice {}'.format(slice_nr))
                     plot[ii].set_title(wall_names[ii])
 
                     if ii == 2:
@@ -901,23 +910,36 @@ class postprocess_hdf5(object):
                         for phase in [phase2, phase3, phase4, phase4_end]:
                             plot[ii].axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
                             av.axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
+                grouped = slice.groupby('time', as_index=False).mean()
+                time_strain = grouped['value']
+                av.plot(time, time_strain, label = 'Slice {}'.format(slice_nr))
 
-            av.plot(time, time_strain[strain_name], label = 'average')
+            grouped = strain.groupby('time', as_index=False).mean()
+            time_strain = grouped['value']
+
+            av.plot(time, time_strain, '--', label = 'average')
             av.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
             fig.suptitle(strain_name + ' ' + title)
             fig.savefig(os.path.join(self.directory, strain_name + '_model.png'), dpi=300, bbox_inches="tight")
             
-            fig = plt.figure()     
+            fig = plt.figure()   
+
+            # data_ed = df[df['time'] == 0] 
             for slice_nr in range(0, len(theta_vals)):
-                plt.plot(range(len(eps_vals)), time_strain['{}_slice_{}_trans'.format(strain_name, slice_nr)], label = 'Slice {}'.format(slice_nr))
-            plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-            plt.title(strain_name + ' transmural at end systole' + title)
+                strain = data_es[data_es['strain'] == strain_name]
+                slice = strain[strain['slice'] == slice_nr]
+                grouped = slice.groupby('wall', as_index=False).mean()
+                wall_strain = grouped['value']
+                plt.plot(range(len(eps_vals)), wall_strain, label = 'Slice {}'.format(slice_nr))
+            plt.legend(loc='center left', bbox_to_anchor=(1, 0.5)
+            )
+            plt.title(strain_name + ' transmural at end systole ' + title)
             plt.ylabel('strain [%]')
             plt.xticks([])
             plt.xlabel('endocardial -> epicardial')
             
-            fig.savefig(os.path.join(self.directory, strain_name + '_transmural_model.png'), dpi=300, bbox_inches="tight")
+            fig.savefig(os.path.join(self.directory, strain_name + '_transmural_model_es.png'), dpi=300, bbox_inches="tight")
 
     def calc_strain(self, title = ''):
         print('Calculating strain...')
@@ -1341,31 +1363,23 @@ class postprocess_hdf5(object):
             # also create a seperate figure for the displacement at ed and es
             ed_es_fig, ed_es_plot = plt.subplots(1,1)
 
-        # gs = GridSpec(2,2)
         # top view slices
         _xy1 = plt.subplot(gs[0,0])
         # side view slices
         _xz1 = plt.subplot(gs[0,1])
-        # # displacement at ed and es
-        # _xy2 = plt.subplot(gs[1,:])
-
-        # # also create a seperate figure for the displacement at ed and es
-        # ed_es_fig, ed_es_plot = plt.subplots(1,1)
 
         if u_exists:
             self._ax = {'xy1': _xy1, 'xz1': _xz1, 'xy2': _xy2}
         else:
             self._ax = {'xy1': _xy1, 'xz1': _xz1}
 
-        # extract the same theta and phi values as used in the torsion and shear calculations
+        # extract the theta and phi values as used in the calculations
         theta_vals = self.parameters['theta_vals']
         nr_segments = self.parameters['nr_segments']
         focus = self.parameters['focus']
 
         # draw the outlines of the left ventricle
         self.lv_drawing(top_keys = ['xy1'], side_keys = ['xz1'], xy_theta=theta_vals[1])
-
-        tol = self.parameters['tol']
 
         delta_x = (self.x_epi - self.x_endo) / wall_points
         eps_vals = []
@@ -1374,9 +1388,7 @@ class postprocess_hdf5(object):
             eps = cartesian_to_ellipsoidal(focus, x = [x_pos, 0.,0.])['eps']
             eps_vals.append(eps)
 
-        eps_outer = self.parameters['eps_outer'] - tol
-        # eps_mid = self.parameters['eps_mid']
-        # eps_inner = self.parameters['eps_inner'] + tol
+        eps_outer = self.parameters['eps_outer']
 
         phi_int = 2*math.pi / nr_segments
         phi_range = np.arange(-1*math.pi, 1*math.pi, phi_int)
@@ -1443,7 +1455,7 @@ class postprocess_hdf5(object):
 
                         seg_ed.append([x_ed,y_ed])
 
-                if u_exists and slice_nr == 0 or u_exists and slice_nr == len(theta_vals)-2:
+                if u_exists and (slice_nr == 0 or slice_nr == len(theta_vals)-2):
                     # only plot the absolute locations of points of the basel and the second to last slice
                     # connect the epi, mid and endo point of each segment for easy viewing
                     self._ax['xy2'].plot([i[0] for i in seg_ed], [i[1] for i in seg_ed], 'o-', color=col[slice_nr])
@@ -1455,7 +1467,7 @@ class postprocess_hdf5(object):
                 self._ax['xy1'].scatter(x_segs, y_segs, color=col[slice_nr], label= 'slice ' + str(slice_nr))
             self._ax['xz1'].scatter(x_segs, z_segs, color=col[slice_nr], label= 'slice ' + str(slice_nr))
 
-            if u_exists and slice_nr == 0 or u_exists and slice_nr == len(theta_vals)-2:
+            if u_exists and (slice_nr == 0 or slice_nr == len(theta_vals)-2):
                 # only plot the absolute locations of points of the basel and the second to last slice
                 # this plot is technically redundant, but I'm too lazy to think of a way to correctly add the labels
                 self._ax['xy2'].scatter(x_segs_ed, y_segs_ed, color=col[slice_nr], label= 'ed slice ' + str(slice_nr))
