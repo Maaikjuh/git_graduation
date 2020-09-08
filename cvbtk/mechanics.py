@@ -807,6 +807,9 @@ class BovendeerdMaterial(ConstitutiveModel):
         super(BovendeerdMaterial, self).__init__(u, fiber_vectors, **kwargs)
 
         Q = vector_space_to_scalar_space(u.ufl_function_space())
+        
+        mesh = u.ufl_domain().ufl_cargo()
+        self.W = TensorFunctionSpace(mesh, 'Lagrange' , 2)
         # self.Sfun = Function(Q)
         # self.Sfun.assign(Constant(0.0))
 
