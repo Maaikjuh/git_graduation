@@ -204,11 +204,14 @@ class HemodynamicsPlot(object):
     
             # Add the legends for the three individual plots, if needed to.
             if legend:
-                self._ax['pt'].legend(loc=2, fontsize=7) #, title='Pressure')
+                # self._ax['pt'].legend(loc=2, fontsize=7) #, title='Pressure')
+                self._ax['pt'].legend(fontsize=8, bbox_to_anchor=(1.0, 1), loc='upper left') #, title='Pressure')
                 self._ax['pt'].get_legend().get_title().set_fontsize('7')
-                self._ax['vt'].legend(loc=2, fontsize=7) #, title='Volume')
+                # self._ax['vt'].legend(loc=2, fontsize=7) #, title='Volume')
+                self._ax['vt'].legend(fontsize=8, bbox_to_anchor=(1.0, 1), loc='upper left') #, title='Volume')
                 self._ax['vt'].get_legend().get_title().set_fontsize('7')
-                self._ax['qt'].legend(loc=2, fontsize=7) #, title='Flowrate')
+                # self._ax['qt'].legend(loc=2, fontsize=7) #, title='Flowrate')
+                self._ax['qt'].legend(fontsize=8, bbox_to_anchor=(1.0, 1), loc='upper left') #, title='Flowrate')
                 self._ax['qt'].get_legend().get_title().set_fontsize('7')
     
             # The pressure-volume loop always has a legend if multiple are plotted.
@@ -275,7 +278,7 @@ class HemodynamicsPlot(object):
                 self._ax['pv'].get_legend().get_title().set_fontsize('7')
             
             
-    def compare_against(self, label1, label2, dataset,cycle=None, model = None):
+    def compare_against(self, label_ref, label_vars, dataset,cycle=None, model = None, linestyle = '--'):
         """
         Draw additional curves on the existing figure for visual comparison.
 
@@ -315,39 +318,39 @@ class HemodynamicsPlot(object):
             
             print('\ndata centered around phase {} at {}ms with offset {}ms'.format(center_phase,phase_time_df,offset))
             # Make the pressure-time plot.
-            self._ax['pt'].plot(time, kPa_to_mmHg(dataset[var_comp['plv']]), '--', color ='#1f77b4')
-            self._ax['pt'].plot(time, kPa_to_mmHg(dataset[var_comp['pven']]), '--r')
-            self._ax['pt'].plot(time, kPa_to_mmHg(dataset[var_comp['part']]), '--g')
+            self._ax['pt'].plot(time, kPa_to_mmHg(dataset[var_comp['plv']]), linestyle, color ='#1f77b4')
+            self._ax['pt'].plot(time, kPa_to_mmHg(dataset[var_comp['pven']]), linestyle + 'r')
+            self._ax['pt'].plot(time, kPa_to_mmHg(dataset[var_comp['part']]), linestyle + 'g')
     
             # Make the volume-time plot.
-            self._ax['vt'].plot(time, dataset[var_comp['vlv']], '--', color ='#1f77b4')
+            self._ax['vt'].plot(time, dataset[var_comp['vlv']], linestyle, color ='#1f77b4')
             # self._ax['vt'].plot(dataset['time'], dataset['vven'], *args, **kwargs)
             # self._ax['vt'].plot(dataset['time'], dataset['vart'], *args, **kwargs)
     
             # Make the flowrate-time plot.
-            self._ax['qt'].plot(time, dataset[var_comp['qmv']], '--', color ='#1f77b4')
-            self._ax['qt'].plot(time, dataset[var_comp['qao']], '--r')
-            self._ax['qt'].plot(time, dataset[var_comp['qper']], '--g')
+            self._ax['qt'].plot(time, dataset[var_comp['qmv']], linestyle, color ='#1f77b4')
+            self._ax['qt'].plot(time, dataset[var_comp['qao']], linestyle + 'r')
+            self._ax['qt'].plot(time, dataset[var_comp['qper']], linestyle + 'g')
             
             for i in range(2,5):
                 index = (dataset[var_comp['phase']] == i).idxmax()
                 phase_time = dataset[var_comp['time']][index]- min(dataset[var_comp['time']])+offset
     
-                self._ax['pt'].axvline(x = phase_time, linestyle = '--', color = 'y')
-                self._ax['vt'].axvline(x = phase_time, linestyle = '--', color = 'y')
-                self._ax['qt'].axvline(x = phase_time, linestyle = '--', color = 'y')
+                self._ax['pt'].axvline(x = phase_time, linestyle = linestyle, color = 'y')
+                self._ax['vt'].axvline(x = phase_time, linestyle = linestyle, color = 'y')
+                self._ax['qt'].axvline(x = phase_time, linestyle = linestyle, color = 'y')
 
     
             # Make the pressure-volume plot.
             # Each cycle (if multiple) will get its own color.
             for c in dataset[var_comp['cycle']].unique():
                 _df = dataset[dataset[var_comp['cycle']] == int(c)]
-                self._ax['pv'].plot(_df[var_comp['vlv']], kPa_to_mmHg(_df[var_comp['plv']]), '--', color ='#1f77b4')
+                self._ax['pv'].plot(_df[var_comp['vlv']], kPa_to_mmHg(_df[var_comp['plv']]), linestyle, color ='#1f77b4')
                 
             if 'pcav_s' in df.keys():
                 self._ax['pv'].legend(['BiV','Lv'])
             else:
-                self._ax['pv'].legend([label2, label1])
+                self._ax['pv'].legend(label_ref + label_vars)
                 
         if 'pcav_s' in dataset.keys():
         
@@ -654,7 +657,7 @@ def procentual_change_hemodynamics(ref, data, title1 = 'reference', title2='vari
     perc_change = pd.DataFrame(perc_change,index=[0])
     
     print("\n{:<17} {:>10} {:>10} {:>13}".format('',title1,title2,'difference'))
-    hemo_sum = pd.DataFrame(columns=['reference', 'ischemic','change (%)'])
+    hemo_sum = pd.DataFrame(columns=[title1, title2,'difference (%)'])
     for key in perc_change.keys():
         print("{:<17} {:>10.2f} {:=10.2f} {:10.1%}".format(key, hemo_ref[key][0], hemo_data[key][0],perc_change[key][0]))
         var1 = round(hemo_ref[key][0],2)
@@ -708,9 +711,12 @@ def plot_results(results, dir_out='.', cycle=None, title = 'Hemodynamic relation
     #simulation_plot.plot_function()
     
     
-def plot_compare_results(results,results_var, dir_out='.', cycle=None, label_ref='ischemic', label_var='reference', 
-                         title = 'Hemodynamic relations', model1 = None, model2 = None):
-    simulation_plot = HemodynamicsPlot(results_var, title, model= model2)
-    simulation_plot.plot(label_var, cycle=cycle) #, cycle=NUM_CYCLES)
-    simulation_plot.compare_against(label_ref, label_var,results,cycle=cycle, model = model1)
+def plot_compare_results(results,results_var, dir_out='.', cycle=None, label_ref='ischemic', label_vars=['reference'], 
+                         title = 'Hemodynamic relations', modelref = None, modelvars = [None]):
+    linestyle = ['--', '-.', ':']
+    simulation_plot = HemodynamicsPlot(results, title, model= modelref)
+    simulation_plot.plot(label_ref[0], cycle=cycle) #, cycle=NUM_CYCLES)
+    
+    for ii, var in enumerate(results_var):
+        simulation_plot.compare_against(label_ref, label_vars,var,cycle=cycle, model = modelvars[ii], linestyle = linestyle[ii])
     plt.savefig(os.path.join(dir_out, 'lv_function_compared.png'), dpi=300)
