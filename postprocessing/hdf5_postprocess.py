@@ -801,8 +801,8 @@ class postprocess_hdf5(object):
 
             t_max = 160*(ls + 1)
 
-            twitch_term_1 = (tanh(t_act[i]/ 75.0))**2
-            twitch_term_2 = (tanh((t_max - t_act[i])/150.0))**2
+            twitch_term_1 = (tanh(t_act[t_act.index[0]]/ 75.0))**2
+            twitch_term_2 = (tanh((t_max - t_act[t_act.index[0]])/150.0))**2
             
             twitch_cond_1 = 0.
             if i >= 0.:
@@ -821,9 +821,18 @@ class postprocess_hdf5(object):
             ii += i
         
         fig = plt.figure()
+        ax = fig.add_subplot(111)
 
-        # plt.plot(time[:len(time)-1], p)
-        plt.plot(time[:len(time)-1], act)
+        for phase in [phase2, phase3, phase4, phase4_end]:
+            ax.axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
+
+        ax.plot(time[:len(time)-1], p, label= 'p', color = 'tab:red')
+        ax.tick_params(axis='y', labelcolor='tab:red')
+        ax.set_ylabel('f_iso*f_twitch*Ea*(ls - lc)', color = 'tab:red')
+        ax2 = ax.twinx()
+        ax2.plot(time[:len(time)-1], act, label= 'act', color = 'tab:blue')
+        ax2.set_ylabel('f_twitch', color = 'tab:blue')
+        ax2.tick_params(axis='y', labelcolor='tab:blue')
         fig.savefig(os.path.join(self.directory, 'activation.png'), dpi=300, bbox_inches="tight")
 
     def plot_strain(self, title = '', wall_points = 10, analyse_seg = None, variables = ['Ell', 'Ecc', 'Err', 'Ecr', 'myofiber_strain']):
