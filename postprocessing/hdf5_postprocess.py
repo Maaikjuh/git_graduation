@@ -132,6 +132,12 @@ class postprocess_hdf5(object):
             except KeyError:
                 self.eikonal_dir = None 
 
+            try:
+                if self.inputs['infarct']['infarct'] == True:
+                    self.infarct = True
+            except KeyError:
+                self.infarct = False
+
             self._parameters['ls0'] = self.inputs['active_stress']['ls0']
             self.vector_V = VectorFunctionSpace(self.mesh, "Lagrange", 2)
             self.function_V = FunctionSpace(self.mesh, "Lagrange", 2)
@@ -153,6 +159,10 @@ class postprocess_hdf5(object):
         self.results = self.load_reduced_dataset(results_csv, cycle=cycle)
 
         self._parameters.update(kwargs)
+
+        self.hdf5_files = {}
+        self.hdf5_vectors ={}
+        self.functions = {}
 
         # calculate eps_mid:
         # get x_epi and x_endo at the equatorial point (theta = 1/2*pi)
@@ -225,6 +235,7 @@ class postprocess_hdf5(object):
         par['time'] = 'time' 
         par['t_cycle'] = 't_cycle'
         par['cycle'] = 'cycle'
+        par['t_act'] = 't_act'
 
         par['load_pickle'] = True 
         return par
@@ -490,100 +501,79 @@ class postprocess_hdf5(object):
         b) myofiber stress
         c) workloops
         """
-
-        print('Calculating mechanics local points...')
-
-        # create a read handel for the stress and fiber length files
-        stress_file = HDF5File(mpi_comm_world(), os.path.join(self.directory,'fiber_stress.hdf5'), 'r')
-        ls_file = HDF5File(mpi_comm_world(), os.path.join(self.directory,'ls.hdf5'), 'r')
-
-        # extract the number of vectors (timesteps) in the files
-        nsteps = ls_file.attributes('ls_old')['count']
-        vector_numbers = list(range(nsteps))
-
-        # initialize the variables
-        stress_func = Function(self.function_V)
-        ls_func = Function(self.function_V)
-
-        # define the phi value for the 9 points
-        phi_free_wall = 1/2*math.pi
-        # define the equatorial, mid and apical theta values
-        theta_vals = [1/2*math.pi, 0.63*math.pi, 19/25*math.pi]
-
-        focus = self.parameters['focus']
-        tol = self.parameters['tol']
-
-        # epsilons for the endo, mid and epicardial wall locations of the 9 points
-        eps_outer = self.parameters['eps_outer'] - tol
-        eps_mid = self.parameters['eps_mid']
-        eps_inner = self.parameters['eps_inner'] + tol 
-
-        eps_vals = [eps_inner,eps_mid,eps_outer]
-
-        stress_cycle = {'top_endo': [],
-                        'top_mid': [],
-                        'top_epi': [],
-                        'mid_endo': [],
-                        'mid_mid': [],
-                        'mid_epi': [],
-                        'bot_endo': [],
-                        'bot_mid': [],
-                        'bot_epi': []}
-        strain_cycle = {'top_endo': [],
-                        'top_mid': [],
-                        'top_epi': [],
-                        'mid_endo': [],
-                        'mid_mid': [],
-                        'mid_epi': [],
-                        'bot_endo': [],
-                        'bot_mid': [],
-                        'bot_epi': []}
-
+        
+        results = self.results
+        par = self.parameters
+    
         rad = ['endo', 'mid', 'epi']
         long = ['top', 'mid', 'bot']
 
-        # calculate and plot the mechanics over the whole cycle (all saved vector numbers)
-        progress = len(vector_numbers)/10
-        i = 0
-        for step, vector in enumerate(vector_numbers):
-            # loop over time (vector numbers)
-            if i >= progress:
-                print('{0:.2f}% '.format(step/nsteps*100))
-                i = 0
-            i += 1
+        if not par['load_pickle'] or not os.path.exists(os.path.join(self.directory, 'loc_mech_data.pkl')):
+            print('Calculating mechanics local points...')
 
-            # define the vector names and extract the values of the timestep
-            stress_vector = 'fiber_stress/vector_{}'.format(vector)
-            ls_vector = 'ls_old/vector_{}'.format(vector)
+            variables = ['fiber_stress', 'ls']
 
-            stress_file.read(stress_func, stress_vector)
-            ls_file.read(ls_func, ls_vector)
+            self.open_hdf5(variables = variables)
 
-            # allow extrapolation in order to define the displacement values
-            # at non-nodal points
-            stress_func.set_allow_extrapolation(True)
-            ls_func.set_allow_extrapolation(True)
+            nsteps = self.hdf5_files['ls'].attributes('ls')['count']
+            vector_numbers = list(range(nsteps))
 
-            for l, theta in enumerate(theta_vals):
-                # for each point in longitudinal direction (equatorial, mid, apical)
-                for r, eps in enumerate(eps_vals):
-                    # for each point in radial direction (endo, mid, epi)
-                    # coordinates of the point:
-                    x, y, z = ellipsoidal_to_cartesian(focus,eps,theta,phi_free_wall)
+            # define the phi value for the 9 points
+            phi_free_wall = 1/2*math.pi
+            # define the equatorial, mid and apical theta values
+            theta_vals = [1/2*math.pi, 0.63*math.pi, 19/25*math.pi]
 
-                    # stress and lenghth of that point at the timestep (vector number)
-                    stress = stress_func(x, y, z)
-                    ls = ls_func(x, y, z)
-                    strain = np.log(ls/self.parameters['ls0'])
+            focus = self.parameters['focus']
 
-                    stress_cycle[long[l] + '_' + rad[r]].append(stress)
-                    strain_cycle[long[l] + '_' + rad[r]].append(strain)
-        stress_file.close()
-        ls_file.close()
+            # epsilons for the endo, mid and epicardial wall locations of the 9 points
+            eps_outer = self.parameters['eps_outer']
+            eps_mid = self.parameters['eps_mid']
+            eps_inner = self.parameters['eps_inner'] 
+
+            eps_vals = [eps_inner,eps_mid,eps_outer]
+
+            data = {}
+            count = 0
+
+            # calculate and plot the mechanics over the whole cycle (all saved vector numbers)
+            progress = len(vector_numbers)/10
+            i = 0
+            for step, vector in enumerate(vector_numbers):
+                # loop over time (vector numbers)
+                if i >= progress:
+                    print('{0:.2f}% '.format(step/nsteps*100))
+                    i = 0
+                i += 1
+
+                for vari in variables:
+                    vector_time_name = self.hdf5_vectors[vari].format(vector)
+                    self.hdf5_files[vari].read(self.functions[vari], vector_time_name)
+
+                for l, theta in enumerate(theta_vals):
+                    # for each point in longitudinal direction (equatorial, mid, apical)
+                    for r, eps in enumerate(eps_vals):
+                        # for each point in radial direction (endo, mid, epi)
+                        # coordinates of the point:
+                        x, y, z = ellipsoidal_to_cartesian(focus,eps,theta,phi_free_wall)
+
+                        # stress and lenghth of that point at the timestep (vector number)
+                        for vari in variables:
+                            var = self.functions[vari](x, y, z)
+                            if vari == 'ls':
+                                var = np.log(var/self.parameters['ls0'])
+                            data[count] = {'var': vari, 'time': step, 'slice': long[l], 'wall': rad[r], 'value': var}
+                            count += 1
+
+            df = pd.DataFrame.from_dict(data, "index")
+            df.to_pickle(os.path.join(self.directory, 'loc_mech_data.pkl'))  
+
+        else:
+            df = pd.read_pickle(os.path.join(self.directory, 'loc_mech_data.pkl'))   
+
         print('Generating local mechanics plots...')
 
         # all the time points
-        time = self.results['t_cycle']
+        time = results['t_cycle']
 
         # create different figures for the strain, stress and workloops
         # 9 subplots for the 9 points are created for each figure
@@ -608,13 +598,20 @@ class postprocess_hdf5(object):
             work_plot = work_figs[1]
         work_plot = work_plot.ravel()
 
+        stress = df[df['var'] == 'fiber_stress']
+        strain = df[df['var'] == 'ls']
         # loop over all subplots
         ii = 0
         for l in long:
+            strain_l = strain[strain['slice']==l]
+            stress_l = stress[stress['slice']==l]
             for r in rad:
-                strain_plot[ii].plot(time[0:len(vector_numbers)], strain_cycle[l + '_' + r], label = label)
-                stress_plot[ii].plot(time[0:len(vector_numbers)], stress_cycle[l + '_' + r], label = label)
-                work_plot[ii].plot(strain_cycle[l + '_' + r], stress_cycle[l + '_' + r], label = label)
+                strain_val = strain_l[strain_l['wall']==r]
+                stress_val = stress_l[stress_l['wall']==r]
+
+                strain_plot[ii].plot(time[0:len(strain_val['value'])],strain_val['value'], label = label)
+                stress_plot[ii].plot(time[0:len(stress_val['value'])],stress_val['value'], label = label)
+                work_plot[ii].plot(strain_val['value'], stress_val['value'], label = label)
 
                 for plot in [strain_plot[ii], stress_plot[ii], work_plot[ii]]:
                     if ii == 0:
@@ -653,8 +650,8 @@ class postprocess_hdf5(object):
 
         print('Plots created!')
     
-    def open_hdf5(self):
-        for vari in self.variables:
+    def open_hdf5(self, variables = []):
+        for vari in variables:
             if self.model == 'beatit':
                 if vari == 'Ell':
                     filename = os.path.join(self.directory,'postprocess/postprocess.h5')
@@ -670,7 +667,166 @@ class postprocess_hdf5(object):
             self.functions[vari] = Function(self.function_V)
             self.functions[vari].set_allow_extrapolation(True)
 
-    def plot_strain(self, title = '', wall_points = 10, variables = ['Ell', 'Ecc', 'Err', 'Ecr', 'myofiber_strain']):
+    def plot_ls_lc(self, title = '', variables = ['ls', 'lc']):
+        results = self.results
+        par = self.parameters
+
+        if not par['load_pickle'] or not os.path.exists(os.path.join(self.directory, 'ls_lc_data.pkl')):
+            self.open_hdf5(variables = variables)
+
+            # extract the number of vectors (timesteps) in the files
+            nsteps = self.hdf5_files[variables[0]].attributes(variables[0])['count']
+            vector_numbers = list(range(nsteps))
+
+            eps_epi = par['eps_outer']
+            eps_mid = par['eps_mid']
+            eps_endo = par['eps_inner']
+            eps = [eps_endo, eps_mid, eps_epi]
+
+            focus = par['focus']
+            theta = 1/2 * math.pi
+            phi = 0. 
+            
+            data = {}
+            count = 0
+
+            for step, vector in enumerate(vector_numbers):
+                # define the vector names and extract the values of the timestep
+
+                for wall, ep in enumerate(eps):
+                    x, y, z = ellipsoidal_to_cartesian(focus,ep,theta, phi)
+
+                    for vari in variables:
+                        vector_time_name = self.hdf5_vectors[vari].format(vector)
+                        self.hdf5_files[vari].read(self.functions[vari], vector_time_name)
+
+                        length = self.functions[vari](x, y, z)
+
+                        data[count] = {'var': vari, 'time': step, 'wall': wall, 'value': length}
+                        count += 1
+
+            # convert dictionary to dataframe and save
+            df = pd.DataFrame.from_dict(data, "index")
+            df.to_pickle(os.path.join(self.directory, 'ls_lc_data.pkl'))  
+
+        else:
+            df = pd.read_pickle(os.path.join(self.directory, 'ls_lc_data.pkl'))   
+
+
+        time = (results[par['t_cycle']])
+        # begin_phase = results[par['phase']][results.index[0]]
+        # t_ed_cycle = results[par['t_cycle']][(results[par['phase']] == begin_phase + 1).idxmax()]
+
+        phase2 = time[(results[par['phase']] == 1)[::-1].idxmax()] #- t_ed_cycle
+        phase3 = time[(results[par['phase']] == 2)[::-1].idxmax()] #- t_ed_cycle
+        phase4 = time[(results[par['phase']] == 3)[::-1].idxmax()] #- t_ed_cycle
+        phase4_end = time[(results[par['phase']] == 4)[::-1].idxmax()] #- t_ed_cycle
+
+        spec = GridSpec(2, 3)
+        fig = plt.figure()
+        endo = fig.add_subplot(spec[0,0])
+        mid = fig.add_subplot(spec[0,1], sharey = endo)
+        mid.tick_params(labelleft=False)
+        epi = fig.add_subplot(spec[0,2], sharey = endo)
+        epi.tick_params(labelleft=False)   
+
+        av = fig.add_subplot(spec[1,:])     
+
+        ls = df[df['var'] == 'ls']
+        lc = df[df['var'] == 'lc']
+
+        wall_loc = ['endo', 'mid', 'epi']
+        plots = [endo, mid, epi]
+
+        for wall_num, wall in enumerate(wall_loc):
+            plots[wall_num].plot(time[:len(time)-1], ls['value'][ls['wall'] == wall_num], 
+                    label = 'ls',
+                    color = 'tab:red')
+                    # linestyle = linestyle[wall_num]) 
+            plots[wall_num].plot(time[:len(time)-1], lc['value'][lc['wall'] == wall_num], 
+                    label = 'lc',
+                    color = 'tab:green')
+                    # linestyle = linestyle[wall_num]) 
+            plots[wall_num].set_title(wall)
+        epi.legend(loc='center left', bbox_to_anchor=(1, 0.5))            
+        grouped_ls = ls.groupby('time', as_index = False).mean()
+        grouped_lc = lc.groupby('time', as_index = False).mean()
+
+        av.plot(time[:len(time)-1], grouped_ls['value'], 
+                label = 'ls average',
+                color = 'tab:red') 
+        av.plot(time[:len(time)-1], grouped_lc['value'], 
+                label = 'lc average',
+                color = 'tab:green') 
+        
+        av.legend(loc='center left', bbox_to_anchor=(1.2, 0.5))           
+
+        for phase in [phase2, phase3, phase4, phase4_end]:
+            for plot in [epi, mid, endo, av]:
+                plot.axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
+
+        av.set_xlabel('time [ms]')
+        epi.set_ylabel('length [um]')
+        av.set_ylabel('length [um]')
+
+        av2 = av.twinx()
+
+        div_ls_lc = list(grouped_ls['value']) - grouped_lc['value']
+
+        color = 'tab:blue'
+        av2.plot(time[:len(time)-1], div_ls_lc, color = color)
+
+        # diff.set_xlabel('time [ms]')
+        av2.set_ylabel('ls - lc [um]', color = color)
+        av2.tick_params(axis='y', labelcolor=color)
+
+        fig.suptitle('ls vs lc ' + title)
+
+        # av2.legend()
+        fig.savefig(os.path.join(self.directory, 'ls_lc.png'), dpi=300, bbox_inches="tight")
+
+        t_act = results[par['t_act']]
+        p = []
+        act = []
+        ii = -200.
+        for i, ls in enumerate(grouped_ls['value']):
+            iso_cond = 0.
+            if grouped_lc['value'][i] >= 1.5:
+                iso_cond = 1.
+            
+            # iso_cond = conditional(ge(grouped_lc['value'][i], 1.5), 1, 0)
+
+            iso_term = 140*(tanh(2.0*(grouped_lc['value'][i] - 1.5)))**2
+            f_iso = iso_cond*iso_term
+
+            t_max = 160*(ls + 1)
+
+            twitch_term_1 = (tanh(t_act[i]/ 75.0))**2
+            twitch_term_2 = (tanh((t_max - t_act[i])/150.0))**2
+            
+            twitch_cond_1 = 0.
+            if i >= 0.:
+                twitch_cond_1 = 1.
+            # twitch_cond_1 = ge(i, 0)
+            twitch_cond_2 = 0.
+            if i <= t_max:
+                twitch_cond_2 = 1.
+            # twitch_cond_2 = le(i, t_max)
+            twitch_cond = twitch_cond_1 * twitch_cond_2
+            # twitch_cond = conditional(And(twitch_cond_1, twitch_cond_2), 1, 0)
+            f_twitch = twitch_cond*twitch_term_1*twitch_term_2
+            
+            p.append(f_iso*f_twitch*20.*(ls - grouped_lc['value'][i]))
+            act.append(f_twitch)
+            ii += i
+        
+        fig = plt.figure()
+
+        # plt.plot(time[:len(time)-1], p)
+        plt.plot(time[:len(time)-1], act)
+        fig.savefig(os.path.join(self.directory, 'activation.png'), dpi=300, bbox_inches="tight")
+
+    def plot_strain(self, title = '', wall_points = 10, analyse_seg = None, variables = ['Ell', 'Ecc', 'Err', 'Ecr', 'myofiber_strain']):
         """
         Extracts and plots the strain, calculated by the postprocessing module of the model (saved as hdf5)
         For multiple slices, segments and wall locations strains are extracted from the hdf5 file.
@@ -678,7 +834,8 @@ class postprocess_hdf5(object):
         Args:
             - title: additional title of the plots
             - wall points: number of transmural points that will be analysed
-            - variables: the types of strains that are analysed, the options are:
+            - variables: the types of strains that are analysed, 
+              the options are all available strains, among which:
                 'Ell': longitudinal strain
                 'Ecc': circumferential strain
                 'Err': radial strain
@@ -697,11 +854,6 @@ class postprocess_hdf5(object):
 
         # create a figure to show which slices and transumural points will be analysed
         self.show_slices(title = title, wall_points = wall_points)
-    
-        self.variables = variables
-        self.hdf5_files = {}
-        self.hdf5_vectors ={}
-        self.functions = {}
 
         results = self.results
         par = self.parameters
@@ -720,7 +872,7 @@ class postprocess_hdf5(object):
             vector_ed = t_ed_cycle/dt
             
             # create a handel for the strains
-            self.open_hdf5()
+            self.open_hdf5(variables = variables)
 
             # extract the number of vectors (timesteps) in the files
             nsteps = self.hdf5_files[variables[0]].attributes(variables[0])['count']
@@ -738,7 +890,7 @@ class postprocess_hdf5(object):
             vector_ed = t_ed_cycle
 
             # create a handel for the strains
-            self.open_hdf5()
+            self.open_hdf5(variables = variables)
 
             vector_numbers = results[par['time']][(results[par['cycle']] == self.cycle)]
             vector_numbers = vector_numbers.values.tolist()
@@ -764,18 +916,25 @@ class postprocess_hdf5(object):
             x_pos = self.x_endo + dx * delta_x
             eps = cartesian_to_ellipsoidal(focus, x = [x_pos, 0.,0.])['eps']
             eps_vals.append(eps)
+
+        # weighing factor, strain components are averaged in the transmural direction
+        # outermost endo and epi points have a weighing factor of 0
+        # the midwall point has the highest weighing factor
+        r = np.arange(0,wall_points + 1)
+        r = (r-r[-1]/2) / (r[-1]/2) 
+        wtot = sum((1-r**2)**2)
         
         if not par['load_pickle'] or not os.path.exists(os.path.join(self.directory, 'data.pkl')):
-
-            # df =  pd.DataFrame({'strain': [], 'time': [], 'slice': [], 'seg': [], 'wall': [], 'value': []})
             strain_function = {}
+            # create dictionary to save results (direct save into dataframe is very slow)
             data = {}
-            progress = nsteps/10
-            i = 0
+            count = 0
 
-            count = 0 
+            progress = nsteps/10
+            i = 0  
             for steps, vector in enumerate(vector_numbers):
                 # loop over time (vector numbers)
+                
                 if i >= progress:
                     print('{0:.2f}% '.format(steps/nsteps*100))
                     i = 0
@@ -812,13 +971,16 @@ class postprocess_hdf5(object):
                                 # strain = (np.sqrt(1+ 2*strain_function[vari]) - 1) * 100 
                                 strain = strain_function[vari] * 100
 
-                                data[count] = {'strain': vari, 'time': steps, 'slice': slice_nr, 'seg': seg, 'wall': wall, 'value': strain}
+                                # weighing factor of the current wall point
+                                w_ri = (1-r[wall]**2)**2 / wtot
 
-                                # df[count] = data
+                                data[count] = {'strain': vari, 'time': steps, 
+                                    'slice': slice_nr, 'seg': seg, 'wall': wall, 
+                                    'value': strain, 'weighted_value': strain * w_ri}
 
                                 count += 1
 
-            # save the dataframe
+            # convert dictionary to dataframe and save
             df = pd.DataFrame.from_dict(data, "index")
             df.to_pickle(os.path.join(self.directory, 'data.pkl'))
 
@@ -833,19 +995,21 @@ class postprocess_hdf5(object):
 
             data_es = df[df['time'] == index]
 
-            Ell = data_es[data_es['strain'] == 'Ell']
-            Ecc = data_es[data_es['strain'] == 'Ecc']
-            Err = data_es[data_es['strain'] == 'Err']
+            data_es_weight = data_es.groupby(['strain','time','slice','seg'], as_index=False).sum()
+
+            Ell = data_es_weight[data_es_weight['strain'] == 'Ell']
+            Ecc = data_es_weight[data_es_weight['strain'] == 'Ecc']
+            Err = data_es_weight[data_es_weight['strain'] == 'Err']
 
             cell_text = []
             for slice_nr in range(0, len(theta_vals)):
-                mean_Ell = round(Ell['value'][Ell['slice'] == slice_nr].mean(), 2)
-                mean_Ecc = round(Ecc['value'][Ecc['slice'] == slice_nr].mean(), 2)
-                mean_Err = round(Err['value'][Err['slice'] == slice_nr].mean(), 2)
+                mean_Ell = round(Ell['weighted_value'][Ell['slice'] == slice_nr].mean(), 2)
+                mean_Ecc = round(Ecc['weighted_value'][Ecc['slice'] == slice_nr].mean(), 2)
+                mean_Err = round(Err['weighted_value'][Err['slice'] == slice_nr].mean(), 2)
                 cell_text.append([mean_Ell, mean_Err, mean_Ecc])
-            mean_Ell = round(Ell['value'].mean(), 2)
-            mean_Ecc = round(Ecc['value'].mean(), 2)
-            mean_Err = round(Err['value'].mean(), 2)
+            mean_Ell = round(Ell['weighted_value'].mean(), 2)
+            mean_Ecc = round(Ecc['weighted_value'].mean(), 2)
+            mean_Err = round(Err['weighted_value'].mean(), 2)
             cell_text.append([mean_Ell, mean_Err, mean_Ecc])
 
             rowLabels = ['slice ' + str(nr) for nr in range(0, len(theta_vals))]
@@ -860,8 +1024,8 @@ class postprocess_hdf5(object):
                                 cellText = cell_text,
                                 cellLoc = 'center',
                                 loc = 'center')
-            fig.suptitle('Average strains at end systole \n {}'.format(title))
-            fig.savefig(os.path.join(self.directory, 'strains.png'),dpi=300, bbox="tight")
+            fig.suptitle('Average weighted strains at end systole \n {}'.format(title))
+            fig.savefig(os.path.join(self.directory, 'weighted_strains.png'),dpi=300, bbox="tight")
 
         # make the figures
         spec = GridSpec(2, 3)
@@ -887,16 +1051,20 @@ class postprocess_hdf5(object):
 
             plot = [epi, mid, endo]
             epi.set_ylabel('strain [%]')
-            av.set_ylabel('strain [%]')
+            av.set_ylabel('weighted strain [%]')
             av.set_xlabel('time [ms]')
             walls = [0, int(len(eps_vals)/2), len(eps_vals) - 1]
             wall_names = ['endo', 'mid', 'epi']
 
             strain = df[df['strain'] == strain_name]
+            if analyse_seg is not None:
+                strain = strain[strain['seg'] == float(analyse_seg)]
+
             for slice_nr in range(0, len(theta_vals)):
                 slice = strain[strain['slice'] == slice_nr]
                 for ii, wall in enumerate(walls): 
                     wall = slice[slice['wall'] == wall]
+
                     grouped = wall.groupby('time', as_index=False).mean()
                     time_strain = grouped['value']
 
@@ -910,421 +1078,66 @@ class postprocess_hdf5(object):
                         for phase in [phase2, phase3, phase4, phase4_end]:
                             plot[ii].axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
                             av.axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
+
+                slice = slice.groupby(['time','seg'], as_index=False).sum()
                 grouped = slice.groupby('time', as_index=False).mean()
-                time_strain = grouped['value']
+                time_strain = grouped['weighted_value']
                 av.plot(time, time_strain, label = 'Slice {}'.format(slice_nr))
 
+            strain = strain.groupby(['time','slice','seg'], as_index=False).sum()
             grouped = strain.groupby('time', as_index=False).mean()
-            time_strain = grouped['value']
+            time_strain = grouped['weighted_value']
 
             av.plot(time, time_strain, '--', label = 'average')
             av.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-            fig.suptitle(strain_name + ' ' + title)
-            fig.savefig(os.path.join(self.directory, strain_name + '_model.png'), dpi=300, bbox_inches="tight")
-            
-            fig = plt.figure()   
-
+            if analyse_seg is not None:
+                fig.suptitle('{strain} segment {seg} {title}'.format(strain = strain_name, seg = analyse_seg, title = title))
+                fig.savefig(os.path.join(self.directory, strain_name + '_weighted_model_segment_{}.png'.format(int(analyse_seg))), dpi=300, bbox_inches="tight")
+            else:
+                fig.suptitle('{strain} {title}'.format(strain = strain_name, title = title))
+                fig.savefig(os.path.join(self.directory, strain_name + '_weighted_model.png'), dpi=300, bbox_inches="tight")
+                 
+            fig_wall, ax_wall = plt.subplots() 
+            fig_seg, ax_seg = plt.subplots() 
             # data_ed = df[df['time'] == 0] 
+            strain = data_es[data_es['strain'] == strain_name]
             for slice_nr in range(0, len(theta_vals)):
-                strain = data_es[data_es['strain'] == strain_name]
                 slice = strain[strain['slice'] == slice_nr]
-                grouped = slice.groupby('wall', as_index=False).mean()
-                wall_strain = grouped['value']
-                plt.plot(range(len(eps_vals)), wall_strain, label = 'Slice {}'.format(slice_nr))
-            plt.legend(loc='center left', bbox_to_anchor=(1, 0.5)
-            )
-            plt.title(strain_name + ' transmural at end systole ' + title)
-            plt.ylabel('strain [%]')
-            plt.xticks([])
-            plt.xlabel('endocardial -> epicardial')
-            
-            fig.savefig(os.path.join(self.directory, strain_name + '_transmural_model_es.png'), dpi=300, bbox_inches="tight")
 
-    def calc_strain(self, title = ''):
-        print('Calculating strain...')
+                grouped_wall = slice.groupby('wall', as_index=False).mean()
+                if analyse_seg is not None:
+                    slice_wall = slice[slice['seg'] == float(analyse_seg)]
+                    grouped_wall = slice_wall.groupby('wall', as_index=False).mean()
+      
+                grouped_seg = slice.groupby('seg', as_index=False).mean()
+
+                wall_strain = grouped_wall['value']
+                seg_strain = grouped_seg['value']
+
+                ax_wall.plot(range(len(eps_vals)), wall_strain[::-1], label = 'Slice {}'.format(slice_nr))
+                ax_seg.plot(range(len(phi_range)), seg_strain, label = 'Slice {}'.format(slice_nr))
+
+            ax_wall.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            ax_seg.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+                
+            ax_seg.set_title(strain_name + ' circumferential at end systole ' + title)
+
+            ax_wall.set_ylabel('strain [%]')
+            ax_seg.set_ylabel('strain [%]')
+
+            ax_wall.set_xlabel('epicardial    -    endocardial')
+            ax_seg.set_xlabel('segment')
+
+            if analyse_seg is not None:
+                ax_wall.set_title(strain_name + ' transmural at end systole segment {} '.format(analyse_seg) + title)
+                fig_wall.savefig(os.path.join(self.directory, strain_name + '_transmural_model_es_segment_{}.png'.format(analyse_seg)), dpi=300, bbox_inches="tight")
+            else:
+                ax_wall.set_title(strain_name + ' transmural at end systole' + title)
+                fig_wall.savefig(os.path.join(self.directory, strain_name + '_transmural_model_es.png'), dpi=300, bbox_inches="tight")
+            fig_seg.savefig(os.path.join(self.directory, strain_name + '_circumferential_model_es.png'), dpi=300, bbox_inches="tight")
+ 
 
-        results = self.results
-        par = self.parameters
-
-        dt = results[par['time']][results.index[1]] - results[par['time']][results.index[0]]
-
-        # find the time of end diastole
-        begin_phase = results[par['phase']][results.index[0]]
-
-        t_ed_cycle = results[par['t_cycle']][(results[par['phase']] == begin_phase + 1).idxmax()]
-        t_es_cycle = results[par['t_cycle']][(results[par['phase']] == begin_phase + 3).idxmax()]
-
-        if self.model == 'cvbtk':
-            u_file = HDF5File(mpi_comm_world(), os.path.join(self.directory,'u.hdf5'), 'r')
-
-            # extract the number of vectors (timesteps) in the files
-            nsteps = u_file.attributes('u')['count']
-            vector_numbers = list(range(nsteps))
-
-            # find the corresponding vector name for u
-            vector_ed = t_ed_cycle/dt
-            u_ed_vector = 'u/vector_{}'.format(int(vector_ed))
-
-            # find the corresponding vector name for u
-            vector_es = t_es_cycle/dt
-            u_es_vector = 'u/vector_{}'.format(int(vector_es))
-
-            u_vector = 'u/vector_{}'
-
-            vector_numbers.insert(0, vector_ed)
-            vector_numbers = list(map(int, vector_numbers))
-        
-        elif self.model == 'beatit':
-            # displacement vector is equal to the time
-            u_es_vector = 'displacement_{}/vector_0'.format(float(t_es_cycle))
-            u_ed_vector = 'displacement_{}/vector_0'.format(float(t_ed_cycle))
-            u_vector = 'displacement_{}/vector_0'
-
-            u_file = HDF5File(mpi_comm_world(),os.path.join(self.directory,'results.h5'), 'r')
-
-            vector_numbers = results[par['time']][(results[par['cycle']] == self.cycle)]
-            vector_numbers = vector_numbers.values.tolist()
-            vector_numbers.insert(0, t_ed_cycle)
-            nsteps = len(vector_numbers)
-
-        self.u_ed = Function(self.vector_V)
-        self.u_es = Function(self.vector_V)
-        self.u = Function(self.vector_V)
-        
-        u_file.read(self.u_ed, u_ed_vector)
-        u_file.read(self.u_es, u_es_vector)
-
-        # allow extrapolation in order to define the displacement values
-        # at non-nodal points
-        self.u_es.set_allow_extrapolation(True)
-        self.u_ed.set_allow_extrapolation(True)
-        self.u.set_allow_extrapolation(True)
-
-        # extract the theta values of the slices
-        theta_vals = self.parameters['theta_vals']
-
-        # extract the number of segments and convert to a phi range
-        nr_segments = self.parameters['nr_segments']
-
-        phi_int = 2*math.pi / nr_segments
-        phi_range = np.arange(-1*math.pi, 1*math.pi, phi_int)
-
-        focus = self.parameters['focus']
-        tol = self.parameters['tol']
-
-        eps_outer = self.parameters['eps_outer'] - tol
-        eps_mid = self.parameters['eps_mid']
-        eps_inner = self.parameters['eps_inner'] + tol     
-
-        Err = {'tot': []}
-        Ell = {'tot_epi': [],
-                'tot_endo': []}
-        Ecc = {'tot_epi': [],
-                'tot_endo': []}  
-
-        strains = {'Err_tot': [],
-                    'Ecc_tot': [],
-                    'Ell_tot': []}      
-
-        slice_prev_ed = {}
-        slice_prev_es = {}
-
-        slice_ed = {}
-        slice_seg = {}
-        time_strain = {'Err_tot': [],
-                        'Ecc_tot': [],
-                        'Ell_tot': []} 
-
-        wall_vals = ['epi', 'mid', 'endo']
-
-        progress = len(vector_numbers)/10
-        i = 0
-        for step, vector in enumerate(vector_numbers):
-            # loop over time (vector numbers)
-            if i >= progress:
-                print('{0:.2f}% '.format(step/nsteps*100))
-                i = 0
-            i += 1
-
-            strains = { 'Err_tot': [],
-                        'Ecc_tot': [],
-                        'Ell_tot': []} 
-
-            u_vector_time = u_vector.format(vector)
-            u_file.read(self.u, u_vector_time)
-
-            for slice_nr, theta in enumerate(theta_vals):
-                slice_prev_ed['slice_{}'.format(slice_nr)] = []
-                slice_prev_es['slice_{}'.format(slice_nr)] = []
-                strains['Err_slice_{}'.format(slice_nr)] = []
-
-                # calculate theta values for mid and inner wall
-                x_epi, y_epi, z_epi = ellipsoidal_to_cartesian(focus,eps_outer,theta,0.)
-                tau = z_epi/(focus * math.cosh(eps_mid))
-                theta_mid = math.acos(tau)
-
-                tau = z_epi/(focus * math.cosh(eps_inner))
-                theta_inner = math.acos(tau)
-
-                thetas = [theta, theta_mid, theta_inner]
-
-                # iterate over the segments (different phi values per slice)
-                for seg, phi in enumerate(phi_range):
-                    # iterate over epi, mid and inner wall
-                    for wall, eps in enumerate([eps_outer, eps_mid, eps_inner]):
-                        # calulate coordinate of the point 
-                        x, y, z = ellipsoidal_to_cartesian(focus,eps,thetas[wall], phi)
-
-                        # get the displacement of the point at the point in time
-                        # and add the displacement tot the coordinates
-                        # to get the exact location of the point in time
-                        xu, yu, zu = self.u(x, y, z)
-                        x += xu
-                        y += yu
-                        z += zu
-
-                        # the first vector number (step) is the time of ed
-                        # save the values for reference state
-                        if step == 0:
-                            slice_ed['slice_{}_seg_{}_{}'.format(slice_nr, seg, wall_vals[wall])] = [x,y,z]
-
-                        else:
-                            # Err
-                            # change in distance between the epi and endo point of a segment
-                            if wall != 0:
-                                # get locations of the point at ed for epi and endo
-                                ed_wall_prev = slice_ed['slice_{}_seg_{}_{}'.format(slice_nr, seg, wall_vals[wall -1])]
-                                ed_wall = slice_ed['slice_{}_seg_{}_{}'.format(slice_nr,seg, wall_vals[wall])]
-
-                                # get location of the point at the current time step for epi
-                                seg_wall_prev = slice_seg['slice_{}_seg_{}_{}'.format(slice_nr, seg, wall_vals[wall -1])]
-
-                                # calculate length between epi and endo point at ed
-                                L0 = math.sqrt((ed_wall_prev[0] - ed_wall[0])**2 + (ed_wall_prev[1] - ed_wall[1])**2)
-                                # calculate length between epi and endo point at current time step
-                                L = math.sqrt((seg_wall_prev[0] - x)**2 + (seg_wall_prev[1] - y)**2)
-
-                                # calculate difference between length at ed and current time step
-                                Err = (L - L0)/L0 * 100
-
-                                # save Err per slice, for each slice (seg = 0), a new dict key has to be initialized
-                                if seg == 0:
-                                    strains['Err_slice_{}'.format(slice_nr)] = [Err]
-                                    strains['Err_slice_{}_{}-{}'.format(slice_nr, wall_vals[wall-1], wall_vals[wall])] = [Err]
-                                else:
-                                    strains['Err_slice_{}'.format(slice_nr)].append(Err)
-                                    strains['Err_slice_{}_{}-{}'.format(slice_nr, wall_vals[wall-1], wall_vals[wall])].append(Err)
-
-                                # save to total Err
-                                # later, all slices and segments are averaged and saved for the current time step
-                                strains['Err_tot'].append(Err)
-
-                            # Ecc
-                            # change in the arc between to segments 
-                            if seg != 0:
-                                prev_seg_ed = slice_ed['slice_{}_seg_{}_{}'.format(slice_nr, seg - 1, wall_vals[wall])]
-                                seg_ed = slice_ed['slice_{}_seg_{}_{}'.format(slice_nr, seg, wall_vals[wall])]
-
-                                # coordinates of the same wall location of the previous segment
-                                prev_seg = slice_seg['slice_{}_seg_{}_{}'.format(slice_nr, seg -1, wall_vals[wall])]
-
-                                # calculate arc length at ED
-                                length1 =  math.sqrt(np.dot(prev_seg_ed[0:2],prev_seg_ed[0:2]))
-                                length2 =  math.sqrt(np.dot(seg_ed[0:2],seg_ed[0:2]))
-                                cos_angle = np.dot(prev_seg_ed[0:2], seg_ed[0:2]) / (length1 * length2)
-                                rad_ed = np.arccos(cos_angle)     
-                                r = math.sqrt(seg_ed[0]**2 + seg_ed[1]**2)
-                                length_ed = (rad_ed/(2*pi) * 2*pi * r)  
-
-                                # calculate arc length
-                                length1 =  math.sqrt(np.dot(prev_seg[0:2],prev_seg[0:2]))
-                                length2 =  math.sqrt(np.dot([x,y],[x,y]))
-                                cos_angle = np.dot(prev_seg[0:2], [x,y]) / (length1 * length2)
-                                rad = np.arccos(cos_angle)     
-                                r = math.sqrt(x**2 + y**2)
-                                length = (rad/(2*pi) * 2*pi * r)  
-
-                                Ecc = (length - length_ed) / length_ed * 100 
-
-                                # save Ecc per slice, for each slice, a new dict key has to be initialized
-                                # first segment of each slice is skipped (another segment of the slice is needed to calculate the arc)
-                                # so the first strains of the slice that are saved is for the second segment
-                                if seg == 1:
-                                    strains['Ecc_slice_{}_{}'.format(slice_nr, wall_vals[wall])] = [Ecc]
-                                    strains['Ecc_slice_{}'.format(slice_nr)] = [Ecc]
-                                else:
-                                    strains['Ecc_slice_{}_{}'.format(slice_nr, wall_vals[wall])].append(Ecc)    
-                                    strains['Ecc_slice_{}'.format(slice_nr)].append(Ecc) 
-
-                                # save to total Err
-                                # later, all slices and segments are averaged and saved for the current time step
-                                strains['Ecc_tot'].append(Ecc) 
-
-                            # Ell
-                            if slice_nr != 0:
-                                prev_slice_ed = np.array(slice_ed['slice_{}_seg_{}_{}'.format(slice_nr -1, seg, wall_vals[wall])])
-                                cur_slice_ed = np.array(slice_ed['slice_{}_seg_{}_{}'.format(slice_nr, seg, wall_vals[wall])])
-
-                                prev_slice = np.array(slice_seg['slice_{}_seg_{}_{}'.format(slice_nr -1, seg, wall_vals[wall])])
-
-                                L0 = np.sqrt(np.sum((prev_slice_ed - cur_slice_ed)**2, axis=0))
-                                L = np.sqrt(np.sum((prev_slice - np.array([x,y,z]))**2, axis=0))
-
-                                Ell = (L - L0)/L0 * 100
-
-                                if seg == 0:
-                                    strains['Ell_slice_{}-{}_{}'.format(slice_nr-1, slice_nr, wall_vals[wall])] = [Ell]
-                                    strains['Ell_slice_{}'.format(slice_nr)] = [Ell]
-                                else:
-                                    strains['Ell_slice_{}-{}_{}'.format(slice_nr-1, slice_nr, wall_vals[wall])].append(Ell)
-                                    strains['Ell_slice_{}'.format(slice_nr)].append(Ell)
-                                strains['Ell_tot'].append(Ell)
-
-                            slice_seg['slice_{}_seg_{}_{}'.format(slice_nr, seg, wall_vals[wall])] = [x,y,z]
-
-                if step != 0:
-                    Err_name = 'Err_slice_{}'.format(slice_nr)
-                    Ell_name = 'Ell_slice_{}'.format(slice_nr)
-                    Ecc_name = 'Ecc_slice_{}'.format(slice_nr)
-                    if step == 1:              
-                        time_strain[Err_name] = [np.mean(strains[Err_name])]  
-                        time_strain[Ecc_name] = [np.mean(strains[Ecc_name])] 
-                    else:
-                        time_strain[Err_name].append(np.mean(strains[Err_name]))                          
-                        time_strain[Ecc_name].append(np.mean(strains[Ecc_name]))   
-                    if slice_nr != 0 and step == 1:
-                        time_strain[Ell_name] = [np.mean(strains[Ell_name])] 
-                    elif slice_nr != 0:
-                        time_strain[Ell_name].append(np.mean(strains[Ell_name]))
-
-                    for wallnr, wall in enumerate(wall_vals):  
-                        Ecc_name = 'Ecc_slice_{}_{}'.format(slice_nr, wall)
-                        Ell_name = 'Ell_slice_{}-{}_{}'.format(slice_nr-1, slice_nr, wall)
-                        Err_name = 'Err_slice_{}_{}-{}'.format(slice_nr, wall_vals[wallnr-1], wall)
-
-                        if step == 1:              
-                            time_strain[Ecc_name] = [np.mean(strains[Ecc_name])]                                                              
-                        else:
-                            time_strain[Ecc_name].append(np.mean(strains[Ecc_name]))  
-                            
-                        if wallnr != 0 and step == 1:
-                            time_strain[Err_name] = [np.mean(strains[Err_name])]
-                        elif wallnr != 0 and step != 1: 
-                            time_strain[Err_name].append(np.mean(strains[Err_name]))
-
-                        if slice_nr != 0 and step == 1:
-                            time_strain[Ell_name] = [np.mean(strains[Ell_name])] 
-                        elif slice_nr != 0:
-                            time_strain[Ell_name].append(np.mean(strains[Ell_name]))
-
-            if step != 0:
-                time_strain['Err_tot'].append(np.mean(strains['Err_tot'])) 
-                time_strain['Ecc_tot'].append(np.mean(strains['Ecc_tot'])) 
-                time_strain['Ell_tot'].append(np.mean(strains['Ell_tot'])) 
-
-        # create figures        
-        spec = GridSpec(2, 3)
-        time = results[par['t_cycle']]
-
-        fig = plt.figure()
-        av = fig.add_subplot(spec[1,:])
-        epi = fig.add_subplot(spec[0,0])
-        mid = fig.add_subplot(spec[0,1], sharey = epi)
-        mid.tick_params(labelleft=False)
-        endo = fig.add_subplot(spec[0,2], sharey = epi)
-        endo.tick_params(labelleft=False)
-
-        plot = [epi, mid, endo]
-        wall_vals = ['epi', 'mid', 'endo']
-
-        # Ell
-        for slice_nr in range(0, len(theta_vals)-1):
-            for ii, wall in enumerate(wall_vals):
-                Ell_name = 'Ell_slice_{slicenr_1}-{slicenr}_{wall}'.format(slicenr_1 = slice_nr, slicenr = slice_nr+1,wall=wall)
-                plot[ii].plot(time , time_strain[Ell_name], label = 'Slice {} - {}'.format(slice_nr, slice_nr+1))
-                plot[ii].set_title(wall)
-        endo.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        av.plot(time, time_strain['Ell_tot'], label = 'average')
-        av.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        fig.suptitle('Ell calculated {}'.format(title))
-        fig.savefig(os.path.join(self.directory, 'Ell_calc.png'), dpi=300, bbox_inches = 'tight')
-
-        # Ecc
-        fig = plt.figure()
-        av = fig.add_subplot(spec[1,:])
-        epi = fig.add_subplot(spec[0,0])
-        mid = fig.add_subplot(spec[0,1], sharey = epi)
-        mid.tick_params(labelleft=False)
-        endo = fig.add_subplot(spec[0,2], sharey = epi)
-        endo.tick_params(labelleft=False)
-        plot = [epi, mid, endo]
-        for slice_nr in range(0, len(theta_vals)):
-            for ii, wall in enumerate(wall_vals):
-                Ecc_name = 'Ecc_slice_{slicenr}_{wall}'.format(slicenr = slice_nr, wall=wall)
-                plot[ii].plot(time , time_strain[Ecc_name], label = 'Slice {}'.format(slice_nr))
-                plot[ii].set_title(wall)
-
-        endo.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        av.plot(time, time_strain['Ecc_tot'], label = 'average')
-        av.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        fig.suptitle('Ecc calculated {}'.format(title))
-        fig.savefig(os.path.join(self.directory, 'Ecc_calc.png'), dpi=300, bbox_inches = 'tight')
-
-        # Err
-        spec = GridSpec(2, 2)
-        fig = plt.figure()
-        av = fig.add_subplot(spec[1,:])
-        epi_mid = fig.add_subplot(spec[0,0])
-        mid_endo = fig.add_subplot(spec[0,1], sharey = epi)
-        mid_endo.tick_params(labelleft=False)
-        wall_vals = ['epi-mid', 'mid-endo']
-        plot = [epi_mid, mid_endo]
-
-        for slice_nr in range(0, len(theta_vals)):
-            for ii, wall in enumerate(wall_vals):
-                Err_name = 'Err_slice_{slicenr}_{wall}'.format(slicenr = slice_nr, wall=wall)
-                plot[ii].plot(time , time_strain[Err_name], label = 'Slice {}'.format(slice_nr))
-                plot[ii].set_title(wall)
-        mid_endo.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        av.plot(time, time_strain['Err_tot'], label = 'average')
-        av.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        fig.suptitle('Err calculated {}'.format(title))
-        fig.savefig(os.path.join(self.directory, 'Err_calc.png'), dpi=300, bbox_inches = 'tight')        
-
-        cell_text = []
-        rowLabels = []
-        index_es = int(t_es_cycle/dt)
-
-        for row in range(0, len(theta_vals)):
-            mean_Ecc = round((time_strain['Ecc_slice_{}'.format(row)][index_es]), 2)
-            mean_Err = round((time_strain['Err_slice_{}'.format(row)][index_es]), 2)
-            cell_text.append(['', mean_Err, mean_Ecc])
-            rowLabels.append('slice ' + str(row))
-            if row != len(theta_vals)-1:
-                mean_Ell = round((time_strain['Ell_slice_{}'.format(row + 1)][index_es]), 2)
-                cell_text.append([mean_Ell, '', ''])
-                rowLabels.append('')
-        mean_Ell = round((time_strain['Ell_tot'][index_es]), 2)
-        mean_Ecc = round((time_strain['Ecc_tot'][index_es]), 2)
-        mean_Err = round((time_strain['Err_tot'][index_es]), 2)
-        cell_text.append([mean_Ell, mean_Err, mean_Ecc])
-
-        rowLabels.append('average')
-
-        fig, ax = plt.subplots(figsize=(6,2.5))
-        fig.patch.set_visible(False)
-        ax.axis('off')
-        ax.axis('tight')
-        table = ax.table(  colLabels = ['Ell', 'Err', 'Ecc'],
-                            rowLabels = rowLabels,
-                            cellText = cell_text,
-                            cellLoc = 'center',
-                            loc = 'center')
-        fig.suptitle('Calculated average strains at end systole \n {}'.format(title))
-        fig.savefig(os.path.join(self.directory, 'calc_strains.png'),dpi=300, bbox="tight")
-
-        self.show_slices(title = title, wall_points = 3)
  
     def show_slices(self, fig = None, fontsize=12, title = '', wall_points = 10):
         """
@@ -1372,6 +1185,10 @@ class postprocess_hdf5(object):
             self._ax = {'xy1': _xy1, 'xz1': _xz1, 'xy2': _xy2}
         else:
             self._ax = {'xy1': _xy1, 'xz1': _xz1}
+
+        if self.infarct:
+            self.variables = ['T0']
+            self.open_hdf5()
 
         # extract the theta and phi values as used in the calculations
         theta_vals = self.parameters['theta_vals']
@@ -1423,9 +1240,9 @@ class postprocess_hdf5(object):
 
                 for wall, eps in enumerate(eps_vals):
                     # loop over wall locations
-                    theta = math.acos(z_epi/(focus * math.cosh(eps)))
+                    theta_eps = math.acos(z_epi/(focus * math.cosh(eps)))
                     # get and save coordinates of point
-                    x, y, z = ellipsoidal_to_cartesian(focus,eps,theta,phi)
+                    x, y, z = ellipsoidal_to_cartesian(focus,eps,theta_eps,phi)
                     x_segs.append(x)
                     y_segs.append(y)
                     z_segs.append(z)
