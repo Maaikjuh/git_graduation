@@ -492,8 +492,11 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         # Initialize with all nodal points to default value of Ta0       
         self.T0 = Function(self.Q, name='T0')
         self.T0.assign(Constant(self.parameters['Ta0']))
-        self.T0_created = False 
+        # self.T0_created = False 
 
+        if self.parameters['infarct']['T0_dir'] is not None and self.parameters['infarct']['T0_dir'] != '':
+            self.ischemic(u, self.parameters['infarct']['T0_dir'])
+            
         self.f_twitch = Function(self.Q, name='f_twitch')
         self.f_twitch.assign(Constant(0))
 
@@ -548,15 +551,15 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         prm.add('restrict_lc', False)
 
         prm_infarct = Parameters('infarct')
-        prm_infarct.add('infarct', False)
-        prm_infarct.add('phi_min', float())
-        prm_infarct.add('phi_max', float())
-        prm_infarct.add('theta_min', float())
-        prm_infarct.add('theta_max', float())
-        prm_infarct.add('ximin', float())
-        prm_infarct.add('focus', float())
-        prm_infarct.add('Ta0_infarct', float())
-        prm_infarct.add('save_T0_mesh', "./")
+        prm_infarct.add('T0_dir', '')
+        prm_infarct.add('save_T0_mesh', '')
+        # prm_infarct.add('phi_max', float())
+        # prm_infarct.add('theta_min', float())
+        # prm_infarct.add('theta_max', float())
+        # prm_infarct.add('ximin', float())
+        # prm_infarct.add('focus', float())
+        # prm_infarct.add('Ta0_infarct', float())
+        # prm_infarct.add('save_T0_mesh', "./")
         
         prm.add(prm_infarct)
         
@@ -581,17 +584,17 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         """
         prm = self.parameters
 
-        if prm['infarct']['infarct']==True and self.T0_created == False: 
-            self.T0_created = True
-            # create infarct area
-            t0 = time.time()
-            print_once("*** creating T0 mesh... ***")
-            self.infarct_T0(u)                
-            dir_out = prm['infarct']['save_T0_mesh']
-            # save infarct mesh
-            save_to_xdmf(self.T0,dir_out,'T0')
+        # if prm['infarct']['infarct']==True and self.T0_created == False: 
+        #     self.T0_created = True
+        #     # create infarct area
+        #     t0 = time.time()
+        #     print_once("*** creating T0 mesh... ***")
+        #     self.infarct_T0(u)                
+        #     dir_out = prm['infarct']['save_T0_mesh']
+        #     # save infarct mesh
+        #     save_to_xdmf(self.T0,dir_out,'T0')
 
-            print_once("*** T0 mesh created in {} s ***".format(time.time()-t0))
+        #     print_once("*** T0 mesh created in {} s ***".format(time.time()-t0))
 
         # Term for the length dependence.
         #iso_term = prm['T0']*(tanh(prm['al']*(self.lc - prm['lc0'])))**2
@@ -625,146 +628,177 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         p = f_iso*f_twitch*prm['Ea']*(self.ls - self.lc)
         
         return p
-
-    def infarct_T0(self,u):
+    
+    
+    def ischemic(self, u, T0_dir):
         """
-        Define value of T0 for nodes to express level of active stress
-
+        load the ischemic map and project it on the mechanical mesh 
+        of the model
+        
         Args:
             u: The displacement unknown.
-
-        Return the interpolated values of T0 on the mesh
+            T0_dir: location of the hdf5 file with the ischemic map
         """
+        mesh = u.ufl_domain().ufl_cargo()
         
-        Ta0 = self.parameters['Ta0']
+        #read the ischemic map 
+        V = FunctionSpace(mesh, 'Lagrange', 2)
+        T0_ = Function(V)
+
+        openfile = HDF5File(mpi_comm_world(), T0_dir, 'r')
+        openfile.read(T0_,'T0/vector_0')
+
+        #project the ischemic map onto the mechanical mesh
+        self.T0 = project(T0_, V)
+
+        #rename the function (this will give the function a name in Paraview)
+        self.T0.rename('T0','T0')
         
-        prm_infarct = self.parameters['infarct']
-#        print_once("generating droplet infarct area")
-        Ta0_infarct = prm_infarct['Ta0_infarct']  
-        phi_max = prm_infarct['phi_max']
-        theta_min = prm_infarct['theta_min']
-        theta_max = prm_infarct['theta_max']
-        ximin = prm_infarct['ximin']
-        focus = prm_infarct['focus']
+        if not os.path.isfile('T0.xdmf'):
+            #save the projection to xdmf to check if the projection has been succesful
+            dir_out = self.parameters['infarct']['save_T0_mesh']
+            file_mesh = XDMFFile(os.path.join(dir_out, 'T0.xdmf'))
+            file_mesh.write(self.T0)
+        
+#     def infarct_T0(self,u):
+#         """
+#         Define value of T0 for nodes to express level of active stress
 
-        # point of origin for phi
-        phi0=0 
+#         Args:
+#             u: The displacement unknown.
 
-        border = False
+#         Return the interpolated values of T0 on the mesh
+#         """
+        
+#         Ta0 = self.parameters['Ta0']
+        
+#         prm_infarct = self.parameters['infarct']
+# #        print_once("generating droplet infarct area")
+#         Ta0_infarct = prm_infarct['Ta0_infarct']  
+#         phi_max = prm_infarct['phi_max']
+#         theta_min = prm_infarct['theta_min']
+#         theta_max = prm_infarct['theta_max']
+#         ximin = prm_infarct['ximin']
+#         focus = prm_infarct['focus']
 
-        # degree of the expression for ellipsoidal coordinates
-        degree = 3
+#         # point of origin for phi
+#         phi0=0 
 
-        Q = vector_space_to_scalar_space(u.ufl_function_space())
+#         border = False
 
-        # calculate spherical nodal coordinates of the mesh
-        phi = compute_coordinate_expression(degree, Q.ufl_element(),'phi',focus)
-        theta = compute_coordinate_expression(degree, Q.ufl_element(),'theta',focus)
-        xi = compute_coordinate_expression(degree, Q.ufl_element(),'xi',focus)
+#         # degree of the expression for ellipsoidal coordinates
+#         degree = 3
 
-        ## uncomment to save the coordinate expressions on the mesh
-        # dir_out = self.parameters['save_T0_mesh']
+#         Q = vector_space_to_scalar_space(u.ufl_function_space())
 
-        # ptphi = project(phi,Q)
-        # save_to_xdmf(ptphi,dir_out,'phi_coord')
+#         # calculate spherical nodal coordinates of the mesh
+#         phi = compute_coordinate_expression(degree, Q.ufl_element(),'phi',focus)
+#         theta = compute_coordinate_expression(degree, Q.ufl_element(),'theta',focus)
+#         xi = compute_coordinate_expression(degree, Q.ufl_element(),'xi',focus)
 
-        # ptheta = project(theta,Q)
-        # save_to_xdmf(ptheta,dir_out,'theta_coord')
+#         ## uncomment to save the coordinate expressions on the mesh
+#         # dir_out = self.parameters['save_T0_mesh']
 
-        # ptxi = project(xi,Q)
-        # save_to_xdmf(ptxi,dir_out,'xi_coord')
+#         # ptphi = project(phi,Q)
+#         # save_to_xdmf(ptphi,dir_out,'phi_coord')
+
+#         # ptheta = project(theta,Q)
+#         # save_to_xdmf(ptheta,dir_out,'theta_coord')
+
+#         # ptxi = project(xi,Q)
+#         # save_to_xdmf(ptxi,dir_out,'xi_coord')
                     
-        if border == True:
-            min_theta = 1/2*pi + 1/15*math.pi
-            max_theta = math.pi -1/5*math.pi
+#         if border == True:
+#             min_theta = 1/2*pi + 1/15*math.pi
+#             max_theta = math.pi -1/5*math.pi
 
-            max_phi = 1/3*math.pi
+#             max_phi = 1/3*math.pi
 
-            min_theta_border = 1/2*math.pi-1/12*math.pi
-            max_theta_border = math.pi
-            max_phi_border = max_phi+1/4*math.pi
+#             min_theta_border = 1/2*math.pi-1/12*math.pi
+#             max_theta_border = math.pi
+#             max_phi_border = max_phi+1/4*math.pi
 
-            min_theta_border_2 = 1/3*math.pi
-            max_phi_border_2 = max_phi_border +1/6*math.pi
+#             min_theta_border_2 = 1/3*math.pi
+#             max_phi_border_2 = max_phi_border +1/6*math.pi
 
-            slope = max_phi/(math.pi-min_theta)
-            slope_border = max_phi_border/(math.pi-min_theta_border)
-            slope_border_2 = max_phi_border_2/(math.pi-min_theta_border_2)
+#             slope = max_phi/(math.pi-min_theta)
+#             slope_border = max_phi_border/(math.pi-min_theta_border)
+#             slope_border_2 = max_phi_border_2/(math.pi-min_theta_border_2)
 
-            drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=min_theta), degree=3, theta=theta)
-            drop_exp_border = Expression("{slope}*(theta-({theta_min}))".format(slope=slope_border,theta_min=min_theta_border), degree=3, theta=theta)
-            drop_exp_border_2 = Expression("{slope}*(theta-({theta_min}))".format(slope=slope_border_2,theta_min=min_theta_border_2), degree=3, theta=theta)
+#             drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=min_theta), degree=3, theta=theta)
+#             drop_exp_border = Expression("{slope}*(theta-({theta_min}))".format(slope=slope_border,theta_min=min_theta_border), degree=3, theta=theta)
+#             drop_exp_border_2 = Expression("{slope}*(theta-({theta_min}))".format(slope=slope_border_2,theta_min=min_theta_border_2), degree=3, theta=theta)
 
-            Ta0_phi = "fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp)".format(phi0=phi0)
-            Ta0_phi_border = "fabs(phi-{phi0}) <=drop_exp_border && fabs(phi-{phi0}) >=-1*(drop_exp_border)".format(phi0=phi0)
-            Ta0_phi_border_2 = "fabs(phi-{phi0}) <=drop_exp_border_2 && fabs(phi-{phi0}) >=-1*(drop_exp_border_2)".format(phi0=phi0)
+#             Ta0_phi = "fabs(phi-{phi0}) <=drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp)".format(phi0=phi0)
+#             Ta0_phi_border = "fabs(phi-{phi0}) <=drop_exp_border && fabs(phi-{phi0}) >=-1*(drop_exp_border)".format(phi0=phi0)
+#             Ta0_phi_border_2 = "fabs(phi-{phi0}) <=drop_exp_border_2 && fabs(phi-{phi0}) >=-1*(drop_exp_border_2)".format(phi0=phi0)
         
-            Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=min_theta, thetamax=max_theta)
-            Ta0_theta_border = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=min_theta_border, thetamax=max_theta_border)
-            Ta0_theta_border_2 = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=min_theta_border_2, thetamax=max_theta_border)
+#             Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=min_theta, thetamax=max_theta)
+#             Ta0_theta_border = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=min_theta_border, thetamax=max_theta_border)
+#             Ta0_theta_border_2 = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=min_theta_border_2, thetamax=max_theta_border)
             
-            Ta0_border_2 = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct+90,Ta0=Ta0, exp_phi=Ta0_phi_border_2, exp_theta=Ta0_theta_border_2)
-            Ta0_border = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {border_2}".format(Ta0_infarct=Ta0_infarct+40,border_2=Ta0_border_2, exp_phi=Ta0_phi_border, exp_theta=Ta0_theta_border)
-            Ta0_infarct = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {border}".format(Ta0_infarct=Ta0_infarct,border=Ta0_border, exp_phi=Ta0_phi, exp_theta=Ta0_theta)
+#             Ta0_border_2 = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct+90,Ta0=Ta0, exp_phi=Ta0_phi_border_2, exp_theta=Ta0_theta_border_2)
+#             Ta0_border = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {border_2}".format(Ta0_infarct=Ta0_infarct+40,border_2=Ta0_border_2, exp_phi=Ta0_phi_border, exp_theta=Ta0_theta_border)
+#             Ta0_infarct = "({exp_phi} && {exp_theta})? {Ta0_infarct} : {border}".format(Ta0_infarct=Ta0_infarct,border=Ta0_border, exp_phi=Ta0_phi, exp_theta=Ta0_theta)
 
-            Ta0_exp = Expression(Ta0_infarct, element=Q.ufl_element(), phi=phi, theta=theta, drop_exp=drop_exp,drop_exp_border=drop_exp_border,drop_exp_border_2=drop_exp_border_2)
+#             Ta0_exp = Expression(Ta0_infarct, element=Q.ufl_element(), phi=phi, theta=theta, drop_exp=drop_exp,drop_exp_border=drop_exp_border,drop_exp_border_2=drop_exp_border_2)
     
-        else:
-            # formula to describe one half of the droplet shape
-            print_once("phi_max: {}, theta_max: {}, theta_min: {}".format(phi_max, theta_max,theta_min))
+#         else:
+#             # formula to describe one half of the droplet shape
+#             print_once("phi_max: {}, theta_max: {}, theta_min: {}".format(phi_max, theta_max,theta_min))
 
-            # phi slope from zero at theta min and max at the apex (if theta_max is pi),
-            # because all lines coincide at the apex, a droplet shape is formed by the linear slope
-            slope = (phi_max)/(theta_max-(theta_min))
-            #expression for the phi values for the right side of the droplet shape 
-            drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=theta_min), degree=3, theta=theta)
+#             # phi slope from zero at theta min and max at the apex (if theta_max is pi),
+#             # because all lines coincide at the apex, a droplet shape is formed by the linear slope
+#             slope = (phi_max)/(theta_max-(theta_min))
+#             #expression for the phi values for the right side of the droplet shape 
+#             drop_exp = Expression("{slope}*(theta-({theta_min}))".format(slope=slope,theta_min=theta_min), degree=3, theta=theta)
 
-            #check if phi is smaller than the right side of the droplet and bigger than the left side
-            cpp_exp_Ta0_phi = "fabs(phi-{phi0}) <= drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp)".format(phi0=phi0)
+#             #check if phi is smaller than the right side of the droplet and bigger than the left side
+#             cpp_exp_Ta0_phi = "fabs(phi-{phi0}) <= drop_exp && fabs(phi-{phi0}) >=-1*(drop_exp)".format(phi0=phi0)
             
-            #check if theta is within the specified theta range
-            cpp_exp_Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=theta_min, thetamax=theta_max)
+#             #check if theta is within the specified theta range
+#             cpp_exp_Ta0_theta = "theta> ({thetamin} ) && theta < ({thetamax})".format(thetamin=theta_min, thetamax=theta_max)
             
-            #check if xi is greater than the smallest specified ellipsoid
-            cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
+#             #check if xi is greater than the smallest specified ellipsoid
+#             cpp_exp_Ta0_xi = "xi >= {ximin}".format(ximin=ximin)
 
-            # if in infarct area: T0 = specified Ta0 for the infarct
-            # else: T0 = Ta0
-            cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
-            # Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp)
-            Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp)
+#             # if in infarct area: T0 = specified Ta0 for the infarct
+#             # else: T0 = Ta0
+#             cpp_exp_Ta0 = "({exp_phi} && {exp_theta} && {exp_xi})? {Ta0_infarct} : {Ta0}".format(Ta0_infarct=Ta0_infarct,Ta0=Ta0, exp_phi=cpp_exp_Ta0_phi, exp_theta=cpp_exp_Ta0_theta, exp_xi=cpp_exp_Ta0_xi)
+#             # Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp)
+#             Ta0_exp = Expression(cpp_exp_Ta0, element=Q.ufl_element(), phi=phi, theta=theta, xi=xi,drop_exp=drop_exp)
 
-        # interpolate the expression with different values for Ta0 in the infarcted area
-        # on the T0 mesh
-        self.T0.interpolate(Ta0_exp)
+#         # interpolate the expression with different values for Ta0 in the infarcted area
+#         # on the T0 mesh
+#         self.T0.interpolate(Ta0_exp)
     
-        V= u.ufl_function_space()
-        mesh = V.ufl_domain().ufl_cargo()
+#         V= u.ufl_function_space()
+#         mesh = V.ufl_domain().ufl_cargo()
 
-        # get volume of the total mesh (with infarct)
-        tot_volume = assemble(Constant(1)*dx(domain=mesh))
+#         # get volume of the total mesh (with infarct)
+#         tot_volume = assemble(Constant(1)*dx(domain=mesh))
 
-        # get infarcted area (Ta0 below 60)
-        infarct_size = assemble(conditional(lt(self.T0, 100), 1., 0.)*dx(domain=mesh), form_compiler_parameters={'quadrature_degree': 2}) 
-        area = infarct_size/tot_volume*100
-        area = round(area,1)
-        print_once("infarct area: {}%".format(area))
+#         # get infarcted area (Ta0 below 60)
+#         infarct_size = assemble(conditional(lt(self.T0, 100), 1., 0.)*dx(domain=mesh), form_compiler_parameters={'quadrature_degree': 2}) 
+#         area = infarct_size/tot_volume*100
+#         area = round(area,1)
+#         print_once("infarct area: {}%".format(area))
 
-        # write percentage of infarcted area to inputs.csv (not nicely done...)
-        # check if infarcted area is already saved in the csv, because postprocessing
-        # repeats this routine for every timestep
-        dir_out = prm_infarct['save_T0_mesh']
-        filename = os.path.join(dir_out, 'inputs.csv')
+#         # write percentage of infarcted area to inputs.csv (not nicely done...)
+#         # check if infarcted area is already saved in the csv, because postprocessing
+#         # repeats this routine for every timestep
+#         dir_out = prm_infarct['save_T0_mesh']
+#         filename = os.path.join(dir_out, 'inputs.csv')
 
-        if MPI.rank(mpi_comm_world()) == 0:
-            dict_area = {'infarct area (%)': area}
-            save_dict_to_csv(dict_area, filename, write = 'a')
-            # try:
-            #     with open(filename, 'a') as f:
-            #         writer = csv.writer(f)
-            #         writer.writerow(['infarct area (%)', area ])
-            # except:
-            #     pass
+#         if MPI.rank(mpi_comm_world()) == 0:
+#             dict_area = {'infarct area (%)': area}
+#             save_dict_to_csv(dict_area, filename, write = 'a')
+#             # try:
+#             #     with open(filename, 'a') as f:
+#             #         writer = csv.writer(f)
+#             #         writer.writerow(['infarct area (%)', area ])
+#             # except:
+#             #     pass
 
     @property
     def lc(self):
@@ -807,6 +841,9 @@ class BovendeerdMaterial(ConstitutiveModel):
         super(BovendeerdMaterial, self).__init__(u, fiber_vectors, **kwargs)
 
         Q = vector_space_to_scalar_space(u.ufl_function_space())
+        
+        mesh = u.ufl_domain().ufl_cargo()
+        self.W = TensorFunctionSpace(mesh, 'Lagrange' , 2)
         # self.Sfun = Function(Q)
         # self.Sfun.assign(Constant(0.0))
 
