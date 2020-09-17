@@ -489,8 +489,10 @@ class postprocess_hdf5(object):
         # save the figure
         torsion_fig.savefig(os.path.join(self.directory, 'torsion.png'), dpi=300, bbox_inches="tight")
         shear_fig.savefig(os.path.join(self.directory, 'shear.png'), dpi=300, bbox_inches="tight")
+        
+        plt.close('all')
 
-    def loc_mech_ker(self, strain_figs = None, stress_figs = None, work_figs = None, fontsize = 12, label = None):
+    def loc_mech_ker(self, strain_figs = None, stress_figs = None, work_figs = None, fontsize = 12, label = None, phi_wall = 1/2*math.pi):
         """
         Only works for the cvbtk model (fiber_stress and ls are not (yet) saved in the beatit model)
         calculate and plot the local mechanics according to Kerchoffs 2003
@@ -504,12 +506,16 @@ class postprocess_hdf5(object):
         
         results = self.results
         par = self.parameters
+
+        theta_vals = self.parameters['theta_vals']
     
         rad = ['endo', 'mid', 'epi']
-        long = ['top', 'mid', 'bot']
+        long = ['equatorial', 'mid', 'apical']
 
         if not par['load_pickle'] or not os.path.exists(os.path.join(self.directory, 'loc_mech_data.pkl')):
             print('Calculating mechanics local points...')
+
+            self.show_ker_points(phi_wall)
 
             variables = ['fiber_stress', 'ls']
 
@@ -517,11 +523,6 @@ class postprocess_hdf5(object):
 
             nsteps = self.hdf5_files['ls'].attributes('ls')['count']
             vector_numbers = list(range(nsteps))
-
-            # define the phi value for the 9 points
-            phi_free_wall = 1/2*math.pi
-            # define the equatorial, mid and apical theta values
-            theta_vals = [1/2*math.pi, 0.63*math.pi, 19/25*math.pi]
 
             focus = self.parameters['focus']
 
@@ -554,14 +555,14 @@ class postprocess_hdf5(object):
                     for r, eps in enumerate(eps_vals):
                         # for each point in radial direction (endo, mid, epi)
                         # coordinates of the point:
-                        x, y, z = ellipsoidal_to_cartesian(focus,eps,theta,phi_free_wall)
+                        x, y, z = ellipsoidal_to_cartesian(focus,eps,theta,phi_wall)
 
                         # stress and lenghth of that point at the timestep (vector number)
                         for vari in variables:
                             var = self.functions[vari](x, y, z)
                             if vari == 'ls':
                                 var = np.log(var/self.parameters['ls0'])
-                            data[count] = {'var': vari, 'time': step, 'slice': long[l], 'wall': rad[r], 'value': var}
+                            data[count] = {'var': vari, 'time': step, 'slice': l, 'wall': rad[r], 'value': var, 'coords': [x,y,z]}
                             count += 1
 
             df = pd.DataFrame.from_dict(data, "index")
@@ -602,7 +603,7 @@ class postprocess_hdf5(object):
         strain = df[df['var'] == 'ls']
         # loop over all subplots
         ii = 0
-        for l in long:
+        for l in range(0, len(theta_vals)):
             strain_l = strain[strain['slice']==l]
             stress_l = stress[stress['slice']==l]
             for r in rad:
@@ -625,7 +626,7 @@ class postprocess_hdf5(object):
                     if ii == 5 and label != None:
                         plot.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-                    if ii == 8:
+                    if ii == int(3*len(theta_vals) - 1):
                         plot.yaxis.set_label_position('right')
                         plot.set_ylabel('apical')
                 ii += 1
@@ -647,6 +648,8 @@ class postprocess_hdf5(object):
         work_fig.suptitle('Workloops', fontsize = fontsize +2)
 
         work_fig.savefig(os.path.join(self.directory, 'workloops.png'), dpi=300, bbox_inches="tight")
+
+        plt.close('all')
 
         print('Plots created!')
     
@@ -702,7 +705,7 @@ class postprocess_hdf5(object):
 
                         length = self.functions[vari](x, y, z)
 
-                        data[count] = {'var': vari, 'time': step, 'wall': wall, 'value': length}
+                        data[count] = {'var': vari, 'time': step, 'wall': wall, 'value': length, 'coords': [x,y,z]}
                         count += 1
 
             # convert dictionary to dataframe and save
@@ -834,6 +837,8 @@ class postprocess_hdf5(object):
         ax2.set_ylabel('f_twitch', color = 'tab:blue')
         ax2.tick_params(axis='y', labelcolor='tab:blue')
         fig.savefig(os.path.join(self.directory, 'activation.png'), dpi=300, bbox_inches="tight")
+
+        plt.close('all')
 
     def plot_strain(self, title = '', wall_points = 10, analyse_seg = None, variables = ['Ell', 'Ecc', 'Err', 'Ecr', 'myofiber_strain']):
         """
@@ -985,7 +990,8 @@ class postprocess_hdf5(object):
 
                                 data[count] = {'strain': vari, 'time': steps, 
                                     'slice': slice_nr, 'seg': seg, 'wall': wall, 
-                                    'value': strain, 'weighted_value': strain * w_ri}
+                                    'value': strain, 'weighted_value': strain * w_ri,
+                                    'coords': [x,y,z]}
 
                                 count += 1
 
@@ -1049,7 +1055,25 @@ class postprocess_hdf5(object):
         phase4 = time[(results[par['phase']] == 3)[::-1].idxmax()] - t_ed_cycle
         phase4_end = time[(results[par['phase']] == 4)[::-1].idxmax()] - t_ed_cycle
 
-        for strain_name in variables:
+        fig_strain, strain_plots = plt.subplots(2,2, figsize=(10,6))
+        strain_plots[0,0].set_ylabel('strain [%]')
+        strain_plots[0,0].tick_params(axis='x', labelbottom=False)
+        strain_plots[0,1].tick_params(axis='x', labelbottom=False)
+        strain_plots[1,0].set_ylabel('strain [%]')
+        strain_plots[1,0].set_xlabel('time [ms]')
+        strain_plots[1,1].set_xlabel('time [ms]')
+        strain_plots = [strain_plots[0,0], strain_plots[0,1], strain_plots[1,0], strain_plots[1,1]]
+
+        fig_trans, trans_plots = plt.subplots(2,2, figsize=(10,6))
+        trans_plots[0,0].set_ylabel('strain [%]')
+        trans_plots[0,0].tick_params(axis='x', labelbottom=False)
+        trans_plots[0,1].tick_params(axis='x', labelbottom=False)
+        trans_plots[1,0].set_ylabel('strain [%]')
+        trans_plots[1,0].set_xlabel('epicardial         -         endocardial')
+        trans_plots[1,1].set_xlabel('epicardial         -         endocardial')
+        trans_plots = [trans_plots[0,0], trans_plots[0,1], trans_plots[1,0], trans_plots[1,1]]
+
+        for strain_count, strain_name in enumerate(variables):
             fig = plt.figure()
             av = fig.add_subplot(spec[1,:])
             epi = fig.add_subplot(spec[0,0])
@@ -1087,11 +1111,19 @@ class postprocess_hdf5(object):
                         for phase in [phase2, phase3, phase4, phase4_end]:
                             plot[ii].axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
                             av.axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
+                            strain_plots[strain_count].axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
+                        if strain_count == 0 or strain_count ==1:
+                            strain_plots[strain_count].annotate('ic', xy = (phase3/2 / 800 + 0.025, 0.95), xycoords='axes fraction')    
+                            strain_plots[strain_count].annotate('e', xy = ((phase3 + phase4)/2 / 800 + 0.01, 0.95), xycoords='axes fraction') 
+                            strain_plots[strain_count].annotate('ir', xy = ((phase4 + phase4_end)/2 / 800, 0.95), xycoords='axes fraction') 
+                            strain_plots[strain_count].annotate('d', xy = ((phase4_end + 800)/2 / 800, 0.95), xycoords='axes fraction') 
 
                 slice = slice.groupby(['time','seg'], as_index=False).sum()
                 grouped = slice.groupby('time', as_index=False).mean()
                 time_strain = grouped['weighted_value']
                 av.plot(time, time_strain, label = 'Slice {}'.format(slice_nr))
+                strain_plots[strain_count].plot(time, time_strain, label = 'Slice {}'.format(slice_nr))
+                strain_plots[strain_count].set_title(strain_name)
 
             strain = strain.groupby(['time','slice','seg'], as_index=False).sum()
             grouped = strain.groupby('time', as_index=False).mean()
@@ -1100,13 +1132,21 @@ class postprocess_hdf5(object):
             av.plot(time, time_strain, '--', label = 'average')
             av.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
+            # ax_strain[strain_count].plot(time, time_strain, '--', label = 'average')
+            strain_plots[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
             if analyse_seg is not None:
                 fig.suptitle('{strain} segment {seg} {title}'.format(strain = strain_name, seg = analyse_seg, title = title))
-                fig.savefig(os.path.join(self.directory, strain_name + '_weighted_model_segment_{}.png'.format(int(analyse_seg))), dpi=300, bbox_inches="tight")
+                fig.savefig(os.path.join(self.directory, strain_name + '_model_segment_{}.png'.format(int(analyse_seg))), dpi=300, bbox_inches="tight")
+                if strain_count == len(variables) - 1:
+                    fig_strain.suptitle('Segment {seg} {title}'.format(strain = strain_name, seg = analyse_seg, title = title))
+                    fig_strain.savefig(os.path.join(self.directory, 'all_strains_segment_{}_.png'.format(int(analyse_seg))), dpi=300, bbox_inches="tight")
             else:
                 fig.suptitle('{strain} {title}'.format(strain = strain_name, title = title))
-                fig.savefig(os.path.join(self.directory, strain_name + '_weighted_model.png'), dpi=300, bbox_inches="tight")
-                 
+                fig.savefig(os.path.join(self.directory, strain_name + '_model.png'), dpi=300, bbox_inches="tight")
+                if strain_count == len(variables) - 1:
+                    fig_strain.savefig(os.path.join(self.directory, 'all_strains.png'), dpi=300, bbox_inches="tight")
+
             fig_wall, ax_wall = plt.subplots() 
             fig_seg, ax_seg = plt.subplots() 
             # data_ed = df[df['time'] == 0] 
@@ -1125,12 +1165,15 @@ class postprocess_hdf5(object):
                 seg_strain = grouped_seg['value']
 
                 ax_wall.plot(range(len(eps_vals)), wall_strain[::-1], label = 'Slice {}'.format(slice_nr))
+                trans_plots[strain_count].plot(range(len(eps_vals)), wall_strain[::-1], label = 'Slice {}'.format(slice_nr))
                 ax_seg.plot(range(len(phi_range)), seg_strain, label = 'Slice {}'.format(slice_nr))
 
             ax_wall.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            trans_plots[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
             ax_seg.legend(loc='center left', bbox_to_anchor=(1, 0.5))
                 
             ax_seg.set_title(strain_name + ' circumferential at end systole ' + title)
+            trans_plots[strain_count].set_title(strain_name)
 
             ax_wall.set_ylabel('strain [%]')
             ax_seg.set_ylabel('strain [%]')
@@ -1141,14 +1184,19 @@ class postprocess_hdf5(object):
             if analyse_seg is not None:
                 ax_wall.set_title(strain_name + ' transmural at end systole segment {} '.format(analyse_seg) + title)
                 fig_wall.savefig(os.path.join(self.directory, strain_name + '_transmural_model_es_segment_{}.png'.format(analyse_seg)), dpi=300, bbox_inches="tight")
+                fig_trans.suptitle('Segment {seg} transmural strains at end systole {title}'.format(strain = strain_name, seg = analyse_seg, title = title))
+                fig_trans.savefig(os.path.join(self.directory, 'all_av_transmural_model_es_segment_{}.png'.format(analyse_seg)), dpi=300, bbox_inches="tight")
             else:
                 ax_wall.set_title(strain_name + ' transmural at end systole' + title)
                 fig_wall.savefig(os.path.join(self.directory, strain_name + '_transmural_model_es.png'), dpi=300, bbox_inches="tight")
+                fig_trans.suptitle('Transmural strains at end systole {title}'.format(strain = strain_name, seg = analyse_seg, title = title))
+                fig_trans.savefig(os.path.join(self.directory, 'all_av_transmural_model_es.png'), dpi=300, bbox_inches="tight")
+
             fig_seg.savefig(os.path.join(self.directory, strain_name + '_circumferential_model_es.png'), dpi=300, bbox_inches="tight")
  
-
+        plt.close('all')
  
-    def show_slices(self, fig = None, fontsize=12, title = '', wall_points = 10):
+    def show_slices(self, fig = None, fontsize=18, title = '', wall_points = 10):
         """
         Visual representation of the slices and segments
         used in the calculations of the torsion and shear
@@ -1169,6 +1217,7 @@ class postprocess_hdf5(object):
 
         # colors of the slices
         col = [ 'C7','C5', 'C0', 'C1','C2','C3', 'C4','C8']
+        col = ['tab:blue','tab:orange', 'tab:green', 'tab:red', 'C7','C5', 'C0', 'C1','C2','C3', 'C4','C8']
 
         try:
             self.u_es
@@ -1186,9 +1235,9 @@ class postprocess_hdf5(object):
             ed_es_fig, ed_es_plot = plt.subplots(1,1)
 
         # top view slices
-        _xy1 = plt.subplot(gs[0,0])
+        _xz1 = plt.subplot(gs[0,0])
         # side view slices
-        _xz1 = plt.subplot(gs[0,1])
+        _xy1 = plt.subplot(gs[0,1])
 
         if u_exists:
             self._ax = {'xy1': _xy1, 'xz1': _xz1, 'xy2': _xy2}
@@ -1240,7 +1289,6 @@ class postprocess_hdf5(object):
             # theta_mid = math.acos(tau)
             # tau = z_epi/(focus * math.cosh(eps_inner))
             # theta_inner = math.acos(tau)
-
             # thetas = [theta, theta_mid, theta_inner]
             for seg, phi in enumerate(phi_range):
                 #loop over segments
@@ -1302,20 +1350,22 @@ class postprocess_hdf5(object):
                 ed_es_plot.scatter(x_segs_es, y_segs_es, marker='x', color=col[slice_nr], label= 'es slice ' + str(slice_nr))
 
         self._ax['xy1'].axis('equal')
-        self._ax['xy1'].set_title('top view (x-y)')
-        self._ax['xy1'].legend(frameon=False, fontsize=fontsize)
+        self._ax['xy1'].set_title('Short axis', fontsize=fontsize+2)
+        # self._ax['xy1'].legend(frameon=False, fontsize=fontsize)
 
-        self._ax['xz1'].set_title('front view (x-z)')
+        self._ax['xz1'].set_title('Long axis', fontsize=fontsize+2)
         self._ax['xz1'].axis('equal')
-        self._ax['xz1'].legend(frameon=False, fontsize=fontsize)
+        self._ax['xz1'].legend(frameon=False, bbox_to_anchor=(1.1, 0.5), loc = 'center', fontsize=fontsize)
 
+        self._ax['xy1'].axis('off')
+        self._ax['xz1'].axis('off')
         if u_exists:
             self._ax['xy2'].axis('equal')
-            self._ax['xy2'].set_title('top view (x-y) end diastole and end systole')
+            self._ax['xy2'].set_title('top view (x-y) end diastole and end systole', fontsize=fontsize +2)
             self._ax['xy2'].legend(frameon=False, fontsize=fontsize)
 
             ed_es_plot.axis('equal')
-            ed_es_plot.set_title('top view (x-y) end diastole and end systole')
+            ed_es_plot.set_title('top view (x-y) end diastole and end systole', fontsize=fontsize+2)
             ed_es_plot.legend(frameon=False, fontsize=fontsize)
 
             fig.suptitle(title,fontsize=fontsize+4)
@@ -1326,7 +1376,7 @@ class postprocess_hdf5(object):
 
         fig.savefig(os.path.join(self.directory, 'slices.png'), dpi=300, bbox_inches="tight")
 
-    def show_ker_points(self):
+    def show_ker_points(self, phi_wall):
         """
         Visual representation of the 9 points used in the
         function of the local mechanics of Kerchoffs 2003
@@ -1340,10 +1390,7 @@ class postprocess_hdf5(object):
         # draw the outlines of the left ventricle
         self.lv_drawing(side_keys = ['fig'])
 
-        # the same phi values used in loc_mech_ker
-        # TODO could be improved to make certain same values are used
-        phi_free_wall = 1/2*math.pi
-        theta_vals = [1/2*math.pi, 0.63*math.pi, 19/25*math.pi]
+        theta_vals = self.parameters['theta_vals']
 
         focus = self.parameters['focus']
         tol = self.parameters['tol']
@@ -1358,7 +1405,7 @@ class postprocess_hdf5(object):
             for eps in eps_vals:
                 # loop over segments
                 # coordinates of point:
-                x, y, z = ellipsoidal_to_cartesian(focus,eps,theta,phi_free_wall)
+                x, y, z = ellipsoidal_to_cartesian(focus,eps,theta,phi_wall)
                 plt.scatter(y, z)
         plt.xlabel('y-axis [cm]')
         plt.ylabel('z-axis [cm]')
