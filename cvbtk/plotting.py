@@ -1611,7 +1611,7 @@ class Export(object):
         t_old = kwargs['t_old']
         if t_old >= 0:
             self.xdmf_files['ls'].write(self.model.active_stress.ls_old, t_old)
-            self.hdf5_files['ls'].write(self.model.active_stress.ls_old, 'ls_old', t_old)
+            self.hdf5_files['ls'].write(self.model.active_stress.ls_old, 'ls', t_old)
 
             # Save the average fiber strain for this timestep.
             avg_ls = global_function_average(self.model.active_stress.ls_old)
