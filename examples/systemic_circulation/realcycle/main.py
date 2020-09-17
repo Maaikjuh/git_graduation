@@ -39,27 +39,30 @@ INPUTS_PATH = None #'inputs.csv'
 
 # Set mesh resololution. For the default mesh, chose 30, 40 or 50. 
 SET_MESH_RESOLUTION = 20.0
+SET_MESH_SEGMENTS = 20
 
 # Use the following option if you want to load an alternative mesh (that has already been created). 
 # By specifying a path to an .hdf5 file, you can load the mesh from the file instead of the reference mesh. 
 # If you do not want to load an alternative mesh from a
 # file, but just use the reference lv mesh, set the below path to None.
-LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg30_res{}_fibers_mesh.hdf5'.format(int(SET_MESH_RESOLUTION)) #None 
+LOAD_ALTERNATIVE_MESH = 'lv_maaike_seg{seg}_res{res}_fibers_mesh.hdf5'.format(
+    seg = int(SET_MESH_SEGMENTS), res = int(SET_MESH_RESOLUTION)) #None 
 # LOAD_ALTERNATIVE_MESH = 'mesh_leftventricle_30.hdf5'
 
 DIR_EIKONAL = None #'/mnt/c/Users/Maaike/Documents/Master/Graduation_project/meshes/Eikonal_meshes/mesh_{}_purk_fac_kot00/td.hdf5'.format(int(SET_MESH_RESOLUTION)) #None
-DIR_ISCHEMIC = '/home/maaike/OneDrive/meshes/ischemic_meshes/seg_30_res_20_droplet/T0.hdf5'
+DIR_ISCHEMIC = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/meshes/ischemic_meshes/seg_{seg}_res_{res}_droplet'.format(
+    seg = int(SET_MESH_SEGMENTS), res = int(SET_MESH_RESOLUTION))
 
 # Specify output directory.
 now = datetime.datetime.now()
-DIR_OUT = 'output/{}_infarct_hdf5'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
+DIR_OUT = 'output/_infarct_hdf5'.format(now.strftime("%d-%m_%H-%M"),int(SET_MESH_RESOLUTION))
 
 #check if eikonal mesh exists 
 if MPI.rank(mpi_comm_world()) == 0:
     if DIR_EIKONAL != None and not os.path.isfile(DIR_EIKONAL):
         raise RuntimeError('Eikonal hdf5 file does not exist')
-    if DIR_ISCHEMIC != None and not os.path.isfile(DIR_ISCHEMIC):
-        raise RuntimeError('Ischemic hdf5 file does not exist')
+    # if DIR_ISCHEMIC != None and not os.path.isfile(DIR_ISCHEMIC):
+    #     raise RuntimeError('Ischemic hdf5 file does not exist')
 
 # Create directory if it doesn't exists.
 if MPI.rank(mpi_comm_world()) == 0:
@@ -118,8 +121,8 @@ def get_inputs(number_of_cycles, active_stress):
     #             'focus': 4.3,
     #             'Ta0_infarct': 20., #20.,
     #             'save_T0_mesh': DIR_OUT}
-    infarct = {'T0_dir': DIR_ISCHEMIC,
-               'save_T0_mesh': DIR_OUT}
+    infarct = {'infarct_dir': DIR_ISCHEMIC,
+               'save_infarct_mesh': DIR_OUT}
 #    if INFARCT == True:
 #        infarct_prm = { 'infarct': INFARCT,
 #                        'phi_min': 0.,
@@ -179,12 +182,15 @@ def get_inputs(number_of_cycles, active_stress):
 
     # Passive material law.
     material_law = 'BovendeerdMaterial'
+
+    # TODO om zo het infarct mee te geven aan het model is mss niet zo netjes, oplossing?
     material_model = {'a0': 0.4,
                       'a1': 3.0,
                       'a2': 6.0,
                       'a3': 3.0,
                       'a4': 0.0,
-                      'a5': 55.0}
+                      'a5': 55.0,
+                      'infarct': infarct}
 
     # Active stress model.
     active_stress_ls0 = 1.9
@@ -193,6 +199,7 @@ def get_inputs(number_of_cycles, active_stress):
     # NOTE: tdep is actually the reset time: active stress is assumed zero and
     # state variables are reset when t_act exceeds tcycle-tdep.
 
+    # TODO om zo het infarct en eikonal mee te geven aan het model is mss niet zo netjes, oplossing?
     active_stress_arts_kerckhoffs = {'Ta0': 160.0,
                                      'Ea': 20.0,
                                      'al': 2.0,
