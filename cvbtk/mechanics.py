@@ -289,6 +289,7 @@ class ActiveStressModel(ConstitutiveModel):
 
         openfile = HDF5File(mpi_comm_world(), filename, 'r')
         openfile.read(td,'td/vector_0')
+        openfile.close()
 
         #project the activation time map onto the mechanical mesh
         self._tact = project(-1*td, V)
@@ -494,8 +495,8 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         self.T0.assign(Constant(self.parameters['Ta0']))
         # self.T0_created = False 
 
-        if self.parameters['infarct']['T0_dir'] is not None and self.parameters['infarct']['T0_dir'] != '':
-            self.ischemic(u, self.parameters['infarct']['T0_dir'])
+        if self.parameters['infarct']['infarct_dir'] is not None and self.parameters['infarct']['infarct_dir'] != '':
+            self.ischemic_T0(u, self.parameters['infarct']['infarct_dir'])
             
         self.f_twitch = Function(self.Q, name='f_twitch')
         self.f_twitch.assign(Constant(0))
@@ -551,8 +552,8 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         prm.add('restrict_lc', False)
 
         prm_infarct = Parameters('infarct')
-        prm_infarct.add('T0_dir', '')
-        prm_infarct.add('save_T0_mesh', '')
+        prm_infarct.add('infarct_dir', '')
+        prm_infarct.add('save_infarct_mesh', '')
         # prm_infarct.add('phi_max', float())
         # prm_infarct.add('theta_min', float())
         # prm_infarct.add('theta_max', float())
@@ -630,7 +631,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         return p
     
     
-    def ischemic(self, u, T0_dir):
+    def ischemic_T0(self, u, infarct_dir):
         """
         load the ischemic map and project it on the mechanical mesh 
         of the model
@@ -645,8 +646,9 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         V = FunctionSpace(mesh, 'Lagrange', 2)
         T0_ = Function(V)
 
-        openfile = HDF5File(mpi_comm_world(), T0_dir, 'r')
+        openfile = HDF5File(mpi_comm_world(), os.path.join(infarct_dir, 'T0.hdf5'), 'r')
         openfile.read(T0_,'T0/vector_0')
+        openfile.close()
 
         #project the ischemic map onto the mechanical mesh
         self.T0 = project(T0_, V)
@@ -656,7 +658,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         
         if not os.path.isfile('T0.xdmf'):
             #save the projection to xdmf to check if the projection has been succesful
-            dir_out = self.parameters['infarct']['save_T0_mesh']
+            dir_out = self.parameters['infarct']['save_infarct_mesh']
             file_mesh = XDMFFile(os.path.join(dir_out, 'T0.xdmf'))
             file_mesh.write(self.T0)
         
@@ -842,10 +844,14 @@ class BovendeerdMaterial(ConstitutiveModel):
 
         Q = vector_space_to_scalar_space(u.ufl_function_space())
         
-        mesh = u.ufl_domain().ufl_cargo()
-        self.W = TensorFunctionSpace(mesh, 'Lagrange' , 2)
-        # self.Sfun = Function(Q)
-        # self.Sfun.assign(Constant(0.0))
+        self.mesh = u.ufl_domain().ufl_cargo()
+        self.W = TensorFunctionSpace(self.mesh, 'Lagrange' , 2)
+        self.V = FunctionSpace(self.mesh, 'Lagrange', 2)
+        self.a0 = Function(self.V)
+        self.a0.assign(Constant(self.parameters['a0']))
+
+        if self.parameters['infarct']['infarct_dir'] is not None and self.parameters['infarct']['infarct_dir'] != '':
+            self.ischemic_a0(self.parameters['infarct']['infarct_dir'])
 
     @staticmethod
     def default_parameters():
@@ -861,7 +867,38 @@ class BovendeerdMaterial(ConstitutiveModel):
         prm.add('a4', float())
         prm.add('a5', float())
 
+        prm_infarct = Parameters('infarct')
+        prm_infarct.add('infarct_dir', '')
+        prm_infarct.add('save_infarct_mesh', '')
+        prm.add(prm_infarct)
         return prm
+    
+    def ischemic_a0(self, infarct_dir):
+        """
+        load the ischemic map and project it on the mechanical mesh 
+        of the model
+        
+        Args:
+            u: The displacement unknown.
+            T0_dir: location of the hdf5 file with the ischemic map
+        """
+        a0_ = Function(self.V)
+
+        openfile = HDF5File(mpi_comm_world(), os.path.join(infarct_dir, 'a0.hdf5'), 'r')
+        openfile.read(a0_,'a0/vector_0')
+        openfile.close()
+
+        #project the ischemic map onto the mechanical mesh
+        self.a0 = project(a0_, self.V)
+
+        #rename the function (this will give the function a name in Paraview)
+        self.a0.rename('a0','a0')
+        
+        if not os.path.isfile('a0.xdmf'):
+            #save the projection to xdmf to check if the projection has been succesful
+            dir_out = self.parameters['infarct']['save_infarct_mesh']
+            file_mesh = XDMFFile(os.path.join(dir_out, 'a0.xdmf'))
+            file_mesh.write(self.a0)
 
     def piola_kirchhoff2(self, u):
         """
@@ -873,7 +910,8 @@ class BovendeerdMaterial(ConstitutiveModel):
         Returns:
             A UFL-like object.
         """
-        a0 = self.parameters['a0']
+        # # a0 = self.parameters['a0']
+        # a0 = self.a0
         a1 = self.parameters['a1']
         a2 = self.parameters['a2']
         a3 = self.parameters['a3']
@@ -924,7 +962,7 @@ class BovendeerdMaterial(ConstitutiveModel):
                             (dQ_nf, dQ_ns, dQ_nn)))
 
         # Shape term component of S in fsn basis.
-        Ss_ = a0*exp(Q)*dQ
+        Ss_ = self.a0*exp(Q)*dQ
 
         # Right Cauchy-Green strain in fsn basis.
         # noinspection PyTypeChecker
@@ -968,7 +1006,22 @@ class BovendeerdMaterial(ConstitutiveModel):
 
         # Combine the terms, rotate to Cartesian basis, and return.
         S = R.T*(Ss_ + Sv_)*R
+
+        # S = self.S_func * S
         # print('S:',S)
+
+        # S_p = project(S, self.W)
+        # S = Function(self.W)
+        # S.assign(S_p)
+        # print('S_p:', B)
+        # S = Function(S_p, B.vector(), copy)
+        # S = Function(S_p).copy(deepcopy=True)
+        # # print('S function:', S)
+        # # S = Function(S_p, )
+        # dir_out = self.parameters['infarct']['save_T0_mesh']
+        # file_mesh = XDMFFile(os.path.join(dir_out, 'S.xdmf'))
+        # file_mesh.write(S)
+        # file_mesh.close()
 
         return S
 
