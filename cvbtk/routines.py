@@ -773,7 +773,6 @@ def set_boundary_conditions(model):
             ax_points.append(xx)
 
     xx = np.array(ax_points)
-    print(xx)
 
     xx = np.reshape(xx, (1, -1), order='F')
     xx = xx.flatten()
@@ -796,7 +795,6 @@ def set_boundary_conditions(model):
         index_m = np.argmax(xm)
         index_x = np.where(x == xm[index_m])
         points.append(np.array([xm[index_m], y[index_x] , zbase]))
-    print(points)
     # Dirichlet boundary conditions fix the base.
     # model.bcs = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
     # model.bcs = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
@@ -806,7 +804,6 @@ def set_boundary_conditions(model):
         for xx in points:
             if (norm(xx-x) < tol):
                 inside = True
-                print(xx)
                 # self.found(x)
         return inside
    
@@ -845,8 +842,8 @@ def set_boundary_conditions(model):
     bcs0 = DirichletBC(V.sub(1), Constant(0), inside, method='pointwise')
     bcs1 = DirichletBC(V.sub(0), Constant(0), on_basal_ring_y_boundary, method='pointwise')
     bcs2 = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
-    model.bcs = [bcs2, bcs0]
-    # model.bcs = bcs2
+    # model.bcs = [bcs2, bcs0]
+    model.bcs = bcs2
     # model.bcs = [bcs1, bcs2]
 
     # We have not fully eliminated rigid body motion yet. To do so, we will
