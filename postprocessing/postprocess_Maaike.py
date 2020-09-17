@@ -70,8 +70,16 @@ def load_reduced_dataset(filename, cycle=None, model = None):
             
     if cycle is None:
         cycle = int(max(full[var['cycle']]) - 1)
+        if cycle == 0:
+            cycle = 1
            
     reduced = full[full[var['cycle']] == cycle].copy(deep=True)
+    
+    if model != 'beatit':
+        plv = reduced['plv']
+        part = reduced['part']
+        part_new = [max(plv_, part_) for plv_, part_ in zip(plv, part)]
+        reduced['part'] = part_new
     return reduced, cycle
 
 def kPa_to_mmHg(p_kPa):
@@ -96,11 +104,12 @@ class HemodynamicsPlot(object):
     Args:
         dataset: Dataset to create the figure from.
     """
-    def __init__(self, dataset, title, model = None):
+    def __init__(self, dataset, title, fontsize = 12, model = None):
         # Store the dataset.
            
         self._df, self.var = dict_var_names(dataset = dataset, model = model)
         self.model = model    
+        self.fontsize = fontsize
 
         # Create an empty figure for plotting.
         self._fig = plt.figure()
@@ -121,16 +130,16 @@ class HemodynamicsPlot(object):
         self._ax['vt'].xaxis.set_visible(False)
 
         # Set axis labels.
-        self._ax['qt'].set_xlabel('Time [ms]')
-        self._ax['qt'].set_ylabel('Flowrate [ml/s]')
-        self._ax['pt'].set_ylabel('Pressure [mmHg]')
-        self._ax['vt'].set_ylabel('Volume [ml]')
+        self._ax['qt'].set_xlabel('Time [ms]', fontsize = fontsize + 1)
+        self._ax['qt'].set_ylabel('Flowrate [ml/s]', fontsize = fontsize + 1)
+        self._ax['pt'].set_ylabel('Pressure [mmHg]', fontsize = fontsize + 1)
+        self._ax['vt'].set_ylabel('Volume [ml]', fontsize = fontsize + 1)
 
-        self._ax['pv'].set_xlabel('Volume [ml]')
-        self._ax['pv'].set_ylabel('Pressure [mmHg]')
+        self._ax['pv'].set_xlabel('Volume [ml]', fontsize = fontsize + 1)
+        self._ax['pv'].set_ylabel('Pressure [mmHg]', fontsize = fontsize + 1)
 
         # Set the global title.
-        self._fig.suptitle(title)
+        self._fig.suptitle(title, fontsize = fontsize + 2)
 
         # Remove the right and top spines.
         [ax.spines['top'].set_visible(False) for _, ax in self._ax.items()]
@@ -205,19 +214,19 @@ class HemodynamicsPlot(object):
             # Add the legends for the three individual plots, if needed to.
             if legend:
                 # self._ax['pt'].legend(loc=2, fontsize=7) #, title='Pressure')
-                self._ax['pt'].legend(fontsize=8, bbox_to_anchor=(1.0, 1), loc='upper left') #, title='Pressure')
-                self._ax['pt'].get_legend().get_title().set_fontsize('7')
+                self._ax['pt'].legend(fontsize=self.fontsize, bbox_to_anchor=(1.0, 1), loc='upper left') #, title='Pressure')
+                # self._ax['pt'].get_legend().get_title().set_fontsize('18')
                 # self._ax['vt'].legend(loc=2, fontsize=7) #, title='Volume')
-                self._ax['vt'].legend(fontsize=8, bbox_to_anchor=(1.0, 1), loc='upper left') #, title='Volume')
-                self._ax['vt'].get_legend().get_title().set_fontsize('7')
+                self._ax['vt'].legend(fontsize=self.fontsize, bbox_to_anchor=(1.0, 1), loc='upper left') #, title='Volume')
+                # self._ax['vt'].get_legend().get_title().set_fontsize('12')
                 # self._ax['qt'].legend(loc=2, fontsize=7) #, title='Flowrate')
-                self._ax['qt'].legend(fontsize=8, bbox_to_anchor=(1.0, 1), loc='upper left') #, title='Flowrate')
-                self._ax['qt'].get_legend().get_title().set_fontsize('7')
+                self._ax['qt'].legend(fontsize=self.fontsize, bbox_to_anchor=(1.0, 1), loc='upper left') #, title='Flowrate')
+                # self._ax['qt'].get_legend().get_title().set_fontsize('12')
     
             # The pressure-volume loop always has a legend if multiple are plotted.
             if not cycle and len(df[var['cycle']].unique()) > 1:
                 self._ax['pv'].legend(loc=2, fontsize=7, title='Cycle')
-                self._ax['pv'].get_legend().get_title().set_fontsize('7')
+                self._ax['pv'].get_legend().get_title().set_fontsize('12')
                 
                 
         elif 'pcav_s' in df.keys():
@@ -278,7 +287,7 @@ class HemodynamicsPlot(object):
                 self._ax['pv'].get_legend().get_title().set_fontsize('7')
             
             
-    def compare_against(self, label_ref, label_vars, dataset,cycle=None, model = None, linestyle = '--'):
+    def compare_against(self, label_ref, label_vars, dataset,cycle=None, model = None, linestyle = '--', color ='#1f77b4'):
         """
         Draw additional curves on the existing figure for visual comparison.
 
@@ -318,17 +327,17 @@ class HemodynamicsPlot(object):
             
             print('\ndata centered around phase {} at {}ms with offset {}ms'.format(center_phase,phase_time_df,offset))
             # Make the pressure-time plot.
-            self._ax['pt'].plot(time, kPa_to_mmHg(dataset[var_comp['plv']]), linestyle, color ='#1f77b4')
+            self._ax['pt'].plot(time, kPa_to_mmHg(dataset[var_comp['plv']]), linestyle, color =color)
             self._ax['pt'].plot(time, kPa_to_mmHg(dataset[var_comp['pven']]), linestyle + 'r')
             self._ax['pt'].plot(time, kPa_to_mmHg(dataset[var_comp['part']]), linestyle + 'g')
     
             # Make the volume-time plot.
-            self._ax['vt'].plot(time, dataset[var_comp['vlv']], linestyle, color ='#1f77b4')
+            self._ax['vt'].plot(time, dataset[var_comp['vlv']], linestyle, color =color)
             # self._ax['vt'].plot(dataset['time'], dataset['vven'], *args, **kwargs)
             # self._ax['vt'].plot(dataset['time'], dataset['vart'], *args, **kwargs)
     
             # Make the flowrate-time plot.
-            self._ax['qt'].plot(time, dataset[var_comp['qmv']], linestyle, color ='#1f77b4')
+            self._ax['qt'].plot(time, dataset[var_comp['qmv']], linestyle, color =color)
             self._ax['qt'].plot(time, dataset[var_comp['qao']], linestyle + 'r')
             self._ax['qt'].plot(time, dataset[var_comp['qper']], linestyle + 'g')
             
@@ -345,7 +354,7 @@ class HemodynamicsPlot(object):
             # Each cycle (if multiple) will get its own color.
             for c in dataset[var_comp['cycle']].unique():
                 _df = dataset[dataset[var_comp['cycle']] == int(c)]
-                self._ax['pv'].plot(_df[var_comp['vlv']], kPa_to_mmHg(_df[var_comp['plv']]), linestyle, color ='#1f77b4')
+                self._ax['pv'].plot(_df[var_comp['vlv']], kPa_to_mmHg(_df[var_comp['plv']]), linestyle, color =color)
                 
             if 'pcav_s' in df.keys():
                 self._ax['pv'].legend(['BiV','Lv'])
@@ -407,7 +416,7 @@ class HemodynamicsPlot(object):
                 self._ax['pv'].legend(['Lv','BiV'])
 
             
-    def save(self, filename, dpi=300, bbox_inches='tight'):
+    def save(self, filename, dpi=100, bbox_inches='tight'):
         """
         Write the currently drawn figure to file.
 
@@ -418,6 +427,7 @@ class HemodynamicsPlot(object):
         """
         # TODO Add check for whether or not a plot has been created.
         try:
+            self._fig.set_size_inches(30, 12)
             self._fig.savefig(filename, dpi=dpi, bbox_inches=bbox_inches)
 
         except FileNotFoundError:
@@ -714,9 +724,10 @@ def plot_results(results, dir_out='.', cycle=None, title = 'Hemodynamic relation
 def plot_compare_results(results,results_var, dir_out='.', cycle=None, label_ref='ischemic', label_vars=['reference'], 
                          title = 'Hemodynamic relations', modelref = None, modelvars = [None]):
     linestyle = ['--', '-.', ':']
+    colors = ['darkturquoise', 'darkviolet', 'darkgreen']
     simulation_plot = HemodynamicsPlot(results, title, model= modelref)
     simulation_plot.plot(label_ref[0], cycle=cycle) #, cycle=NUM_CYCLES)
     
     for ii, var in enumerate(results_var):
-        simulation_plot.compare_against(label_ref, label_vars,var,cycle=cycle, model = modelvars[ii], linestyle = linestyle[ii])
+        simulation_plot.compare_against(label_ref, label_vars,var,cycle=cycle, model = modelvars[ii], linestyle = linestyle[ii], color = colors[ii])
     plt.savefig(os.path.join(dir_out, 'lv_function_compared.png'), dpi=300)
