@@ -26,37 +26,51 @@ directory_1 = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Results/leftventricul
 directory_1 = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Results/leftventricular model/ischemic_model/09-06_13-47_ischemic_meshres_30/cycle_5_begin_ic_ref'
 
 # directory_2 = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Results/leftventricular model/ejection_time_tests/03-09_17-27_longer_act_rven_5_mesh_20/cycle_2_begin_ic_ref'
-# directory_2 = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Results/leftventricular model/ejection_time_tests/03-09_16-26_longer_act_rven_2_mesh_20/cycle_2_begin_ic_ref'
+directory_2 = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Results/leftventricular model/ejection_time_tests/03-09_16-26_longer_act_rven_2_mesh_20/cycle_2_begin_ic_ref'
 
-dict_vals = {'theta_vals' : [4/10*math.pi, 5/10*math.pi, 6/10*math.pi, 7/10*math.pi, 8/10*math.pi]}
-dict_vals = {'theta_vals' : [9/20*math.pi, 11/20*math.pi, 13/20*math.pi, 15/20*math.pi], 'load_pickle': True}
+# directory_1 = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Results/leftventricular model/ischemic_model/09-09_16-32_infarct_hdf5_higher_p_stress_2/cycle_1_begin_ic_ref'
+# directory_2 = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Results/leftventricular model/ischemic_model/09-09_16-50_infarct_hdf5_higher_p_stress_5/cycle_1_begin_ic_ref'
+
+# directory_0 = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Results/leftventricular model/ischemic_model/10-09_15-50_new_model_no_infarct_res_20/cycle_2_begin_ic_ref'
+# directory_1 = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Results/leftventricular model/ischemic_model/11-09_15-22_new_vars_infarct_11_a0_inf_unchanged_res_20/cycle_2_begin_ic_ref'
+# directory_2 = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Results/leftventricular model/ischemic_model/14-09_09-33_new_vars_infarct_a0_inf_2_res_20/cycle_2_begin_ic_ref'
+# directory_3 = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Results/leftventricular model/ischemic_model/14-09_09-31_new_vars_infarct_a0_inf_4_res_20/cycle_2_begin_ic_ref'
+
+# dict_vals = {'theta_vals' : [4/10*math.pi, 5/10*math.pi, 6/10*math.pi, 7/10*math.pi, 8/10*math.pi]}
+theta_vals = [9/20*math.pi, 11/20*math.pi, 13/20*math.pi, 15/20*math.pi]
+dict_vals = {'theta_vals' : theta_vals, 'load_pickle': True}
 # dict_vals = {'theta_vals' : [1/2*math.pi]}
 
-label1 = 'ref'
-label2 = 'Rven:2, longer ejection'
+label0 = 'ref'
+label1 = 'ischemic'
+label2 = 'ischemic, a0 inf:2'
+label3 = 'ischemic, a0 inf:4'
 
-post_1 = postprocess_hdf5(directory_1, **dict_vals)
+# post_0 = postprocess_hdf5(directory_0, **dict_vals)
+# post_1 = postprocess_hdf5(directory_1, **dict_vals)
 # post_2 = postprocess_hdf5(directory_2, model = 'beatit', **dict_vals)
-# post_2 = postprocess_hdf5(directory_2, **dict_vals)
+post_2 = postprocess_hdf5(directory_2, **dict_vals)
+# post_3 = postprocess_hdf5(directory_3, **dict_vals)
 
-strain_fig, strain_plot = plt.subplots(3,3, sharex = True, sharey = True)
-stress_fig, stress_plot = plt.subplots(3,3, sharex = True, sharey = True)
-work_fig, work_plot = plt.subplots(3,3, sharex = True, sharey = True)
+strain_fig, strain_plot = plt.subplots(len(theta_vals),3, sharex = True, sharey = True)
+stress_fig, stress_plot = plt.subplots(len(theta_vals),3, sharex = True, sharey = True)
+work_fig, work_plot = plt.subplots(len(theta_vals),3, sharex = True, sharey = True)
 
-post_1.plot_ls_lc(title = label1)
+# post_1.plot_ls_lc(title = label1)
+# post_0.loc_mech_ker(phi_wall = 0., strain_figs = [strain_fig, strain_plot], stress_figs = [stress_fig, stress_plot], work_figs = [work_fig, work_plot], label = label0)
 # post_1.loc_mech_ker(strain_figs = [strain_fig, strain_plot], stress_figs = [stress_fig, stress_plot], work_figs = [work_fig, work_plot], label = label1)
-# post_2.loc_mech_ker(strain_figs = [strain_fig, strain_plot], stress_figs = [stress_fig, stress_plot], work_figs = [work_fig, work_plot], label = label2)
-# post_1.show_ker_points()
-# post_2.show_ker_points()
+# post_2.loc_mech_ker(phi_wall = 0.,strain_figs = [strain_fig, strain_plot], stress_figs = [stress_fig, stress_plot], work_figs = [work_fig, work_plot], label = label2)
+# post_3.loc_mech_ker(phi_wall = 0.,strain_figs = [strain_fig, strain_plot], stress_figs = [stress_fig, stress_plot], work_figs = [work_fig, work_plot], label = label3)
+
 # post_1.plot_torsion(title = label1)
 # post_2.plot_torsion(title = label2)
 
-# post_1.calc_strain()
-# post_2.calc_strain(title = 'thinner')
-
-# post_1.show_slices(title = 'ref')
+# post_2.show_slices()
 # post_2.show_slices(title = 'beatit')
 # post_2.show_slices(title = 'thinner')
 
-post_1.plot_strain(title = label1, analyse_seg = 4, variables = ['Ecc', 'Ell', 'Err',  'Ecr'])
+# post_0.plot_strain(title = label0, analyse_seg = 4, variables = ['Ecc', 'Ell', 'Err',  'Ecr'])
+# post_1.plot_strain(title = label1, analyse_seg = 4, variables = ['Ecc', 'Ell', 'Err',  'Ecr'])
+post_2.plot_strain(variables = ['Ecc', 'Ell', 'Err',  'Ecr'])
+# post_3.plot_strain(title = label3, analyse_seg = 4, variables = ['Ecc', 'Ell', 'Err',  'Ecr'])
 # post_2.plot_strain(title = label2)
