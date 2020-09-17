@@ -17,7 +17,7 @@ module purge
 # Activate the proper conda FEniCS environment.
 # The first part shouldn't need to be changed.
 # The second part, 'fenics-2017.1.0' should be changed to whatever environment you want to activate.
-source "${HOME}/fenics-tue/anaconda/bin/activate" 'fenics-2017-2-0'
+source "${HOME}/fenics-tue/anaconda/bin/activate" 'fenics'
 
 # Change into the working directory and run the job.
 cd "${PBS_O_WORKDIR}"
