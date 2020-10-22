@@ -1,6 +1,6 @@
 import sys
-sys.path.append(r'C:\Users\Maaike\Documents\Master\Graduation_project\git_graduation_project\cvbtk')
-sys.path.append(r'C:\Users\Maaike\Documents\Master\Graduation_project\git_graduation_project\postprocessing')
+sys.path.append(r'"C:/Users/Maaike/OneDrive - TU Eindhoven/Graduation_project/git_graduation_project/cvbtk"')
+sys.path.append(r'"C:/Users/Maaike/OneDrive - TU Eindhoven/Graduation_project/git_graduation_project/postprocessing"')
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -145,6 +145,14 @@ class HemodynamicsPlot(object):
         [ax.spines['top'].set_visible(False) for _, ax in self._ax.items()]
         [ax.spines['right'].set_visible(False) for _, ax in self._ax.items()]
         
+        self._pv_fig, self._pv_ax = plt.subplots(figsize = (6.41, 7.63))
+        self._pv_ax.set_xlabel('Volume [ml]', fontsize = fontsize + 1)
+        self._pv_ax.set_ylabel('Pressure [mmHg]', fontsize = fontsize + 1)     
+        
+        self._pv_ax.spines['top'].set_visible(False)
+        self._pv_ax.spines['right'].set_visible(False)
+        
+        
     def plot(self,  label = '' ,cycle=None, legend=True):
         """
         Plot the defined hemodynamic relations for output.
@@ -201,34 +209,38 @@ class HemodynamicsPlot(object):
             phase4_end = df[var['time']][(df[var['phase']] == 4)[::-1].idxmax()]- min(df[var['time']])
             
             self._ax['pt'].text(phase2/2,kPa_to_mmHg(max(df[var['plv']]))+2,'d',fontsize=13,horizontalalignment='center')
-            self._ax['pt'].text((phase2+phase3)/2,kPa_to_mmHg(max(df[var['plv']]))+2,'ic',fontsize=13,horizontalalignment='center')
-            self._ax['pt'].text((phase3+phase4)/2,kPa_to_mmHg(max(df[var['plv']]))+2,'e',fontsize=13,horizontalalignment='center')
-            self._ax['pt'].text((phase4+phase4_end)/2,kPa_to_mmHg(max(df[var['plv']]))+2,'ir',fontsize=13,horizontalalignment='center')
+            self._ax['pt'].text((phase2+phase3)/2,kPa_to_mmHg(max(df[var['plv']]))+2,'ic',fontsize=self.fontsize,horizontalalignment='center')
+            self._ax['pt'].text((phase3+phase4)/2,kPa_to_mmHg(max(df[var['plv']]))+2,'e',fontsize=self.fontsize,horizontalalignment='center')
+            self._ax['pt'].text((phase4+phase4_end)/2,kPa_to_mmHg(max(df[var['plv']]))+2,'ir',fontsize=self.fontsize,horizontalalignment='center')
     
             # Make the pressure-volume plot.
             # Each cycle (if multiple) will get its own color.
             for c in df[var['cycle']].unique():
                 _df = df[df[var['cycle']] == int(c)]
                 self._ax['pv'].plot(_df[var['vlv']], kPa_to_mmHg(_df[var['plv']]), color ='#1f77b4',label=str(c) + label)
+                self._pv_ax.plot(_df[var['vlv']], kPa_to_mmHg(_df[var['plv']]), label=str(c) + label)
+                
+            # self._fig.subplots_adjust(hspace = 1.0)
     
             # Add the legends for the three individual plots, if needed to.
             if legend:
-                # self._ax['pt'].legend(loc=2, fontsize=7) #, title='Pressure')
-                self._ax['pt'].legend(fontsize=self.fontsize, bbox_to_anchor=(1.0, 1), loc='upper left') #, title='Pressure')
+                # self._ax['pt'].legend(loc=2, fontsize=self.fontsize) #, title='Pressure')
+                self._ax['pt'].legend(fontsize=self.fontsize, bbox_to_anchor=(1.0, 1), loc='upper left') 
                 # self._ax['pt'].get_legend().get_title().set_fontsize('18')
-                # self._ax['vt'].legend(loc=2, fontsize=7) #, title='Volume')
-                self._ax['vt'].legend(fontsize=self.fontsize, bbox_to_anchor=(1.0, 1), loc='upper left') #, title='Volume')
+                # self._ax['vt'].legend(loc=2, fontsize=self.fontsize) #, title='Volume')
+                self._ax['vt'].legend(fontsize=self.fontsize, bbox_to_anchor=(1.0, 1), loc='upper left')
                 # self._ax['vt'].get_legend().get_title().set_fontsize('12')
-                # self._ax['qt'].legend(loc=2, fontsize=7) #, title='Flowrate')
-                self._ax['qt'].legend(fontsize=self.fontsize, bbox_to_anchor=(1.0, 1), loc='upper left') #, title='Flowrate')
+                # self._ax['qt'].legend(loc=2, fontsize=self.fontsize) #, title='Flowrate')
+                self._ax['qt'].legend(fontsize=self.fontsize, bbox_to_anchor=(1.0, 1), loc='upper left') 
                 # self._ax['qt'].get_legend().get_title().set_fontsize('12')
     
             # The pressure-volume loop always has a legend if multiple are plotted.
             if not cycle and len(df[var['cycle']].unique()) > 1:
                 self._ax['pv'].legend(loc=2, fontsize=7, title='Cycle')
                 self._ax['pv'].get_legend().get_title().set_fontsize('12')
-                
-                
+                self._pv_ax.legend(loc=2, fontsize=7, title='Cycle')
+                self._pv_ax.get_legend().get_title().set_fontsize('12')
+        
         elif 'pcav_s' in df.keys():
             #BiV
             
@@ -287,7 +299,7 @@ class HemodynamicsPlot(object):
                 self._ax['pv'].get_legend().get_title().set_fontsize('7')
             
             
-    def compare_against(self, label_ref, label_vars, dataset,cycle=None, model = None, linestyle = '--', color ='#1f77b4'):
+    def compare_against(self, label_ref, label_vars, dataset,cycle=None, model = None, linestyle = '--', colorpv = None, color ='#1f77b4'):
         """
         Draw additional curves on the existing figure for visual comparison.
 
@@ -355,11 +367,15 @@ class HemodynamicsPlot(object):
             for c in dataset[var_comp['cycle']].unique():
                 _df = dataset[dataset[var_comp['cycle']] == int(c)]
                 self._ax['pv'].plot(_df[var_comp['vlv']], kPa_to_mmHg(_df[var_comp['plv']]), linestyle, color =color)
-                
+                self._pv_ax.plot(_df[var_comp['vlv']], kPa_to_mmHg(_df[var_comp['plv']]), linestyle, color = colorpv)
+
             if 'pcav_s' in df.keys():
                 self._ax['pv'].legend(['BiV','Lv'])
             else:
                 self._ax['pv'].legend(label_ref + label_vars)
+                # self._pv_ax.legend(label_ref + label_vars, bbox_to_anchor=(1.0, 1), loc='upper left')
+                self._pv_ax.legend(label_ref + label_vars, fontsize = self.fontsize)
+            self._pv_fig.tight_layout()
                 
         if 'pcav_s' in dataset.keys():
         
@@ -468,19 +484,19 @@ class Hemodynamics_all_cycles(object):
         gs.update(hspace=0.15, wspace=0.30)
 
         # Set axis labels.
-        self._ax['sv'].set_xlabel('Cardiac cycle [-]')
-        self._ax['pv'].set_xlabel('Cardiac cycle [-]')
-        self._ax['w'].set_xlabel('Cardiac cycle [-]')
+        self._ax['sv'].set_xlabel('Cardiac cycle')
+        self._ax['pv'].set_xlabel('Cardiac cycle')
+        self._ax['w'].set_xlabel('Cardiac cycle')
         self._ax['sv'].set_ylabel('Stroke volume [ml]')
         self._ax['pv'].set_ylabel('LV pressure [mmHg]')
         self._ax['w'].set_ylabel('LV work [J]')
         
         self._ax['sv'].set_title('Stroke Volumes')
-        self._ax['pv'].set_title('Maximum cavity pressure')
+        self._ax['pv'].set_title('Maximum cavity pressures')
         self._ax['w'].set_title('Work')
 
-        # Set the global title.
-        self._fig.suptitle('Change in hemodynamics during fiber reorientation')
+        # # Set the global title.
+        # self._fig.suptitle('Change in hemodynamics during fiber reorientation')
 
         # Remove the right and top spines.
         [ax.spines['top'].set_visible(False) for _, ax in self._ax.items()]
@@ -488,9 +504,12 @@ class Hemodynamics_all_cycles(object):
     
 
         
-    def hemodymanics(self):       
-        df = self._df
-        var = self.var
+    def hemodymanics(self, df = None, var = None, model = None):   
+        if df == None:
+            df = self._df
+            var = self.var
+        else:
+            df, var = dict_var_names(df, model = model)
         
         min_cyc = min(df[var['cycle']])
         max_cyc = max(df[var['cycle']])
@@ -541,6 +560,14 @@ class Hemodynamics_all_cycles(object):
         #make the work - cycles plot
         self._ax['w'].plot(hemo['cycles'], hemo['W'], *args)
         self._ax['w'].xaxis.set_major_locator(MaxNLocator(integer=True))
+        
+    def compare_against(self, label_ref, label_vars, dataset, model = None, linestyle = '-', color ='#1f77b4'):
+        df, var = dict_var_names(dataset, model = model)
+        hemo = self.hemodymanics(df = df, var = var)
+        self._ax['sv'].plot(hemo['cycles'], hemo['SV'], linestyle = linestyle, color = color)
+        self._ax['pv'].plot(hemo['cycles'], hemo['plv_max'], linestyle = linestyle, color = color)
+        self._ax['w'].plot(hemo['cycles'], hemo['W'], linestyle = linestyle, color = color)
+        self._ax['w'].legend(label_ref + label_vars)
 
     def save(self, filename, dpi=300, bbox_inches='tight'):
         """
@@ -645,37 +672,57 @@ def percentages(ref,var):
  
 def procentual_change_hemodynamics(ref, data, title1 = 'reference', title2='variation', model1= None, model2= None):
     hemo_ref = hemodynamic_summary(ref, model1)
-    hemo_data = hemodynamic_summary(data, model2)
+    columns = [title1]
+
+    hemo_data_tot = []
+    perc_change_tot = []
     
-    perc_change = {
-            'HR [bpm]': percentages(hemo_ref['HR [bpm]'],hemo_data['HR [bpm]']),
-            'EDV [ml]': percentages(hemo_ref['EDV [ml]'],hemo_data['EDV [ml]']),
-            'ESV [ml]':percentages(hemo_ref['ESV [ml]'],hemo_data['ESV [ml]']),
-            'SV [ml]': percentages(hemo_ref['SV [ml]'],hemo_data['SV [ml]']),
-            'EF [%]': percentages(hemo_ref['EF [%]'],hemo_data['EF [%]']),
-            'CO [L/min]': percentages(hemo_ref['CO [L/min]'],hemo_data['CO [L/min]']),
-            'MAP [mmHg]': percentages(hemo_ref['MAP [mmHg]'],hemo_data['MAP [mmHg]']),
-            'SAP [mmHg]': percentages(hemo_ref['SAP [mmHg]'],hemo_data['SAP [mmHg]']),
-            'DAP [mmHg]': percentages(hemo_ref['DAP [mmHg]'],hemo_data['DAP [mmHg]']),
-            'PP [mmHg]': percentages(hemo_ref['PP [mmHg]'],hemo_data['PP [mmHg]']),
-            'plv_max [mmHg]': percentages(hemo_ref['plv_max [mmHg]'],hemo_data['plv_max [mmHg]']),
-            'dpdt_max [mmHg/s]': percentages(hemo_ref['dpdt_max [mmHg/s]'],hemo_data['dpdt_max [mmHg/s]']),
-            'W [J]': percentages(hemo_ref['W [J]'],hemo_data['W [J]'])}
-    
-    hemo_ref = pd.DataFrame(hemo_ref,index=[0])
-    hemo_data = pd.DataFrame(hemo_data,index=[0])
-    perc_change = pd.DataFrame(perc_change,index=[0])
-    
-    print("\n{:<17} {:>10} {:>10} {:>13}".format('',title1,title2,'difference'))
-    hemo_sum = pd.DataFrame(columns=[title1, title2,'difference (%)'])
-    for key in perc_change.keys():
-        print("{:<17} {:>10.2f} {:=10.2f} {:10.1%}".format(key, hemo_ref[key][0], hemo_data[key][0],perc_change[key][0]))
-        var1 = round(hemo_ref[key][0],2)
-        var2 = round(hemo_data[key][0],2)
-        var3 = float(round(perc_change[key][0]*100,2))
+    for ii, _dat in enumerate(data):
+        hemo_data = hemodynamic_summary(_dat, model2)
+        columns.append(title2[ii])
+        columns.append('difference {}-{} %'.format(title1, title2[ii]))
         
-        hemo_sum.loc[key] = [var1, var2, var3]
+        perc_change = {
+                'HR [bpm]': percentages(hemo_ref['HR [bpm]'],hemo_data['HR [bpm]']),
+                'EDV [ml]': percentages(hemo_ref['EDV [ml]'],hemo_data['EDV [ml]']),
+                'ESV [ml]':percentages(hemo_ref['ESV [ml]'],hemo_data['ESV [ml]']),
+                'SV [ml]': percentages(hemo_ref['SV [ml]'],hemo_data['SV [ml]']),
+                'EF [%]': percentages(hemo_ref['EF [%]'],hemo_data['EF [%]']),
+                'CO [L/min]': percentages(hemo_ref['CO [L/min]'],hemo_data['CO [L/min]']),
+                'MAP [mmHg]': percentages(hemo_ref['MAP [mmHg]'],hemo_data['MAP [mmHg]']),
+                'SAP [mmHg]': percentages(hemo_ref['SAP [mmHg]'],hemo_data['SAP [mmHg]']),
+                'DAP [mmHg]': percentages(hemo_ref['DAP [mmHg]'],hemo_data['DAP [mmHg]']),
+                'PP [mmHg]': percentages(hemo_ref['PP [mmHg]'],hemo_data['PP [mmHg]']),
+                'plv_max [mmHg]': percentages(hemo_ref['plv_max [mmHg]'],hemo_data['plv_max [mmHg]']),
+                'dpdt_max [mmHg/s]': percentages(hemo_ref['dpdt_max [mmHg/s]'],hemo_data['dpdt_max [mmHg/s]']),
+                'W [J]': percentages(hemo_ref['W [J]'],hemo_data['W [J]'])}
+        
+        hemo_data = pd.DataFrame(hemo_data,index=[0])
+        perc_change = pd.DataFrame(perc_change,index=[0])
+        
+        hemo_data_tot.append(hemo_data)
+        perc_change_tot.append(perc_change)
+        
+        
+    hemo_ref = pd.DataFrame(hemo_ref,index=[0])
     
+    # print("\n{:<17} {:>10} {:>10} {:>13}".format('',title1,title2[0],'difference'))
+    hemo_sum = pd.DataFrame(columns=columns)
+    for key in perc_change.keys():
+        # print("{:<17} {:>10.2f} {:=10.2f} {:10.1%}".format(key, hemo_ref[key][0], hemo_data_tot[0][key][0],perc_change_tot[0][key][0]))
+        var1 = round(hemo_ref[key][0],2)
+        vars = [var1]
+        # hemo_sum.loc[key] = [var1]
+        
+        for ii, _hemo in enumerate(hemo_data_tot):
+            var2 = round(_hemo[key][0],2)
+            var3 = float(round(perc_change_tot[ii][key][0]*100,2))
+        
+            vars.append(var2)
+            vars.append(var3)
+        hemo_sum.loc[key] = vars
+    pd.set_option("display.max_rows", None, "display.max_columns", None)
+    print(hemo_sum)
     return  hemo_sum    
 
 
@@ -709,25 +756,30 @@ def print_hemodynamic_summary(hemo,cycle):
         print('CVP: {:10.2f} mmHg'.format(hemo['CVP']))  
     print('\n')
 
-def plot_results(results, dir_out='.', cycle=None, title = 'Hemodynamic relations', model = None):
+def plot_results(results, dir_out='.', cycle=None, title = 'Hemodynamic relations', model = None, legend=True, fontsize = 12):
             # LV only.
 #    simulation_plot = HemodynamicsPlot(results)
 #        
 #    simulation_plot.plot(cycle=cycle) #, cycle=NUM_CYCLES)
-    simulation_plot = HemodynamicsPlot(results, title, model = model)
-    simulation_plot.plot(cycle=cycle) #, cycle=NUM_CYCLES)
+    simulation_plot = HemodynamicsPlot(results, title, model = model, fontsize = fontsize)
+    simulation_plot.plot(cycle=cycle, legend = legend) #, cycle=NUM_CYCLES)
     simulation_plot.save(os.path.join(dir_out, 'hemodynamics_cycle_{}.png'.format(cycle)))
        
     #simulation_plot.plot_function()
     
     
 def plot_compare_results(results,results_var, dir_out='.', cycle=None, label_ref='ischemic', label_vars=['reference'], 
-                         title = 'Hemodynamic relations', modelref = None, modelvars = [None]):
+                         title = 'Hemodynamic relations', modelref = None, modelvars = [None], legend=True, colors = None):
     linestyle = ['--', '-.', ':']
-    colors = ['darkturquoise', 'darkviolet', 'darkgreen']
+    if colors == None:
+        # colors = ['darkturquoise', 'darkviolet', 'darkgreen']
+        colors = ['tab:red', 'tab:green']
+        colors = ['tab:red', 'tab:green']
+        colorspv = ['tab:red', 'tomato']
+        colorspv = [ 'tab:green', 'yellowgreen']
     simulation_plot = HemodynamicsPlot(results, title, model= modelref)
-    simulation_plot.plot(label_ref[0], cycle=cycle) #, cycle=NUM_CYCLES)
+    simulation_plot.plot(label_ref[0], cycle=cycle, legend = legend) #, cycle=NUM_CYCLES)
     
     for ii, var in enumerate(results_var):
-        simulation_plot.compare_against(label_ref, label_vars,var,cycle=cycle, model = modelvars[ii], linestyle = linestyle[ii], color = colors[ii])
+        simulation_plot.compare_against(label_ref, label_vars,var,cycle=cycle, model = modelvars[ii], linestyle = '-', color = colors[ii], colorpv = colors[ii])
     plt.savefig(os.path.join(dir_out, 'lv_function_compared.png'), dpi=300)
