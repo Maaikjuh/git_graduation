@@ -1,7 +1,7 @@
 import sys
 #ubuntu
-sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/cvbtk')
-sys.path.append('/mnt/c/Users/Maaike/Documents/Master/Graduation_project/git_graduation_project/postprocessing')
+sys.path.append('/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Graduation_project/git_graduation_project/cvbtk')
+sys.path.append('/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Graduation_project/git_graduation_project/postprocessing')
 
 # #   linux
 # sys.path.append('/home/maaike/Documents/Graduation_project/git_graduation/cvbtk')
@@ -221,8 +221,9 @@ class postprocess_hdf5(object):
 
         par['inner_eccentricity']= 0.934819
         par['outer_eccentricity']= 0.807075
+
         par['eps_inner'] = 0.3713
-        par['eps_mid'] = float()
+        par['eps_mid'] = 0.5305
         par['eps_outer'] = 0.6784
 
         par['tol'] = 0.01
@@ -267,230 +268,132 @@ class postprocess_hdf5(object):
 
         return mesh
 
-    def plot_torsion(self, torsion_fig = None, shear_fig = None, fontsize=12, title=''):
-        """
-        calculate and plot torsion and shear
-        Torsion is difference of the rotation of a base segment and a slice segment
-        The rotation of these points is the angle traveled between end diastole and end systole
-        Shear is calculated from the torsion, height between the base and the slice
-        and the radius of the wall at the slice
-        """
-        if torsion_fig is None:
-            torsion_fig, torsion_plot = plt.subplots(1,3, sharex = True, sharey = True)
-        # plt.figure(fig.number)
-        if shear_fig is None:
-            shear_fig, shear_plot = plt.subplots(1,3, sharex = True, sharey = True)
+    def open_hdf5(self, variables = []):
+        for vari in variables:
+            if self.model == 'beatit':
+                if vari == 'Ell':
+                    filename = os.path.join(self.directory,'postprocess/postprocess.h5')
+                else:
+                    filename = os.path.join(self.directory,'postprocess/postprocess_cylindrical.h5')
+                vector = vari + '_rED_{}/vector_0'
+            else:
+                filename = os.path.join(self.directory,'{}.hdf5'.format(vari))
+                vector = vari + '/vector_{}'
 
-        col = [ 'C7','C5', 'C0', 'C1','C2','C3', 'C4','C8']
+            self.hdf5_files[vari] = HDF5File(mpi_comm_world(), filename, 'r')
+            self.hdf5_vectors[vari] = vector
+            self.functions[vari] = Function(self.function_V)
+            self.functions[vari].set_allow_extrapolation(True)
 
+    def loc_mech_bov_96(self, theta_val = 0.65*math.pi, fig_axs = None, fontsize = 12, plot_phase = True, label = None):
         results = self.results
         par = self.parameters
 
-        # find the time of end systole
-        begin_phase = results[par['phase']][results.index[0]]
-        t_es_cycle = results[par['t_cycle']][(results[par['phase']] == begin_phase + 3).idxmax()]
-        t_es = results[par['time']][(results[par['phase']] == begin_phase + 3).idxmax()]
+        phi_vals = [math.pi, -1/3*math.pi, 0., 1/3*math.pi]
+        variables = ['active_stress', 'ls']
 
-        # find the corresponding vector name for u
-        dt = results[par['time']][results.index[1]] - results[par['time']][results.index[0]]
+        if not par['load_pickle'] or not os.path.exists(os.path.join(self.directory, 'loc_mech_bov96_data.pkl')):
+            # self.show_bov_points(phi_wall)
+            
 
-        # find the time of end diastole
-        t_ed_cycle = results[par['t_cycle']][(results[par['phase']] == begin_phase + 1).idxmax()]
-        t_ed = results[par['time']][(results[par['phase']] == begin_phase + 1).idxmax()]
+            self.open_hdf5(variables = variables)
 
-        if self.model == 'cvbtk':
-            vector = t_es_cycle/dt
-            u_es_vector = 'u/vector_{}'.format(int(vector))    
+            nsteps = self.hdf5_files['ls'].attributes('ls')['count']
+            vector_numbers = list(range(nsteps))
 
-            # find the corresponding vector name for u
-            vector = t_ed_cycle/dt
-            u_ed_vector = 'u/vector_{}'.format(int(vector))   
+            focus = self.parameters['focus']
+            tol = self.parameters['tol']
+            eps_outer = self.parameters['eps_outer'] - tol
 
-            openfile = HDF5File(mpi_comm_world(),os.path.join(self.directory,'u.hdf5'), 'r')     
+            data = {}
+            count = 0
 
-            # check if the vector u corresponds with the time at end systole   
-            u_t_es = openfile.attributes(u_es_vector)['timestamp']
-            u_t_ed = openfile.attributes(u_ed_vector)['timestamp']
-        
-        elif self.model == 'beatit':
-            # displacement vector is equal to the time
-            u_es_vector = 'displacement_{}/vector_0'.format(float(t_es_cycle))
-            u_ed_vector = 'displacement_{}/vector_0'.format(float(t_ed_cycle))
+            progress = len(vector_numbers)/10
+            i = 0
+            for step, vector in enumerate(vector_numbers):
+                # loop over time (vector numbers)
+                if i >= progress:
+                    print('{0:.2f}% '.format(step/nsteps*100))
+                    i = 0
+                i += 1
 
-            openfile = HDF5File(mpi_comm_world(),os.path.join(self.directory,'results.h5'), 'r')
+                for vari in variables:
+                    vector_time_name = self.hdf5_vectors[vari].format(vector)
+                    self.hdf5_files[vari].read(self.functions[vari], vector_time_name)
 
-            # the precise timestamp is already in the name 
-            u_t_es = t_es
-            u_t_ed = t_ed
+                for point, phi in enumerate(phi_vals):
+                    x, y, z = ellipsoidal_to_cartesian(focus,eps_outer,theta_val,phi)
+                    # stress and lenghth of that point at the timestep (vector number)
+                    for vari in variables:
+                        var = self.functions[vari](x, y, z)
+                        data[count] = {'var': vari, 'time': step, 'point': point,'phi': phi, 'value': var, 'coords': [x,y,z]}
+                        count += 1
 
-        if t_es == u_t_es and t_ed == u_t_ed:
-            # if the right vector is found, extract the displacement values at t_es
-            self.u_es = Function(self.vector_V)
-            self.u_ed = Function(self.vector_V)
-            openfile.read(self.u_es, u_es_vector)
-            openfile.read(self.u_ed, u_ed_vector)
+            df = pd.DataFrame.from_dict(data, "index")
+            df.to_pickle(os.path.join(self.directory, 'loc_mech_bov96_data.pkl'))  
+
         else:
-            raise ValueError('specified time and timestamp hdf5 do not match, check dt')
+            df = pd.read_pickle(os.path.join(self.directory, 'loc_mech_bov96_data.pkl')) 
 
-        # extract the theta values of the slices
-        theta_vals = self.parameters['theta_vals']
+        # all the time points
+        time = results['t_cycle'] 
 
-        # extract the number of segments and convert to a phi range
-        nr_segments = self.parameters['nr_segments']
+        phase2 = time[(results[par['phase']] == 1)[::-1].idxmax()] #- t_ed_cycle
+        phase3 = time[(results[par['phase']] == 2)[::-1].idxmax()] #- t_ed_cycle
+        phase4 = time[(results[par['phase']] == 3)[::-1].idxmax()] #- t_ed_cycle
+        phase4_end = time[(results[par['phase']] == 4)[::-1].idxmax()] #- t_ed_cycle
+  
 
-        phi_int = 2*math.pi / nr_segments
-        phi_range = np.arange(-1*math.pi, 1*math.pi, phi_int)
+        if fig_axs == None:
+            fig, axs = plt.subplots(3,4)
+        else:
+            fig =  fig_axs[0]
+            axs =  fig_axs[1]
+        # axs = axs.ravel()
 
-        tol = self.parameters['tol']
+        Ta = axs[0,:]
+        ls = axs[1,:]
+        Ta_ls = axs[2,:]
 
-        focus = self.parameters['focus']
-        eps_outer = self.parameters['eps_outer'] - tol
-        eps_mid = self.parameters['eps_mid']
-        eps_inner = self.parameters['eps_inner'] + tol
+        Ta[0].set_ylabel('Ta [kPa]')
+        Ta[0].set_xlabel('time [ms]')
+        ls[0].set_ylabel(r'ls [$\mu$m]')
+        ls[0].set_xlabel('time [ms]')
+        Ta_ls[0].set_ylabel('Ta [kPa]')
+        Ta_ls[0].set_xlabel(r'ls/ls0 [$\mu$m]')
 
-        base = {'base_epi': [],
-                'base_mid': [],
-                'base_endo': []}
+        Ta[0].set_title('P')
+        Ta[1].set_title('AM')
+        Ta[2].set_title('A')
+        Ta[3].set_title('AL')
 
-        wall = ['epi', 'mid','endo']
+        fig.subplots_adjust(hspace = 0.5)
 
-        # make a range of the number of segments for later plotting
-        nrsegments = range(1, nr_segments+1)
+        ls0 = self.parameters['ls0']
+        stress = df[df['var'] == variables[0]]
+        length = df[df['var'] == variables[1]]
 
-        # allow extrapolation in order to define the displacement values
-        # at non-nodal points
-        self.u_es.set_allow_extrapolation(True)
-        self.u_ed.set_allow_extrapolation(True)
+        for point, phi in enumerate(phi_vals):
+            stress_phi = stress[stress['phi']== phi]['value']
+            length_phi = length[length['phi']== phi]['value']
+            ls_ls0 = [(ls_val/ ls0) for ls_val in length_phi]
 
-        # define variables for the average torsion and shear per slice
-        av_slice_torsion = {'torsion_av_epi': [],
-                        'torsion_av_mid': [],
-                        'torsion_av_endo': []}
+            Ta[point].plot(time[0:len(stress_phi)], stress_phi,  label = label)
+            ls[point].plot(time[0:len(length_phi)], length_phi,  label = label)
+            Ta_ls[point].plot(ls_ls0, stress_phi,  label = label)
 
-        av_slice_shear = {'shear_av_epi': [],
-                        'shear_av_mid': [],
-                        'shear_av_endo': []}
+            if plot_phase == True:
+                for phase in [phase2, phase3, phase4, phase4_end]:
+                    Ta[point].axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
+                    ls[point].axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
+            
+            if point != 0:
+                Ta[point].set_xticklabels([])
+                ls[point].set_xticklabels([])
+                Ta_ls[point].set_xticklabels([])
 
-        for slice_nr, theta in enumerate(theta_vals):
-            slice_torsion = {'torsion_epi': [],
-                        'torsion_mid': [],
-                        'torsion_endo': []}
-            slice_shear = {'shear_epi': [],
-                        'shear_mid': [],
-                        'shear_endo': [],
-                        'shear_av_epi': [],
-                        'shear_av_mid': [],
-                        'shear_av_endo': []}
-
-            for seg, phi in enumerate(phi_range):
-                # get coordinates of the segments:
-                #   - theta differs for each slice
-                #   - phi differs for each segment
-                #   - each segment has a epi, mid and endo point
-
-                x_epi, y_epi, z_epi = ellipsoidal_to_cartesian(focus,eps_outer,theta,phi)
-
-                # the theta values for each wall location is different
-                # to get the same z value of each slice through the wall (epi, mid, endo)
-                # calculate the theta value for the mid and endo point
-                tau = z_epi/(focus * math.cosh(eps_mid))
-                theta_mid = math.acos(tau)
-                x_mid, y_mid, z_mid = ellipsoidal_to_cartesian(focus,eps_mid,theta_mid,phi)
-
-                tau = z_epi/(focus * math.cosh(eps_inner))
-                theta_inner = math.acos(tau)
-                x_endo, y_endo, z_endo = ellipsoidal_to_cartesian(focus,eps_inner,theta_inner,phi)
-
-                for ii, points in enumerate([[x_epi, y_epi, z_epi], [x_mid, y_mid, z_mid], [x_endo, y_endo, z_endo]]):
-                    # extract the displacement at ed and es at a point
-                    # add the displacement to the coordinate value of the point
-                    xu, yu, zu = self.u_ed(points)
-                    x_ed = points[0] + xu
-                    y_ed = points[1] + yu
-                    z_ed = points[2] + zu
-
-                    xu, yu, zu = self.u_es(points)
-                    x_es = points[0] + xu
-                    y_es = points[1] + yu
-                    z_es = points[2] + zu
-
-                    # calculate the rotation:
-                    # rotation of the point at ed to es
-                    point_ed = [x_ed, y_ed]
-                    point_es = [x_es, y_es]
-
-                    length1 =  math.sqrt(np.dot(point_ed,point_ed))
-                    length2 =  math.sqrt(np.dot(point_es,point_es))
-                    cos_angle = np.dot(point_ed, point_es) / (length1 * length2)
-                    rad_angle = np.arccos(cos_angle)
-                    rot = radians_to_degrees(rad_angle)
-
-                    # calculate the torsion and shear:
-                    #   torsion is the rotation of a point in a slice with
-                    #   respect to the rotation of a point in the base
-                    #   with the same phi value and wall location:
-                    #   torsion = rot_slice - rot_base
-                    if slice_nr == 0:
-                        # the first theta value is assumed to be the base
-                        base['base_' + wall[ii]].append([rot, z_ed])
-
-                    else:
-                        # extract the rotation of the base at the same phi value and wall location
-                        base_seg = base['base_' + wall[ii]][seg][0]
-
-                        torsion = rot - base_seg
-
-                        # calculate the shear
-                        #   y = tan-1[(2r*sin(torsion/2)*h)]
-                        #   - r: radius of the myocardial border (epi, mid or endo)
-                        #   - h: distance between basal slice and the succeeding one
-                        r = math.sqrt(point_ed[0]**2 + point_ed[1]**2)
-                        height = base['base_' + wall[ii]][seg][1] - z_ed
-
-                        shear = math.atan(2*r*math.sin(torsion/2)/height)
-
-                        # add torsion and shear of the point to all the values of the slice
-                        slice_torsion['torsion_'+ wall[ii]].append(torsion)
-                        slice_shear['shear_'+ wall[ii]].append(shear)
-
-            # plot the results of each slice independently
-            if slice_nr != 0:
-                for ii, key in enumerate(['epi', 'mid', 'endo']):
-                    # calculate and save the average torsion of the slice
-                    av_slice_torsion['torsion_av_' + key].append(np.mean(slice_torsion['torsion_' + key]))
-                    # create a label to show the average value of the slice
-                    label = '{}, av: {:.2f}'.format(slice_nr, np.mean(slice_torsion['torsion_' + key]))
-
-                    # plot the torsion of each point:
-                    # - for all the wall locations a different subplot has been created (epi, mid, endo)
-                    # - the values are plotted for each segment number
-                    torsion_plot[ii].plot(nrsegments, slice_torsion['torsion_' + key], color = col[slice_nr], label = label)
-                    torsion_plot[ii].set_title(key, fontsize = fontsize)
-
-                    # save and plot the shear of each point in the same way as the torsion
-                    av_slice_shear['shear_av_' + key].append(np.mean(slice_shear['shear_' + key]))
-                    label = '{}, av: {:.2f}'.format(slice_nr, np.mean(slice_shear['shear_' + key]))
-                    shear_plot[ii].plot(nrsegments, slice_shear['shear_' + key], color = col[slice_nr], label = label)
-                    shear_plot[ii].set_title(key, fontsize = fontsize)
-
-                    # plot the legend under each corresponding subplot
-                    torsion_plot[ii].legend(frameon=False, fontsize=fontsize, bbox_to_anchor=(-0.2, -0.45, -0.2, -0.45), loc='lower left')
-                    shear_plot[ii].legend(frameon=False, fontsize=fontsize, bbox_to_anchor=(-0.2, -0.45, -0.2, -0.45), loc='lower left')
-
-        torsion_fig.suptitle(title,fontsize=fontsize+2)
-        shear_fig.suptitle(title,fontsize=fontsize+2)
-
-        torsion_fig.text(0.5, 0.03, 'Segments', ha = 'center')
-        torsion_fig.text(0.04, 0.5, 'Torsion [$^\circ$]', va='center', rotation='vertical')
-
-        shear_fig.text(0.5, 0.03, 'Segments', ha = 'center')
-        shear_fig.text(0.04, 0.5, 'Shear [$^\circ$]', va='center', rotation='vertical')
-
-        # save the figure
-        torsion_fig.savefig(os.path.join(self.directory, 'torsion.png'), dpi=300, bbox_inches="tight")
-        shear_fig.savefig(os.path.join(self.directory, 'shear.png'), dpi=300, bbox_inches="tight")
-        
-        plt.close('all')
+        Ta[3].legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        fig.savefig(os.path.join(self.directory, 'bov96_local_mech.png'), dpi=300, bbox_inches="tight")
 
     def loc_mech_ker(self, strain_figs = None, stress_figs = None, work_figs = None, fontsize = 12, label = None, phi_wall = 1/2*math.pi):
         """
@@ -653,22 +556,7 @@ class postprocess_hdf5(object):
 
         print('Plots created!')
     
-    def open_hdf5(self, variables = []):
-        for vari in variables:
-            if self.model == 'beatit':
-                if vari == 'Ell':
-                    filename = os.path.join(self.directory,'postprocess/postprocess.h5')
-                else:
-                    filename = os.path.join(self.directory,'postprocess/postprocess_cylindrical.h5')
-                vector = vari + '_rED_{}/vector_0'
-            else:
-                filename = os.path.join(self.directory,'{}.hdf5'.format(vari))
-                vector = vari + '/vector_{}'
 
-            self.hdf5_files[vari] = HDF5File(mpi_comm_world(), filename, 'r')
-            self.hdf5_vectors[vari] = vector
-            self.functions[vari] = Function(self.function_V)
-            self.functions[vari].set_allow_extrapolation(True)
 
     def plot_ls_lc(self, title = '', variables = ['ls', 'lc']):
         results = self.results
@@ -885,33 +773,11 @@ class postprocess_hdf5(object):
             vector_es = t_es_cycle/dt
             vector_ed = t_ed_cycle/dt
             
-            # create a handel for the strains
-            self.open_hdf5(variables = variables)
-
-            # extract the number of vectors (timesteps) in the files
-            nsteps = self.hdf5_files[variables[0]].attributes(variables[0])['count']
-
-            vector_numbers = list(range(nsteps))
-            vector_numbers = list(map(int, vector_numbers))
-
-            # for easy comparision with experimental data, the time loop starts at end diastole
-            index_ed = vector_numbers.index(vector_ed)
-            vector_numbers = vector_numbers[index_ed:] +  vector_numbers[:index_ed]
-
         elif self.model == 'beatit':
             # define the vector numbers containing the strain data at end systole and end diastole
             vector_es = t_es_cycle
             vector_ed = t_ed_cycle
-
-            # create a handel for the strains
-            self.open_hdf5(variables = variables)
-
-            vector_numbers = results[par['time']][(results[par['cycle']] == self.cycle)]
-            vector_numbers = vector_numbers.values.tolist()
-            index_ed = vector_numbers.index(vector_ed)
-            
-            vector_numbers = vector_numbers[index_ed:] + vector_numbers[:index_ed]
-            nsteps = len(vector_numbers)       
+    
 
         # extract the theta values of the slices
         theta_vals = self.parameters['theta_vals']
@@ -937,8 +803,40 @@ class postprocess_hdf5(object):
         r = np.arange(0,wall_points + 1)
         r = (r-r[-1]/2) / (r[-1]/2) 
         wtot = sum((1-r**2)**2)
-        
-        if not par['load_pickle'] or not os.path.exists(os.path.join(self.directory, 'data.pkl')):
+
+        analyse_vars = variables
+
+        # check if a dataframe already exists:
+        if par['load_pickle'] and os.path.exists(os.path.join(self.directory, 'data.pkl')):
+            df_load = pd.read_pickle(os.path.join(self.directory, 'data.pkl'))
+            strains = list(df_load['strain'])
+
+            analyse_vars = [var for var in variables if var not in strains]
+
+        if not par['load_pickle'] or not os.path.exists(os.path.join(self.directory, 'data.pkl')) or not not analyse_vars:
+            # create a handel for the strains
+            print(analyse_vars)
+            self.open_hdf5(variables = variables)
+            
+            if self.model == 'cvbtk':
+                # extract the number of vectors (timesteps) in the files
+                nsteps = self.hdf5_files[variables[0]].attributes(variables[0])['count']
+
+                vector_numbers = list(range(nsteps))
+                vector_numbers = list(map(int, vector_numbers))
+
+                # for easy comparision with experimental data, the time loop starts at end diastole
+                index_ed = vector_numbers.index(vector_ed)
+                vector_numbers = vector_numbers[index_ed:] +  vector_numbers[:index_ed]
+
+            elif self.model == 'beatit':
+                vector_numbers = results[par['time']][(results[par['cycle']] == self.cycle)]
+                vector_numbers = vector_numbers.values.tolist()
+                index_ed = vector_numbers.index(vector_ed)
+                
+                vector_numbers = vector_numbers[index_ed:] + vector_numbers[:index_ed]
+                nsteps = len(vector_numbers)   
+
             strain_function = {}
             # create dictionary to save results (direct save into dataframe is very slow)
             data = {}
@@ -996,21 +894,37 @@ class postprocess_hdf5(object):
                                 count += 1
 
             # convert dictionary to dataframe and save
-            df = pd.DataFrame.from_dict(data, "index")
+            
+            df = pd.DataFrame.from_dict(data, 'index')
+
+            # if os.path.exists(os.path.join(self.directory, 'data.csv')) and par['load_pickle']:
+            #     df.to_csv(os.path.join(self.directory, 'data.csv'), mode= 'a',index = False)
+            #     df = pd.read_csv(os.path.join(self.directory, 'data.csv'), low_memory=False)
+            #     # print('append to df')
+            #     # df_dict = pd.DataFrame.from_dict(data)
+            #     # print(df_dict)
+            #     # df = pd.concat([df_load, df_dict], ignore_index = True)
+            
+            # else:  
+            #     df.to_csv(os.path.join(self.directory, 'data.csv'), index=False)
+
             df.to_pickle(os.path.join(self.directory, 'data.pkl'))
 
         else:
+            # print('load strains')
             df = pd.read_pickle(os.path.join(self.directory, 'data.pkl'))
+            # df = pd.read_csv(os.path.join(self.directory, 'data.csv'), low_memory=False)
 
+        # find the corresponding vector name for u
+        dt = results[par['time']][results.index[1]] - results[par['time']][results.index[0]]
+        index = int((t_es_cycle- t_ed_cycle)/dt)
+
+        data_es = df[df['time'] == index]
         # make the table
         if ('Ell' and 'Ecc' and 'Err') in variables:
-            # find the corresponding vector name for u
-            dt = results[par['time']][results.index[1]] - results[par['time']][results.index[0]]
-            index = int((t_es_cycle- t_ed_cycle)/dt)
 
-            data_es = df[df['time'] == index]
 
-            data_es_weight = data_es.groupby(['strain','time','slice','seg'], as_index=False).sum()
+            data_es_weight = data_es.groupby(['strain','time','slice','seg'], as_index=False).mean()
 
             Ell = data_es_weight[data_es_weight['strain'] == 'Ell']
             Ecc = data_es_weight[data_es_weight['strain'] == 'Ecc']
@@ -1018,13 +932,13 @@ class postprocess_hdf5(object):
 
             cell_text = []
             for slice_nr in range(0, len(theta_vals)):
-                mean_Ell = round(Ell['weighted_value'][Ell['slice'] == slice_nr].mean(), 2)
-                mean_Ecc = round(Ecc['weighted_value'][Ecc['slice'] == slice_nr].mean(), 2)
-                mean_Err = round(Err['weighted_value'][Err['slice'] == slice_nr].mean(), 2)
+                mean_Ell = round(Ell['value'][Ell['slice'] == slice_nr].mean(), 2)
+                mean_Ecc = round(Ecc['value'][Ecc['slice'] == slice_nr].mean(), 2)
+                mean_Err = round(Err['value'][Err['slice'] == slice_nr].mean(), 2)
                 cell_text.append([mean_Ell, mean_Err, mean_Ecc])
-            mean_Ell = round(Ell['weighted_value'].mean(), 2)
-            mean_Ecc = round(Ecc['weighted_value'].mean(), 2)
-            mean_Err = round(Err['weighted_value'].mean(), 2)
+            mean_Ell = round(Ell['value'].mean(), 2)
+            mean_Ecc = round(Ecc['value'].mean(), 2)
+            mean_Err = round(Err['value'].mean(), 2)
             cell_text.append([mean_Ell, mean_Err, mean_Ecc])
 
             rowLabels = ['slice ' + str(nr) for nr in range(0, len(theta_vals))]
@@ -1040,7 +954,7 @@ class postprocess_hdf5(object):
                                 cellLoc = 'center',
                                 loc = 'center')
             fig.suptitle('Average weighted strains at end systole \n {}'.format(title))
-            fig.savefig(os.path.join(self.directory, 'weighted_strains.png'),dpi=300, bbox="tight")
+            fig.savefig(os.path.join(self.directory, 'strains.png'),dpi=300, bbox="tight")
 
         # make the figures
         spec = GridSpec(2, 3)
@@ -1055,23 +969,29 @@ class postprocess_hdf5(object):
         phase4 = time[(results[par['phase']] == 3)[::-1].idxmax()] - t_ed_cycle
         phase4_end = time[(results[par['phase']] == 4)[::-1].idxmax()] - t_ed_cycle
 
-        fig_strain, strain_plots = plt.subplots(2,2, figsize=(10,6))
-        strain_plots[0,0].set_ylabel('strain [%]')
-        strain_plots[0,0].tick_params(axis='x', labelbottom=False)
-        strain_plots[0,1].tick_params(axis='x', labelbottom=False)
-        strain_plots[1,0].set_ylabel('strain [%]')
-        strain_plots[1,0].set_xlabel('time [ms]')
-        strain_plots[1,1].set_xlabel('time [ms]')
-        strain_plots = [strain_plots[0,0], strain_plots[0,1], strain_plots[1,0], strain_plots[1,1]]
+        # fig_strain, strain_plots = plt.subplots(2,2, figsize=(10,6))
+        # strain_plots[0,0].set_ylabel('strain [%]')
+        # strain_plots[0,0].tick_params(axis='x', labelbottom=False)
+        # strain_plots[0,0].set_ylim([-20., 5.])
+        # strain_plots[0,1].tick_params(axis='x', labelbottom=False)
+        # strain_plots[0,1].set_ylim([-20., 5.])
+        # strain_plots[1,0].set_ylabel('strain [%]')
+        # strain_plots[1,0].set_xlabel('time [ms]')
+        # strain_plots[1,1].set_xlabel('time [ms]')
+        # strain_plots[1,1].set_ylim([-13., 5.])
+        # strain_plots = [strain_plots[0,0], strain_plots[0,1], strain_plots[1,0], strain_plots[1,1]]
 
-        fig_trans, trans_plots = plt.subplots(2,2, figsize=(10,6))
-        trans_plots[0,0].set_ylabel('strain [%]')
-        trans_plots[0,0].tick_params(axis='x', labelbottom=False)
-        trans_plots[0,1].tick_params(axis='x', labelbottom=False)
-        trans_plots[1,0].set_ylabel('strain [%]')
-        trans_plots[1,0].set_xlabel('epicardial         -         endocardial')
-        trans_plots[1,1].set_xlabel('epicardial         -         endocardial')
-        trans_plots = [trans_plots[0,0], trans_plots[0,1], trans_plots[1,0], trans_plots[1,1]]
+        # fig_trans, trans_plots = plt.subplots(2,2, figsize=(10,6))
+        # trans_plots[0,0].set_ylabel('strain [%]')
+        # trans_plots[0,0].tick_params(axis='x', labelbottom=False)
+        # trans_plots[0,1].tick_params(axis='x', labelbottom=False)
+        # trans_plots[0,0].set_ylim([-30., 5.])
+        # trans_plots[1,0].set_ylabel('strain [%]')
+        # trans_plots[0,1].set_ylim([-30., 5.])
+        # trans_plots[1,0].set_xlabel('epicardial         -         endocardial')
+        # trans_plots[1,1].set_xlabel('epicardial         -         endocardial')
+        # trans_plots[1,0].set_ylim([-10., 120.])
+        # trans_plots = [trans_plots[0,0], trans_plots[0,1], trans_plots[1,0], trans_plots[1,1]]
 
         for strain_count, strain_name in enumerate(variables):
             fig = plt.figure()
@@ -1111,41 +1031,41 @@ class postprocess_hdf5(object):
                         for phase in [phase2, phase3, phase4, phase4_end]:
                             plot[ii].axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
                             av.axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
-                            strain_plots[strain_count].axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
-                        if strain_count == 0 or strain_count ==1:
-                            strain_plots[strain_count].annotate('ic', xy = (phase3/2 / 800 + 0.025, 0.95), xycoords='axes fraction')    
-                            strain_plots[strain_count].annotate('e', xy = ((phase3 + phase4)/2 / 800 + 0.01, 0.95), xycoords='axes fraction') 
-                            strain_plots[strain_count].annotate('ir', xy = ((phase4 + phase4_end)/2 / 800, 0.95), xycoords='axes fraction') 
-                            strain_plots[strain_count].annotate('d', xy = ((phase4_end + 800)/2 / 800, 0.95), xycoords='axes fraction') 
+                        #     strain_plots[strain_count].axvline(x = phase, linestyle = '--', color = 'k', linewidth = 0.5)
+                        # if strain_count == 0 or strain_count ==1:
+                        #     strain_plots[strain_count].annotate('ic', xy = (phase3/2 / 800 + 0.025, 0.92), xycoords='axes fraction')    
+                        #     strain_plots[strain_count].annotate('e', xy = ((phase3 + phase4)/2 / 800 + 0.01, 0.92), xycoords='axes fraction') 
+                        #     strain_plots[strain_count].annotate('ir', xy = ((phase4 + phase4_end)/2 / 800, 0.92), xycoords='axes fraction') 
+                        #     strain_plots[strain_count].annotate('d', xy = ((phase4_end + 800)/2 / 800, 0.92), xycoords='axes fraction') 
 
                 slice = slice.groupby(['time','seg'], as_index=False).sum()
                 grouped = slice.groupby('time', as_index=False).mean()
                 time_strain = grouped['weighted_value']
                 av.plot(time, time_strain, label = 'Slice {}'.format(slice_nr))
-                strain_plots[strain_count].plot(time, time_strain, label = 'Slice {}'.format(slice_nr))
-                strain_plots[strain_count].set_title(strain_name)
+                # strain_plots[strain_count].plot(time, time_strain, label = 'Slice {}'.format(slice_nr))
+                # strain_plots[strain_count].set_title(strain_name)
 
             strain = strain.groupby(['time','slice','seg'], as_index=False).sum()
             grouped = strain.groupby('time', as_index=False).mean()
             time_strain = grouped['weighted_value']
 
-            av.plot(time, time_strain, '--', label = 'average')
+            # av.plot(time, time_strain, '--', label = 'average')
             av.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
             # ax_strain[strain_count].plot(time, time_strain, '--', label = 'average')
-            strain_plots[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            # strain_plots[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
             if analyse_seg is not None:
                 fig.suptitle('{strain} segment {seg} {title}'.format(strain = strain_name, seg = analyse_seg, title = title))
                 fig.savefig(os.path.join(self.directory, strain_name + '_model_segment_{}.png'.format(int(analyse_seg))), dpi=300, bbox_inches="tight")
-                if strain_count == len(variables) - 1:
-                    fig_strain.suptitle('Segment {seg} {title}'.format(strain = strain_name, seg = analyse_seg, title = title))
-                    fig_strain.savefig(os.path.join(self.directory, 'all_strains_segment_{}_.png'.format(int(analyse_seg))), dpi=300, bbox_inches="tight")
+                # if strain_count == len(variables) - 1:
+                #     fig_strain.suptitle('Segment {seg} {title}'.format(strain = strain_name, seg = analyse_seg, title = title))
+                #     fig_strain.savefig(os.path.join(self.directory, 'all_strains_segment_{}_.png'.format(int(analyse_seg))), dpi=300, bbox_inches="tight")
             else:
                 fig.suptitle('{strain} {title}'.format(strain = strain_name, title = title))
                 fig.savefig(os.path.join(self.directory, strain_name + '_model.png'), dpi=300, bbox_inches="tight")
-                if strain_count == len(variables) - 1:
-                    fig_strain.savefig(os.path.join(self.directory, 'all_strains.png'), dpi=300, bbox_inches="tight")
+                # if strain_count == len(variables) - 1:
+                #     fig_strain.savefig(os.path.join(self.directory, 'all_strains.png'), dpi=300, bbox_inches="tight")
 
             fig_wall, ax_wall = plt.subplots() 
             fig_seg, ax_seg = plt.subplots() 
@@ -1165,15 +1085,15 @@ class postprocess_hdf5(object):
                 seg_strain = grouped_seg['value']
 
                 ax_wall.plot(range(len(eps_vals)), wall_strain[::-1], label = 'Slice {}'.format(slice_nr))
-                trans_plots[strain_count].plot(range(len(eps_vals)), wall_strain[::-1], label = 'Slice {}'.format(slice_nr))
+                # trans_plots[strain_count].plot(range(len(eps_vals)), wall_strain[::-1], label = 'Slice {}'.format(slice_nr))
                 ax_seg.plot(range(len(phi_range)), seg_strain, label = 'Slice {}'.format(slice_nr))
 
             ax_wall.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-            trans_plots[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            # trans_plots[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
             ax_seg.legend(loc='center left', bbox_to_anchor=(1, 0.5))
                 
             ax_seg.set_title(strain_name + ' circumferential at end systole ' + title)
-            trans_plots[strain_count].set_title(strain_name)
+            # trans_plots[strain_count].set_title(strain_name)
 
             ax_wall.set_ylabel('strain [%]')
             ax_seg.set_ylabel('strain [%]')
@@ -1184,19 +1104,19 @@ class postprocess_hdf5(object):
             if analyse_seg is not None:
                 ax_wall.set_title(strain_name + ' transmural at end systole segment {} '.format(analyse_seg) + title)
                 fig_wall.savefig(os.path.join(self.directory, strain_name + '_transmural_model_es_segment_{}.png'.format(analyse_seg)), dpi=300, bbox_inches="tight")
-                fig_trans.suptitle('Segment {seg} transmural strains at end systole {title}'.format(strain = strain_name, seg = analyse_seg, title = title))
-                fig_trans.savefig(os.path.join(self.directory, 'all_av_transmural_model_es_segment_{}.png'.format(analyse_seg)), dpi=300, bbox_inches="tight")
+                # fig_trans.suptitle('Segment {seg} transmural strains at end systole {title}'.format(strain = strain_name, seg = analyse_seg, title = title))
+                # fig_trans.savefig(os.path.join(self.directory, 'all_av_transmural_model_es_segment_{}.png'.format(analyse_seg)), dpi=300, bbox_inches="tight")
             else:
                 ax_wall.set_title(strain_name + ' transmural at end systole' + title)
                 fig_wall.savefig(os.path.join(self.directory, strain_name + '_transmural_model_es.png'), dpi=300, bbox_inches="tight")
-                fig_trans.suptitle('Transmural strains at end systole {title}'.format(strain = strain_name, seg = analyse_seg, title = title))
-                fig_trans.savefig(os.path.join(self.directory, 'all_av_transmural_model_es.png'), dpi=300, bbox_inches="tight")
+                # fig_trans.suptitle('Transmural strains at end systole {title}'.format(strain = strain_name, seg = analyse_seg, title = title))
+                # 
 
             fig_seg.savefig(os.path.join(self.directory, strain_name + '_circumferential_model_es.png'), dpi=300, bbox_inches="tight")
  
         plt.close('all')
  
-    def show_slices(self, fig = None, fontsize=18, title = '', wall_points = 10):
+    def show_slices(self, fig = None, fontsize=24, title = '', wall_points = 10):
         """
         Visual representation of the slices and segments
         used in the calculations of the torsion and shear
@@ -1254,7 +1174,10 @@ class postprocess_hdf5(object):
         focus = self.parameters['focus']
 
         # draw the outlines of the left ventricle
-        self.lv_drawing(top_keys = ['xy1'], side_keys = ['xz1'], xy_theta=theta_vals[1])
+        if len(theta_vals) > 1:
+            self.lv_drawing(top_keys = ['xy1'], side_keys = ['xz1'], xy_theta=theta_vals[1])
+        else:
+            self.lv_drawing(top_keys = ['xy1'], side_keys = ['xz1'], xy_theta=theta_vals[0])
 
         delta_x = (self.x_epi - self.x_endo) / wall_points
         eps_vals = []
@@ -1350,15 +1273,19 @@ class postprocess_hdf5(object):
                 ed_es_plot.scatter(x_segs_es, y_segs_es, marker='x', color=col[slice_nr], label= 'es slice ' + str(slice_nr))
 
         self._ax['xy1'].axis('equal')
-        self._ax['xy1'].set_title('Short axis', fontsize=fontsize+2)
+        self._ax['xy1'].set_title('Short axis', fontsize=fontsize+2, pad = -45)
+        # self._ax['xy1'].set_title('Short axis', pad = -20)
         # self._ax['xy1'].legend(frameon=False, fontsize=fontsize)
 
-        self._ax['xz1'].set_title('Long axis', fontsize=fontsize+2)
+        self._ax['xz1'].set_title('Long axis', fontsize=fontsize+2, pad = -45)
+        # self._ax['xz1'].set_title('Long axis',  pad = -20)
         self._ax['xz1'].axis('equal')
-        self._ax['xz1'].legend(frameon=False, bbox_to_anchor=(1.1, 0.5), loc = 'center', fontsize=fontsize)
+        self._ax['xz1'].legend(frameon=False, bbox_to_anchor=(2.05, 0.8), loc = 'center', fontsize=fontsize, handletextpad=0.1)
 
         self._ax['xy1'].axis('off')
         self._ax['xz1'].axis('off')
+
+        plt.subplots_adjust(wspace=0.05)
         if u_exists:
             self._ax['xy2'].axis('equal')
             self._ax['xy2'].set_title('top view (x-y) end diastole and end systole', fontsize=fontsize +2)
