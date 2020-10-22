@@ -1287,6 +1287,7 @@ class Export(object):
         self.functions['Ecc'] = Function(Q, name='Ecc')
         self.functions['Ell'] = Function(Q, name='Ell')
         self.functions['Ett'] = Function(Q, name='Ett')
+        self.functions['Ecl'] = Function(Q, name='Ecl')
         self.functions['Err'] = Function(Q, name='Err')
         self.functions['Ecr'] = Function(Q, name='Ecr')
         self.functions['fiber_stress'] = Function(Q, name='fiber_stress')
@@ -1542,6 +1543,16 @@ class Export(object):
         self.xdmf_files['Ett'].write(Ett, t)
         self.hdf5_files['Ett'].write(Ett,'Ett', t)
 
+    def save_Ecl(self, **kwargs):
+        t = kwargs['t']
+        Q = kwargs['Q']
+
+        E_car = self.cardiac_green_lagrange_strain()
+        Ecl = self.functions['Ecl']
+        project(E_car[0, 1], Q, function=Ecl)
+        self.xdmf_files['Ecl'].write(Ecl, t)
+        self.hdf5_files['Ecl'].write(Ecl,'Ecl', t)        
+
     def save_Err(self, **kwargs):
         t = kwargs['t']
         Q = kwargs['Q']
@@ -1792,6 +1803,9 @@ class Export(object):
 
         if 'Ett' in vari:
             self.save_Ett(**kwargs)
+
+        if 'Ecl' in vari:
+            self.save_Ecl(**kwargs)
 
         if 'Err' in vari:
             self.save_Err(**kwargs)
