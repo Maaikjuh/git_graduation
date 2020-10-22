@@ -264,6 +264,10 @@ def load_model_state_from_hdf5(model, results_hdf5, vector_number, fiber_reorien
             # Load lc_old.
             lc_vector = 'contractile_element/vector_{}'.format(vector_number)
             f.read(model.active_stress.lc_old, lc_vector)
+        
+        if f.has_dataset('activation_time'): 
+            tact_vector = 'activation_time/vector_{}'.format(vector_number)
+            f.read(model.active_stress.activation_time, tact_vector)
 
         # Now, load current fiber vectors.
         if fiber_reorientation:
@@ -638,14 +642,14 @@ class ReloadState(object):
         lv._plv_old = results_csv['plv'].values.tolist()[idx-1]
 
         # Load time variables.
-        self._load_times(lv, inputs, results_csv, idx)
+        self._load_times(lv, inputs, results_csv, results_hdf5, idx)
 
         # Extract data from HDF5 at timestep t.
         fiber_reorientation = True if inputs['model']['fiber_reorientation']['ncycles_reorient'] > 0 else False
         load_model_state_from_hdf5(lv, results_hdf5, vector_number, fiber_reorientation)
 
     @staticmethod
-    def _load_times(model, inputs, results_csv, idx):
+    def _load_times(model, inputs, results_csv, results_hdf5, idx):
         # Update the time variables of the FE model
         # dt
         time = results_csv['time'].values.tolist()
@@ -657,8 +661,9 @@ class ReloadState(object):
 
         # Activation time.
         if model.active_stress is not None:
-            model.active_stress.activation_time = float(
-                results_csv['t_act'].values.tolist()[idx] + model.active_stress.parameters['tdep'])
+            if type(results_csv['t_act'][idx]) != str:
+                model.active_stress.activation_time = float(
+                    results_csv['t_act'].values.tolist()[idx] + model.active_stress.parameters['tdep'])
 
         # Load the global starting time, cycle time, activation time, cycle number and phase.
         heart_type = check_heart_type_from_inputs(inputs)
@@ -675,8 +680,9 @@ class ReloadState(object):
         inputs['state']['t_cycle'] = results_csv['t_cycle'].values.tolist()[idx]
         inputs['state']['cycle'] = results_csv['cycle'].values.tolist()[idx]
         if model.active_stress is not None:
-            inputs['state']['t_active_stress'] = float(
-                results_csv['t_act'].values.tolist()[idx] + model.active_stress.parameters['tdep'])
+            if type(results_csv['t_act'][idx]) != str:
+                inputs['state']['t_active_stress'] = float(
+                    results_csv['t_act'].values.tolist()[idx] + model.active_stress.parameters['tdep'])
         else:
             inputs['state']['t_active_stress'] = 0.
 
@@ -759,90 +765,90 @@ def set_boundary_conditions(model):
     u = model.u
     V = u.ufl_function_space()
 
-    mesh = V.ufl_domain().ufl_cargo()
-    coor = mesh.coordinates()
-    zz = coor.reshape(1, -1, order='F')
-    zz = zz.flatten()
-    z = zz[int(2*len(zz)/3):]
-    zbase = max(z)
+    # mesh = V.ufl_domain().ufl_cargo()
+    # coor = mesh.coordinates()
+    # zz = coor.reshape(1, -1, order='F')
+    # zz = zz.flatten()
+    # z = zz[int(2*len(zz)/3):]
+    # zbase = max(z)
 
-    tol = 0.1
-    ax_points = []
-    for xx in coor:
-        if abs(xx[1]) < tol and abs(xx[2]-zbase) < tol:
-            ax_points.append(xx)
+    # tol = 0.1
+    # ax_points = []
+    # for xx in coor:
+    #     if abs(xx[1]) < tol and abs(xx[2]-zbase) < tol:
+    #         ax_points.append(xx)
 
-    xx = np.array(ax_points)
+    # xx = np.array(ax_points)
 
-    xx = np.reshape(xx, (1, -1), order='F')
-    xx = xx.flatten()
-    dim = len(xx)
-    x = xx[0:int(dim/3)]
-    # quick and dirty, split around the average
-    x_ave = np.average(x)
-    xm = x[x<x_ave]
-    xp = x[x>=x_ave]
-    y = xx[int(dim/3):int(dim/3*2)]
-    y_ave = np.average(y)
-    ym = y[y<y_ave]
-    yp = y[y>=y_ave]
-    points = []
-    if len(xp) > 0:
-        index_p = np.argmin(xp)
-        index_x = np.where(x == xp[index_p])
-        points.append(np.array([xp[index_p], y[index_x] , zbase]))
-    if len(xm) > 0:
-        index_m = np.argmax(xm)
-        index_x = np.where(x == xm[index_m])
-        points.append(np.array([xm[index_m], y[index_x] , zbase]))
-    # Dirichlet boundary conditions fix the base.
-    # model.bcs = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
-    # model.bcs = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
-    def inside(x, on_boundary):
-        tol = 1.e-2
-        inside = False
-        for xx in points:
-            if (norm(xx-x) < tol):
-                inside = True
-                # self.found(x)
-        return inside
+    # xx = np.reshape(xx, (1, -1), order='F')
+    # xx = xx.flatten()
+    # dim = len(xx)
+    # x = xx[0:int(dim/3)]
+    # # quick and dirty, split around the average
+    # x_ave = np.average(x)
+    # xm = x[x<x_ave]
+    # xp = x[x>=x_ave]
+    # y = xx[int(dim/3):int(dim/3*2)]
+    # y_ave = np.average(y)
+    # ym = y[y<y_ave]
+    # yp = y[y>=y_ave]
+    # points = []
+    # if len(xp) > 0:
+    #     index_p = np.argmin(xp)
+    #     index_x = np.where(x == xp[index_p])
+    #     points.append(np.array([xp[index_p], y[index_x] , zbase]))
+    # if len(xm) > 0:
+    #     index_m = np.argmax(xm)
+    #     index_x = np.where(x == xm[index_m])
+    #     points.append(np.array([xm[index_m], y[index_x] , zbase]))
+    # # Dirichlet boundary conditions fix the base.
+    # # model.bcs = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
+    # # model.bcs = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
+    # def inside(x, on_boundary):
+    #     tol = 1.e-2
+    #     inside = False
+    #     for xx in points:
+    #         if (norm(xx-x) < tol):
+    #             inside = True
+    #             # self.found(x)
+    #     return inside
    
-    def on_basal_ring_x_boundary(x, on_boundary):
-        tol = 1.e-1
+    # def on_basal_ring_x_boundary(x, on_boundary):
+    #     tol = 1.e-1
 
-        ra = math.sqrt(x[0]**2+x[1]**2+(x[2]+4.3)**2)
-        rb = math.sqrt(x[0]**2+x[1]**2+(x[2]-4.3)**2)
+    #     ra = math.sqrt(x[0]**2+x[1]**2+(x[2]+4.3)**2)
+    #     rb = math.sqrt(x[0]**2+x[1]**2+(x[2]-4.3)**2)
 
-        sigma=(1./(2.*4.3)*(ra+rb))
+    #     sigma=(1./(2.*4.3)*(ra+rb))
 
-        eps = math.acosh(sigma)
+    #     eps = math.acosh(sigma)
 
-        on_y = abs(x[1]) < tol
-        on_base = abs(x[2]-2.4) < tol
-        on_endo = eps <= 0.3713 + tol
-        endo_base_x = on_y and on_base and on_endo
-        if endo_base_x == True:
+    #     on_y = abs(x[1]) < tol
+    #     on_base = abs(x[2]-2.4) < tol
+    #     on_endo = eps <= 0.3713 + tol
+    #     endo_base_x = on_y and on_base and on_endo
+    #     if endo_base_x == True:
 
-            print(endo_base_x)
+    #         print(endo_base_x)
 
-        return abs(x[1]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol #and x[0] < 0.
+    #     return abs(x[1]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol #and x[0] < 0.
 
-    def on_basal_ring_y_boundary(x, on_boundary):
-        tol = 1.e-1
+    # def on_basal_ring_y_boundary(x, on_boundary):
+    #     tol = 1.e-1
 
-        ra = math.sqrt(x[0]**2+x[1]**2+(x[2]+4.3)**2)
-        rb = math.sqrt(x[0]**2+x[1]**2+(x[2]-4.3)**2)
+    #     ra = math.sqrt(x[0]**2+x[1]**2+(x[2]+4.3)**2)
+    #     rb = math.sqrt(x[0]**2+x[1]**2+(x[2]-4.3)**2)
 
-        sigma=(1./(2.*4.3)*(ra+rb))
+    #     sigma=(1./(2.*4.3)*(ra+rb))
 
-        eps = math.acosh(sigma)
-        return abs(x[0]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol #and x[1] < 0.
+    #     eps = math.acosh(sigma)
+    #     return abs(x[0]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol #and x[1] < 0.
 
-    # bcs0 = DirichletBC(V.sub(1), Constant(0), on_basal_ring_x_boundary, method='pointwise')
-    bcs0 = DirichletBC(V.sub(1), Constant(0), inside, method='pointwise')
-    bcs1 = DirichletBC(V.sub(0), Constant(0), on_basal_ring_y_boundary, method='pointwise')
+    # # bcs0 = DirichletBC(V.sub(1), Constant(0), on_basal_ring_x_boundary, method='pointwise')
+    # bcs0 = DirichletBC(V.sub(1), Constant(0), inside, method='pointwise')
+    # bcs1 = DirichletBC(V.sub(0), Constant(0), on_basal_ring_y_boundary, method='pointwise')
     bcs2 = DirichletBC(V.sub(2), 0.0, model.geometry.tags(), model.geometry.base)
-    # model.bcs = [bcs2, bcs0]
+    # # model.bcs = [bcs2, bcs0]
     model.bcs = bcs2
     # model.bcs = [bcs1, bcs2]
 
