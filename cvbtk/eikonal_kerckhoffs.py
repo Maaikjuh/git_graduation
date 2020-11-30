@@ -87,13 +87,11 @@ class EikonalProblem(object):
         print(es.vector())
         print(en.vector())
 
-        k= 2.1e-2 #2.1e-2 #2.1
-        # k = Function(self.Q)
-        # k.assign(Constant(k_val))
+        k= Constant(self.parameters['k_init']) #2.1e-2 #2.1
         c = self.purkinje_fibers(self.c, 'c')
-        # c = 0.075 #0.067 #(7.5) 
+        # c = self.parameters['cm'] #0.067 #(7.5) 
         a = self.purkinje_fibers(self.a, 'a')
-        # a = 1/2.5 #(0.38)
+        # a = self.parameters['am'] #(0.38)
 
         # Neumann boundary condition: g (0) on boundary, f in volume
         f = Constant(prm['f'])
@@ -103,12 +101,12 @@ class EikonalProblem(object):
         td0BC = Constant(prm['td0BC'])
 
         w = TestFunction(self.Q)
-        td = Function(self.Q)
+        td = Function(self.Q, name = 'td')
 
         # poisson equation
         td00 = TrialFunction(self.Q)
         # unknown initial guess
-        td0 = Function(self.Q)
+        td0 = Function(self.Q, name = 'td0')
 
         def boundary(x, on_boundary):
             prm = self.parameters['root_points']
@@ -119,10 +117,12 @@ class EikonalProblem(object):
             phi0 = prm['phi0']
             phi1 = prm['phi1']
             phi2 = prm['phi2']
+            phi3 = prm['phi3']
             phi4 = prm['phi4']
             theta0 = prm['theta0']
             theta1 = prm['theta1']
             theta2 = prm['theta2']
+            theta3 = prm['theta3']
             theta4 = prm['theta4']
 
             eps_outer = geom['eps_outer']
@@ -131,11 +131,11 @@ class EikonalProblem(object):
             r = prm['radius']
 
             # get cartesian mid points of root points
-            x0, y0, z0 = self.ellipsoidal_to_cartesian(focus, eps_inner, theta0, phi0)
+            x0, y0, z0 = self.ellipsoidal_to_cartesian(focus, eps_outer, theta0, phi0)
             x1, y1, z1 = self.ellipsoidal_to_cartesian(focus, eps_inner, theta1, phi1)
-            x2, y2, z2 = self.ellipsoidal_to_cartesian(focus, eps_outer, theta2, phi2)
-            x3, y3, z3 = self.ellipsoidal_to_cartesian(focus, eps_inner, theta2, phi2)
-            x4, y4, z4 = self.ellipsoidal_to_cartesian(focus, eps_inner, theta4, phi4)
+            x2, y2, z2 = self.ellipsoidal_to_cartesian(focus, eps_inner, theta2, phi2)
+            x3, y3, z3 = self.ellipsoidal_to_cartesian(focus, eps_inner, theta3, phi3)
+            # x4, y4, z4 = self.ellipsoidal_to_cartesian(focus, eps_inner, theta4, phi4)
 
             # check if a node is within the area of a root point (sphere)
             p0 = (x[0] - x0)**2 + (x[1] - y0)**2 + (x[2] - z0)**2 < r**2
@@ -143,13 +143,13 @@ class EikonalProblem(object):
             p1 = (x[0] - x1)**2 + (x[1] - y1)**2 + (x[2] - z1)**2 < r**2
             p2 = (x[0] - x2)**2 + (x[1] - y2)**2 + (x[2] - z2)**2 < r**2
             p3 = (x[0] - x3)**2 + (x[1] - y3)**2 + (x[2] - z3)**2 < r**2
-            p4 = (x[0] - x4)**2 + (x[1] - y4)**2 + (x[2] - z4)**2 < r**2
+            # p4 = (x[0] - x4)**2 + (x[1] - y4)**2 + (x[2] - z4)**2 < r**2
 
-            eps = self.cartesian_to_ellipsoidal(focus, x=x)['eps']
+            # eps = self.cartesian_to_ellipsoidal(focus, x=x)['eps']
 
             
             # return (p0 or p1 or p3 or p4) and eps <= eps_inner + 0.001 or (p2 and eps >= eps_outer - 0.001)
-            return ((p0 or p1 or p2 or p3 or p4) and on_boundary) 
+            return ((p0 or p1 or p2 or p3) and on_boundary) 
             # tol = 1.e-1
             # return p0 and (x[0] > 0)#and on_boundary
             # return (abs(x[1]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol) or (abs(x[0]) < tol and abs(x[2]-2.4) < tol and eps <= 0.3713 + tol)
@@ -196,23 +196,56 @@ class EikonalProblem(object):
         # create solver
         solver = NonlinearVariationalSolver(pde)
         solver.parameters["newton_solver"]["linear_solver"] = solver_linear
+        solver.parameters["newton_solver"]["maximum_iterations"] = 10
 
         # assign initial guess (td0) to td
+        ofile = XDMFFile(mpi_comm_world(), os.path.join(self.dir_out,"td_solution.xdmf"))
+
         td.assign(td0)
-        # solve Eikonal equation 
-        solver.solve()
+        k_end = self.parameters['k']
+        k_init = self.parameters['k_init']
+        dk = (float(k_end) - float(k_init))/20
+        it = 0
+        # iteratively solve Eikonal equation
+        while float(k) >=  (float(k_end) - 0.0001):
+            solver.solve()
+            print('iteration ', it)
+            print('td max = ', round(max(td.vector()),2))
+            print('k = ', float(k))
+            ofile.write(td, float(it))
+
+            it += 1
+            k.assign(float(k_init) + it * dk)
+            td.assign(td)
+            
 
         self.td = td
 
-        self.td.rename('eikonal','eikonal')
+        ofile.close()
 
-        file = File(os.path.join(self.dir_out,"td_solution.pvd"))
-        file << self.td
+        # file = File(os.path.join(self.dir_out,"td_solution.pvd"))
+        # file << self.td
 
         # save mesh and solution for td as hdf5 to be used later on in the model
         with HDF5File(mpi_comm_world(), os.path.join(self.dir_out,'td.hdf5'), 'w') as f:
             f.write(td, 'td')
             f.write(self.mesh, 'mesh')
+
+        focus = prm['geometry']['focus']
+        # get eps and phi values of the nodes in the mesh
+        rastr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]+{f})*(x[2]+{f}))".format(f=focus)
+        rbstr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]-{f})*(x[2]-{f}))".format(f=focus)
+
+        sigmastr="(1./(2.*{f})*({ra}+{rb}))".format(ra=rastr,rb=rbstr,f=focus)
+        eps = Expression("acosh({sigma})".format(sigma=sigmastr),degree=3,element=self.Q.ufl_element())
+
+        td_inner_cpp = "(eps <= {eps_endo})? td : 0".format(eps_endo = prm['geometry']['eps_inner'])
+        td_inner_exp = Expression(td_inner_cpp,degree=3,element=self.Q.ufl_element(), eps=eps, td=td)
+        td_endo = Function(self.Q)
+        td_endo.interpolate(td_inner_exp)
+        print('Endocard activated in {max_endo}ms, whole LV activated in {max_lv}ms'.format(
+            max_endo = round(max(td_endo.vector()), 2), max_lv = round(max(td.vector()), 2)))
+  
     
     def purkinje_fibers(self,val,str_val):
         focus = self.parameters['geometry']['focus']
@@ -245,17 +278,17 @@ class EikonalProblem(object):
 
         eps_func = Function(self.Q)
         eps_func.interpolate(eps) 
-        # eps_outer = max(eps_func.vector())
-        # eps_inner = min(eps_func.vector())
+        eps_outer = max(eps_func.vector())
+        eps_inner = min(eps_func.vector())
 
         # sigval = self.parameters[sigstr]/3
         # define scaling parameters for purkinje system
         if str_val == 'c':
-            bulk = 0.075
-            purk = .13
+            bulk = self.parameters['cm']
+            purk = self.parameters['ce']
         elif str_val == 'a':
-            bulk = 1/2.5
-            purk = 1/1.5    
+            bulk = self.parameters['am']
+            purk = self.parameters['ae'] 
 
         # purkinje layer at the endocardium. Exponentially increases from midwall to endocardium
         purk_layer_exp ='({bulk}*(1 + ({purk} - {bulk}) * ((eps - {eps_mid})/({eps_endo} - {eps_mid}))))'.format(
@@ -267,53 +300,11 @@ class EikonalProblem(object):
         #       c
         purkinje_layer = "(eps <= {eps_mid})? {purk_layer_exp} : {bulk}".format(eps_mid = eps_mid, bulk = bulk,purk_layer_exp=purk_layer_exp)
         
-        # # purkinje layer at the epicardium, at the site where the RV borders to the LV. Exponentially increases from midwall to epicardium
-        # #   All expressions are added to the endocardium purkinje layer. The purkinje layer expression above already contains all the sigvals in all nodes
-        # #   Therefore, the expressions below should only contain the value that is added to the existing sigvals.
-        # purk_rv_layer_exp = '(({sigval}*(1 + ({sig_ltp}/{sig_ltb} - 1) * pow(((eps - {eps_mid})/({eps_outer} - {eps_mid})), 2))) - {sigval})'.format(
-        #     sigval = sigval, sig_ltp = sig_ltp, sig_ltb = sig_ltb, eps_mid = eps_mid,  eps_outer = eps_outer)
-        # purk_rv = "((eps > {eps_mid}) && (phi >= {phi_min_border} && phi <= {phi_max_border}))? {purk_rv_layer_exp} : 0".format(
-        #     eps_mid = eps_mid, phi_min_border = min_phi + border, phi_max_border = max_phi - border, purk_rv_layer_exp=purk_rv_layer_exp)
-
-        # # epicardial transitions of LV epicardium to RV endocardium. Linearly increases from LV epicardium to RV endocardium
-        # phi_trans1_exp = '(({sigval}*(1 + ({sig_ltp}/{sig_ltb} - 1) * ((phi - {phi_max})/({phi_max_border} - {phi_max})))) - {sigval})'.format(
-        #     sigval = sigval, sig_ltp = sig_ltp, sig_ltb = sig_ltb, phi_max = max_phi, phi_max_border = max_phi - border)
-        # phi_trans2_exp = '(({sigval}*(1 + ({sig_ltp}/{sig_ltb} - 1) * ((phi - {phi_min})/({phi_min_border} - {phi_min})))) - {sigval})'.format(
-        #     sigval = sigval, sig_ltp = sig_ltp, sig_ltb = sig_ltb, phi_min = min_phi, phi_min_border = min_phi + border)
-
-        # # calculate maximum value of sigma in the purkinje layer. 
-        # # the phi_trans_exp are multiplied with purk_rv_layer_exp, so we need to devide the multiplication with the max sig value
-        # max_sig = '({sigval}*(1 + ({sig_ltp}/{sig_ltb} - 1)))'.format(
-        #     sigval = sigval, sig_ltp = sig_ltp, sig_ltb = sig_ltb)
-
-        # # transition of LV epicardium to RV endocardium
-        # purk_rv_trans1 = "((eps > {eps_mid}) && (phi > {phi_max_border} && phi <= {phi_max}))? ({phi_trans1_exp} * {eps_trans_exp}/{max_sig}) : 0".format(
-        #     eps_mid = eps_mid, phi_max_border = max_phi - border, phi_max = max_phi, 
-        #     phi_trans1_exp=phi_trans1_exp, eps_trans_exp = purk_rv_layer_exp, max_sig = max_sig)
-        # purk_rv_trans2 = "((eps > {eps_mid}) && (phi >= {phi_min} && phi < {phi_min_border}))? ({phi_trans2_exp} * {eps_trans_exp}/{max_sig}) : 0".format(
-        #     eps_mid = eps_mid, phi_min = min_phi, phi_min_border = min_phi + border,
-        #     phi_trans2_exp=phi_trans2_exp, eps_trans_exp = purk_rv_layer_exp, max_sig = max_sig)
 
         # interpolate Expressions on Functions
         purk_exp = Expression(purkinje_layer, element=self.Q.ufl_element(), degree=3, eps=eps)
         val.interpolate(purk_exp)
 
-        # sig2 = Function(self.Q)
-        # purk2_exp = Expression(purk_rv, element=self.Q.ufl_element(), degree=3, eps=eps, phi=phi)
-        # sig2.interpolate(purk2_exp)
-
-        # sig3 = Function(self.Q)
-        # purk2_exp_trans1 = Expression(purk_rv_trans1, element=self.Q.ufl_element(), degree=3, eps=eps, phi=phi)
-        # sig3.interpolate(purk2_exp_trans1)
-
-        # sig4 = Function(self.Q)
-        # purk2_exp_trans2 = Expression(purk_rv_trans2, element=self.Q.ufl_element(), degree=3, eps=eps, phi=phi)
-        # sig4.interpolate(purk2_exp_trans2)
-
-        # # Add all expresions to sig
-        # sig.vector()[:] += sig2.vector()[:]
-        # sig.vector()[:] += sig3.vector()[:]
-        # sig.vector()[:] += sig4.vector()[:]
 
         # write sigvals to xdmf for easy viewing. 
         ofile = XDMFFile(mpi_comm_world(), os.path.join(self.dir_out,"{}.xdmf".format(str_val)))
@@ -348,13 +339,17 @@ class EikonalProblem(object):
     @staticmethod
     def default_parameters():
         prm = Parameters('eikonal')
-        prm.add('cm', (5*10**-3))
-        prm.add('rho', (1.41421))
-        prm.add('sig_fac_purk', 2.)
-        prm.add('sig_il', (2e-3)) #(2e-3)*2
-        prm.add('sig_it', (4.16e-4)) #(4.16e-4)*2
-        prm.add('sig_el', (2.5e-3)) #(2.5e-3)*2
-        prm.add('sig_et', (1.25e-3)) #(1.25e-3)*2
+        prm.add('k_init', 1e-2) #5e-2 #2.1e-3
+        prm.add('k', 2.1e-3) #2.1e-3
+        prm.add('cm', 0.067) #0.075
+        prm.add('am', 1/2.5)
+        prm.add('ce', 0.4)
+        prm.add('ae', 1/1.5)
+        # prm.add('sig_fac_purk', 2.)
+        # prm.add('sig_il', (2e-3)) #(2e-3)*2
+        # prm.add('sig_it', (4.16e-4)) #(4.16e-4)*2
+        # prm.add('sig_el', (2.5e-3)) #(2.5e-3)*2
+        # prm.add('sig_et', (1.25e-3)) #(1.25e-3)*2
         prm.add('f', (1))
         prm.add('g', (0))
         prm.add('td0BC', 0.0)
@@ -373,14 +368,16 @@ class EikonalProblem(object):
 
         boundary_prm = Parameters('root_points')
         boundary_prm.add('phi0', 0.)
-        boundary_prm.add('phi1', -1/8*math.pi) 
-        boundary_prm.add('phi2', 1/2*math.pi)    
+        boundary_prm.add('phi1', 0.) #-1/8*math.pi
+        boundary_prm.add('phi2', -1/2*math.pi)    #1/2*math.pi
+        boundary_prm.add('phi3', math.pi) 
         boundary_prm.add('phi4', -3/4*math.pi)   
-        boundary_prm.add('theta0', 1/2*math.pi)
-        boundary_prm.add('theta1', 9/16*math.pi)
-        boundary_prm.add('theta2', 2/3*math.pi)
+        boundary_prm.add('theta0', 2/3*math.pi)#1/2*math.pi
+        boundary_prm.add('theta1', 2/3*math.pi) #9/16*math.pi
+        boundary_prm.add('theta2', 2/3*math.pi) #9/16*math.pi
+        boundary_prm.add('theta3', 2/3*math.pi)
         boundary_prm.add('theta4', 1.2854)
-        boundary_prm.add('radius', 0.5)   
+        boundary_prm.add('radius', .5)   
         boundary_prm.add('tol', 1.e-1)
         boundary_prm.add('tol_theta', 1.e-1)
 
