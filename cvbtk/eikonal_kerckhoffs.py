@@ -10,7 +10,7 @@ from cvbtk import LeftVentricleGeometry, read_dict_from_csv, save_to_disk, scala
 from cvbtk import GeoFunc
 
 #define parameters below
-meshres = 30 # choose 20, 25, 30, 35, 40, 45, 50, 55, 60, 70 or 80
+meshres = 50 # choose 20, 25, 30, 35, 40, 45, 50, 55, 60, 70 or 80
 segments = 20
 
 project_td = False
@@ -18,7 +18,7 @@ project_meshres = 20
 project_segments = 20
 
 # directory where the outputs are stored
-file_name = 'kerckhoffs'
+file_name = 'kerckhoffs_purk_ker'
 
 # for meshres in [20, 30, 40, 50, 60, 70, 80]:
     # now = datetime.datetime.now()
@@ -178,8 +178,9 @@ class EikonalProblem(object):
         solve(a_in == L, td0, bc, solver_parameters = {"linear_solver": solver_linear})
 
         # Save initilaization in VTK format
-        file = File(os.path.join(self.dir_out,"Init_td.pvd"))
-        file << td0
+        ofile = XDMFFile(mpi_comm_world(), os.path.join(self.dir_out,"Init_td.xdmf"))
+        ofile.write(td0)
+        
         # Eikonal equation
         a = inner(grad(w), (M * p)) * k * dx + c * sqrt(inner(M * p, p))*w*dx
 
@@ -198,33 +199,51 @@ class EikonalProblem(object):
         solver.parameters["newton_solver"]["linear_solver"] = solver_linear
         solver.parameters["newton_solver"]["maximum_iterations"] = 10
 
-        # assign initial guess (td0) to td
+        # create xdmf file to save iteratively td solution 
         ofile = XDMFFile(mpi_comm_world(), os.path.join(self.dir_out,"td_solution.xdmf"))
 
+        # assign initial guess (td0) to td
         td.assign(td0)
         k_end = self.parameters['k']
         k_init = self.parameters['k_init']
-        dk = (float(k_end) - float(k_init))/20
+        steps = 40
+        dk = (float(k_end) - float(k_init))/steps
         it = 0
+
         # iteratively solve Eikonal equation
+        # Newton Solver will not converge if you immediately use the end value for k
+        # -> solve for current k, adapt k, use previous solution as new initial guess, solve, etc.
         while float(k) >=  (float(k_end) - 0.0001):
-            solver.solve()
+            # solve system
+            try:
+                solver.solve()
+            except RuntimeError as error_detail:
+                print('Except RuntimeError: {}'.format(error_detail))
+                print('Failed to solve. Halving dk and re-attempting...')
+                k.assign(float(k) + dk/2)
+
+                try:
+                    solver.solve()
+                except RuntimeError as error_detail:
+                    print('Except RuntimeError: {}'.format(error_detail))
+                    print('Failed to solve. Halving dk again and re-attempting...')
+                    k.assign(float(k) + dk/4)
+
+            print('{}%'.format(round(it/steps*100,2)))
             print('iteration ', it)
             print('td max = ', round(max(td.vector()),2))
             print('k = ', float(k))
             ofile.write(td, float(it))
 
             it += 1
-            k.assign(float(k_init) + it * dk)
+
+            # assign new k value (adapts all k's in formulas)
+            k.assign(float(k) + dk)
             td.assign(td)
-            
-
+        
+        # create self.td to be able to project the td on a different mesh
         self.td = td
-
         ofile.close()
-
-        # file = File(os.path.join(self.dir_out,"td_solution.pvd"))
-        # file << self.td
 
         # save mesh and solution for td as hdf5 to be used later on in the model
         with HDF5File(mpi_comm_world(), os.path.join(self.dir_out,'td.hdf5'), 'w') as f:
@@ -255,9 +274,15 @@ class EikonalProblem(object):
         rbstr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]-{f})*(x[2]-{f}))".format(f=focus)
 
         sigmastr="(1./(2.*{f})*({ra}+{rb}))".format(ra=rastr,rb=rbstr,f=focus)
+        thetastr="(1./(2.*{f})*({ra}-{rb}))".format(ra=rastr,rb=rbstr,f=focus)
         
         eps = Expression("acosh({sigma})".format(sigma=sigmastr),degree=3,element=self.Q.ufl_element())
         phi = Expression("atan2(x[1],x[0])",degree=3,element=self.Q.ufl_element())
+        theta = Expression('acos({theta})'.format(theta=thetastr),degree=3,element=self.Q.ufl_element())
+
+        theta_func = Function(self.Q)
+        theta_func.interpolate(theta)
+        theta_min = min(theta_func.vector())
 
         phi_func = Function(self.Q)
         phi_func.interpolate(phi)
@@ -266,15 +291,15 @@ class EikonalProblem(object):
         max_phi = max(phi_func.vector()) - 1/6* np.pi
         min_phi = max(phi_func.vector()) - 5/6* np.pi
         print(max_phi, min_phi)
-
-        # define border of RV epicardium
-        border = 1/12 * np.pi
+        
 
         # define epsilons of endocardium, epicardium and midwall
         eps_inner = self.parameters['geometry']['eps_inner']
-        # eps_sub_endo = self.parameters['geometry']['eps_sub_endo']
+        eps_sub_endo = self.parameters['geometry']['eps_sub_endo']
         eps_mid = self.parameters['geometry']['eps_mid']
         eps_outer = self.parameters['geometry']['eps_outer']
+        # eps_sub_endo = (eps_mid + eps_inner)/2
+        border = 0.05
 
         eps_func = Function(self.Q)
         eps_func.interpolate(eps) 
@@ -290,23 +315,61 @@ class EikonalProblem(object):
             bulk = self.parameters['am']
             purk = self.parameters['ae'] 
 
-        # purkinje layer at the endocardium. Exponentially increases from midwall to endocardium
-        purk_layer_exp ='({bulk}*(1 + ({purk} - {bulk}) * ((eps - {eps_mid})/({eps_endo} - {eps_mid}))))'.format(
-            bulk = bulk, purk = purk, eps_mid = eps_mid, eps_endo = eps_inner)
+        theta_max = 11/24 * math.pi
+
         # C++ syntax: (a)? b : c
         #   if a == True:
         #       b
         #   else:
         #       c
-        purkinje_layer = "(eps <= {eps_mid})? {purk_layer_exp} : {bulk}".format(eps_mid = eps_mid, bulk = bulk,purk_layer_exp=purk_layer_exp)
+
+        # all eps larger than eps_border are outside of the purkinje system -> bulk
+        purkinje_layer = "(eps > {eps_border})? {bulk} : purk".format(
+            eps_border = eps_sub_endo + border, bulk = bulk)
         
+        # transmural linear transition equation from bulk to purkinje system 
+        purk_trans_eps = Expression('{bulk} + ({purk} - {bulk}) * ((eps - {eps_border})/({eps_sub_endo} - {eps_border}))'.format(
+            bulk = bulk, purk = purk, eps_border = eps_sub_endo + border, eps_sub_endo = eps_sub_endo), 
+            element=self.Q.ufl_element(), degree=3, eps=eps)
 
-        # interpolate Expressions on Functions
-        purk_exp = Expression(purkinje_layer, element=self.Q.ufl_element(), degree=3, eps=eps)
-        val.interpolate(purk_exp)
+        # check if eps is within the transmural transition area, if not, eps is in the purkinje layer
+        purk_trans_layer = Expression('(eps >= {eps_sub_endo} && eps <= {eps_border})? purk_trans_eps : {purk}'.format(
+            eps_border = eps_sub_endo + border, eps_sub_endo = eps_sub_endo, theta_max = theta_max, purk=purk), 
+            element=self.Q.ufl_element(), degree=3, purk_trans_eps = purk_trans_eps, eps=eps)
 
+        # linear transition equation from the base (no purkinje) to the purkinje system
+        purk_trans_base_theta = Expression('{bulk} + ({purk} - {bulk}) * ((theta - {theta_min})/({theta_max} - {theta_min}))'.format(
+            bulk = bulk, purk = purk, eps_border = eps_sub_endo + border, eps_sub_endo = eps_sub_endo, theta_min=theta_min,theta_max=theta_max+0.001),
+            element=self.Q.ufl_element(), degree=3, eps=eps, theta=theta)
 
-        # write sigvals to xdmf for easy viewing. 
+        # linear transitions: transition from the base to the purkinje system and transmural transition 
+        purk_trans_base_eps = Expression('{bulk} + ({purk} - {bulk}) * 0.5 * ((eps - {eps_border})/({eps_sub_endo} - {eps_border}) * (theta - {theta_min})/({theta_max} - {theta_min}))'.format(
+            bulk = bulk, purk = purk, eps_border = eps_sub_endo + border, eps_sub_endo = eps_sub_endo, theta_min=theta_min,theta_max=theta_max+0.001),
+            element=self.Q.ufl_element(), degree=3, eps=eps, theta=theta)
+
+        # check if eps is within the transmural transition layer:
+        #   if true, eps is both in the transmural transition as in the transition from base to purkinje
+        #   if false, eps is only within the transition layer from base to purkinje
+        purk_trans_base = Expression('(eps >= {eps_sub_endo} && eps <= {eps_border})? purk_trans_base_eps : purk_trans_base_theta'.format(
+            eps_border = eps_sub_endo + border, eps_sub_endo = eps_sub_endo),
+            element=self.Q.ufl_element(), degree=3, eps=eps, purk_trans_base_eps=purk_trans_base_eps, purk_trans_base_theta=purk_trans_base_theta)
+
+        # check if theta is not within the transition from base to purkinje
+        #   if true (not in transition), theta is only within the transmural transition or completely in the purkinje system
+        #   if false (within transition), theta is either in both the transmural transition and the transition from base to purkinje
+        #       or only within the transition from base to purkinje
+        purk_trans = Expression('(theta > {theta_max})? purk_trans_layer : purk_trans_base'.format(theta_max=theta_max),
+            element=self.Q.ufl_element(), degree=3, theta=theta, purk_trans_layer=purk_trans_layer,purk_trans_base=purk_trans_base)
+
+        # convert purkinje layer + transitions to Function
+        purk = Function(self.Q)
+        purk.interpolate(purk_trans)
+
+        # combine bulk and purkinje layer Expressions
+        bulk_purk_exp = Expression(purkinje_layer, element=self.Q.ufl_element(), degree=3, eps=eps, purk = purk)
+        val.interpolate(bulk_purk_exp)
+
+        # write values to xdmf for easy viewing. 
         ofile = XDMFFile(mpi_comm_world(), os.path.join(self.dir_out,"{}.xdmf".format(str_val)))
         ofile.write(val)
 
@@ -339,7 +402,7 @@ class EikonalProblem(object):
     @staticmethod
     def default_parameters():
         prm = Parameters('eikonal')
-        prm.add('k_init', 1e-2) #5e-2 #2.1e-3
+        prm.add('k_init', 8e-2) #5e-2 #2.1e-3
         prm.add('k', 2.1e-3) #2.1e-3
         prm.add('cm', 0.067) #0.075
         prm.add('am', 1/2.5)
