@@ -13,15 +13,23 @@ from cvbtk import GeoFunc
 meshres = 50 # choose 20, 25, 30, 35, 40, 45, 50, 55, 60, 70 or 80
 segments = 20
 
+k_init = 5.e-2
+k_end = 1.e-2
+steps = 10
+div_ischemic = 10.
+
+server = False
 project_td = False
 project_meshres = 20
 project_segments = 20
 
-# directory where the outputs are stored
-file_name = 'kerckhoffs_purk_ker'
+# file name where the outputs are stored
+file_name = 'kerckhoffs_ischemic_div10_LAD_k_1'
+# file_name = 'kerckhoffs_k_1'
+
 
 # for meshres in [20, 30, 40, 50, 60, 70, 80]:
-    # now = datetime.datetime.now()
+
 dirout = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Graduation_project/meshes/Eikonal_meshes/seg_{}_mesh_{}_{}'.format(segments,meshres, file_name)
 dirout_project = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Graduation_project/meshes/Eikonal_meshes/seg_{}_mesh_{}_{}'.format(project_segments,project_meshres, file_name)
 print('saving output to: ' + dirout)
@@ -30,9 +38,23 @@ print('saving output to: ' + dirout)
 filepath = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Graduation_project/meshes/lv_maaike_seg{}_res{}_fibers_mesh.hdf5'.format(segments,meshres)
 filepath_project = '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Graduation_project/meshes/lv_maaike_seg{}_res{}_fibers_mesh.hdf5'.format(project_segments,project_meshres)
 
+# set to None to simulate healthy activation pattern
+ischemic_dir = None # '/mnt/c/Users/Maaike/OneDrive - TU Eindhoven/Graduation_project/meshes/ischemic_meshes/seg_{}_res_{}_a0inf_unchanged_droplet_LAD_2/T0.hdf5'.format(segments,meshres)
+
+# if run on the server, the mesh files are in different folders and the result should be saved to a different folder
+if server == True:
+    dirout = 'eikonal/seg_{}_mesh_{}_{}'.format(segments,meshres, file_name)
+    dirout_project = 'eikonal/seg_{}_mesh_{}_{}'.format(project_segments,project_meshres, file_name)
+    print('saving output to: ' + dirout)
+
+    # mesh that is selected for the calculation
+    filepath = 'data/lv_maaike_seg{}_res{}_fibers_mesh.hdf5'.format(segments,meshres)
+    filepath_project = 'data/lv_maaike_seg{}_res{}_fibers_mesh.hdf5'.format(project_segments,project_meshres)
+
+
 class EikonalProblem(object):
 
-    def __init__(self, dirout, filepath, **kwargs):
+    def __init__(self, dirout, filepath, ischemia = None, **kwargs):
         self.parameters = self.default_parameters()
         self.parameters.update(kwargs)
 
@@ -46,6 +68,8 @@ class EikonalProblem(object):
         # self.parameters['boundary']['eps_inner'] = eps_inner
 
         self.dir_out = dirout
+        self.ischemia = ischemia
+
 
         #save parameters to csv   
         save_dict_to_csv(self.parameters, os.path.join(self.dir_out, 'inputs.csv'))
@@ -71,27 +95,26 @@ class EikonalProblem(object):
         # self.V1 = scalar_space_to_vector_space(self.Q)
         # ofile = XDMFFile(mpi_comm_world(), os.path.join(self.dir_out,"ef.xdmf"))
         # ofile.write(project(self.ef,V1))
+        self._k_prev = Constant(self.parameters['k_init'])
+        self._td_prev = Function(self.Q, name='td_prev')
 
         self.c = Function(self.Q, name='c')
-        self.c.assign(Constant(0.075))
+        self.c.assign(Constant(self.parameters['cm']))
 
         self.a = Function(self.Q, name='a')
-        self.a.assign(Constant(0.4))
+        self.a.assign(Constant(self.parameters['am']))
     
     def eikonal(self):
         prm = self.parameters
         ef = self.ef
         es = self.es
         en = self.en
-        print(ef.vector())
-        print(es.vector())
-        print(en.vector())
 
         k= Constant(self.parameters['k_init']) #2.1e-2 #2.1
         c = self.purkinje_fibers(self.c, 'c')
         # c = self.parameters['cm'] #0.067 #(7.5) 
-        a = self.purkinje_fibers(self.a, 'a')
-        # a = self.parameters['am'] #(0.38)
+        # a = self.purkinje_fibers(self.a, 'a')
+        a = self.parameters['am'] #(0.38)
 
         # Neumann boundary condition: g (0) on boundary, f in volume
         f = Constant(prm['f'])
@@ -103,7 +126,7 @@ class EikonalProblem(object):
         w = TestFunction(self.Q)
         td = Function(self.Q, name = 'td')
 
-        # poisson equation
+
         td00 = TrialFunction(self.Q)
         # unknown initial guess
         td0 = Function(self.Q, name = 'td0')
@@ -166,9 +189,6 @@ class EikonalProblem(object):
         # construct the conductivity tensor M from Mi and Me
         M = outer(ef ,ef)+ a * (outer(es, es) + outer(en, en))
 
-        # unit normal to the wavefront, pointing away from depolarized tissue
-        p = grad(td)
-
         # initial guess: Poisson equation
         a_in = inner(grad(w), (M * grad(td00))) * k * dx
         L = f*w*dx + g*w*ds
@@ -180,6 +200,9 @@ class EikonalProblem(object):
         # Save initilaization in VTK format
         ofile = XDMFFile(mpi_comm_world(), os.path.join(self.dir_out,"Init_td.xdmf"))
         ofile.write(td0)
+
+        # unit normal to the wavefront, pointing away from depolarized tissue
+        p = grad(td)
         
         # Eikonal equation
         a = inner(grad(w), (M * p)) * k * dx + c * sqrt(inner(M * p, p))*w*dx
@@ -204,42 +227,96 @@ class EikonalProblem(object):
 
         # assign initial guess (td0) to td
         td.assign(td0)
+
+        # define k_end and the size/number of steps
+        # that should be taken to reach k_end
         k_end = self.parameters['k']
         k_init = self.parameters['k_init']
-        steps = 40
+        steps = self.parameters['steps']
         dk = (float(k_end) - float(k_init))/steps
+
         it = 0
+
+        # first iteration k_init should be used (no dk step)
+        dk_step = 0.
+        
+        # store previous value of the solution td
+        self.td_prev = td.vector().get_local()
 
         # iteratively solve Eikonal equation
         # Newton Solver will not converge if you immediately use the end value for k
         # -> solve for current k, adapt k, use previous solution as new initial guess, solve, etc.
-        while float(k) >=  (float(k_end) - 0.0001):
-            # solve system
+        while float(k) >=  (float(k_end) + 0.0001):
+            # assign new value to k
+            k.assign(float(self.k_prev) + dk_step)
+
+            # because of the iterative change in steps, k could fall below its end value
+            # in that case, assign k_end to k
+            if float(k) < k_end:
+                k.assign(k_end)
+
             try:
+                print('{}%'.format(round((float(k) - k_init)/(k_end - k_init) * 100,2)))
+                print('iteration ', it)
+                print('k = ', float(k))
+
+                # solve the system
                 solver.solve()
+
+                # succesful solve: normal dk step
+                dk_step = dk
+                
+                print('td max = ', round(max(td.vector()),2))
+                
             except RuntimeError as error_detail:
                 print('Except RuntimeError: {}'.format(error_detail))
-                print('Failed to solve. Halving dk and re-attempting...')
-                k.assign(float(k) + dk/2)
+                k.assign(float(self.k_prev) + dk_step/2)
+                if float(k) >= k_end:
+                    print('Failed to solve. Halving dk and re-attempting...')
+                    print('re-attempt with k = ', float(k))
+                    td.assign(self.td_prev)
+                    try:
+                        solver.solve()
 
-                try:
-                    solver.solve()
-                except RuntimeError as error_detail:
-                    print('Except RuntimeError: {}'.format(error_detail))
-                    print('Failed to solve. Halving dk again and re-attempting...')
-                    k.assign(float(k) + dk/4)
+                        # succesful solve: half dk step to procceed more slowely
+                        dk_step = dk/2
+                        print('td max = ', round(max(td.vector()),2))
 
-            print('{}%'.format(round(it/steps*100,2)))
-            print('iteration ', it)
-            print('td max = ', round(max(td.vector()),2))
-            print('k = ', float(k))
+                    except RuntimeError as error_detail:
+                        print('Except RuntimeError: {}'.format(error_detail))
+                        print('Failed to solve. Halving dk again and re-attempting...')
+                        k.assign(float(self.k_prev) + dk_step/4)
+                        print('re-attempt with k = ', float(k))
+                        td.assign(self.td_prev)
+                        try:
+                            solver.solve()
+
+                            # succesful solve: quarter dk step to procceed even more slowely
+                            dk_step = dk/4
+                            print('td max = ', round(max(td.vector()),2))
+
+                        except RuntimeError as error_detail:
+                            # last re-attempt did not succeed (k too low)
+                            # close xdmf file and save to hdf5 if last re-attempt did not succeed
+                            ofile.close()
+                            save_dict_to_csv({'last_successful_k': float(self.k_prev)}, os.path.join(self.dir_out, 'inputs.csv'), write = 'a')
+                            with HDF5File(mpi_comm_world(), os.path.join(self.dir_out,'td.hdf5'), 'w') as f:
+                                f.write(td, 'td')
+                                f.write(self.mesh, 'mesh')
+                            print('Except RuntimeError: {}'.format(error_detail))
+
+            # write new td function to xdmf for every iteration
             ofile.write(td, float(it))
 
             it += 1
+            # handle for old k and td
+            self.k_prev = k
+            self.td_prev = td.vector().get_local()
 
             # assign new k value (adapts all k's in formulas)
-            k.assign(float(k) + dk)
             td.assign(td)
+
+            print('-'*50)
         
         # create self.td to be able to project the td on a different mesh
         self.td = td
@@ -250,8 +327,9 @@ class EikonalProblem(object):
             f.write(td, 'td')
             f.write(self.mesh, 'mesh')
 
+        # define the maximum activation time of the endocardium
+        # get tds at the endocardium (eps_inner) and find its max value
         focus = prm['geometry']['focus']
-        # get eps and phi values of the nodes in the mesh
         rastr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]+{f})*(x[2]+{f}))".format(f=focus)
         rbstr = "sqrt(x[0]*x[0]+x[1]*x[1]+(x[2]-{f})*(x[2]-{f}))".format(f=focus)
 
@@ -264,7 +342,29 @@ class EikonalProblem(object):
         td_endo.interpolate(td_inner_exp)
         print('Endocard activated in {max_endo}ms, whole LV activated in {max_lv}ms'.format(
             max_endo = round(max(td_endo.vector()), 2), max_lv = round(max(td.vector()), 2)))
-  
+    
+    @property
+    def k_prev(self):
+        """
+        Return the previous k.
+        """
+        return self._k_prev
+
+    @k_prev.setter
+    def k_prev(self, k):
+        self.k_prev.assign(k)
+
+    @property
+    def td_prev(self):
+        """
+        Return the previous td.
+        """
+        return self._td_prev
+
+    @td_prev.setter
+    def td_prev(self, td):
+        self.td_prev.vector()[:] = td
+        self.td_prev.vector().apply('')
     
     def purkinje_fibers(self,val,str_val):
         focus = self.parameters['geometry']['focus']
@@ -287,11 +387,9 @@ class EikonalProblem(object):
         phi_func = Function(self.Q)
         phi_func.interpolate(phi)
 
-        # define phi values where LV borders to the RV
-        max_phi = max(phi_func.vector()) - 1/6* np.pi
-        min_phi = max(phi_func.vector()) - 5/6* np.pi
-        print(max_phi, min_phi)
-        
+        # # define phi values where LV borders to the RV
+        # max_phi = max(phi_func.vector()) - 1/6* np.pi
+        # min_phi = max(phi_func.vector()) - 5/6* np.pi
 
         # define epsilons of endocardium, epicardium and midwall
         eps_inner = self.parameters['geometry']['eps_inner']
@@ -300,6 +398,8 @@ class EikonalProblem(object):
         eps_outer = self.parameters['geometry']['eps_outer']
         # eps_sub_endo = (eps_mid + eps_inner)/2
         border = 0.05
+        eps_border = eps_sub_endo + border
+        eps_border = eps_mid
 
         eps_func = Function(self.Q)
         eps_func.interpolate(eps) 
@@ -324,42 +424,56 @@ class EikonalProblem(object):
         #       c
 
         # all eps larger than eps_border are outside of the purkinje system -> bulk
-        purkinje_layer = "(eps > {eps_border})? {bulk} : purk".format(
-            eps_border = eps_sub_endo + border, bulk = bulk)
-        
+        purkinje_layer = "(eps > {eps_sub_endo})? {bulk} : purk".format(
+            eps_sub_endo = eps_mid, bulk = bulk)
+
         # transmural linear transition equation from bulk to purkinje system 
-        purk_trans_eps = Expression('{bulk} + ({purk} - {bulk}) * ((eps - {eps_border})/({eps_sub_endo} - {eps_border}))'.format(
-            bulk = bulk, purk = purk, eps_border = eps_sub_endo + border, eps_sub_endo = eps_sub_endo), 
+        purk_layer = Expression('{bulk} + ({purk} - {bulk}) * ((eps - {eps_sub_endo})/({eps_endo} - {eps_sub_endo}))'.format(
+            bulk = bulk, purk = purk, eps_endo = eps_inner, eps_sub_endo = eps_mid), 
             element=self.Q.ufl_element(), degree=3, eps=eps)
 
-        # check if eps is within the transmural transition area, if not, eps is in the purkinje layer
-        purk_trans_layer = Expression('(eps >= {eps_sub_endo} && eps <= {eps_border})? purk_trans_eps : {purk}'.format(
-            eps_border = eps_sub_endo + border, eps_sub_endo = eps_sub_endo, theta_max = theta_max, purk=purk), 
-            element=self.Q.ufl_element(), degree=3, purk_trans_eps = purk_trans_eps, eps=eps)
-
-        # linear transition equation from the base (no purkinje) to the purkinje system
-        purk_trans_base_theta = Expression('{bulk} + ({purk} - {bulk}) * ((theta - {theta_min})/({theta_max} - {theta_min}))'.format(
-            bulk = bulk, purk = purk, eps_border = eps_sub_endo + border, eps_sub_endo = eps_sub_endo, theta_min=theta_min,theta_max=theta_max+0.001),
-            element=self.Q.ufl_element(), degree=3, eps=eps, theta=theta)
-
         # linear transitions: transition from the base to the purkinje system and transmural transition 
-        purk_trans_base_eps = Expression('{bulk} + ({purk} - {bulk}) * 0.5 * ((eps - {eps_border})/({eps_sub_endo} - {eps_border}) * (theta - {theta_min})/({theta_max} - {theta_min}))'.format(
-            bulk = bulk, purk = purk, eps_border = eps_sub_endo + border, eps_sub_endo = eps_sub_endo, theta_min=theta_min,theta_max=theta_max+0.001),
+        purk_trans_base_eps = Expression('{bulk} + ({purk} - {bulk}) * ((eps - {eps_sub_endo})/({eps_endo} - {eps_sub_endo}) * (theta - {theta_min})/({theta_max} - {theta_min}))'.format(
+            bulk = bulk, purk = purk, eps_endo = eps_inner, eps_sub_endo = eps_mid, theta_min=theta_min,theta_max=theta_max),
             element=self.Q.ufl_element(), degree=3, eps=eps, theta=theta)
 
-        # check if eps is within the transmural transition layer:
-        #   if true, eps is both in the transmural transition as in the transition from base to purkinje
-        #   if false, eps is only within the transition layer from base to purkinje
-        purk_trans_base = Expression('(eps >= {eps_sub_endo} && eps <= {eps_border})? purk_trans_base_eps : purk_trans_base_theta'.format(
-            eps_border = eps_sub_endo + border, eps_sub_endo = eps_sub_endo),
-            element=self.Q.ufl_element(), degree=3, eps=eps, purk_trans_base_eps=purk_trans_base_eps, purk_trans_base_theta=purk_trans_base_theta)
+        purk_trans = Expression('(theta > {theta_max})? purk_layer : purk_trans_base_eps'.format(theta_max=theta_max),
+            element=self.Q.ufl_element(), degree=3, theta=theta, purk_layer=purk_layer,purk_trans_base_eps=purk_trans_base_eps)
+        
+        ## Below is a slight variation on the Purkinje system. 
+        # # transmural linear transition equation from bulk to purkinje system 
+        # purk_trans_eps = Expression('{bulk} + ({purk} - {bulk}) * ((eps - {eps_border})/({eps_sub_endo} - {eps_border}))'.format(
+        #     bulk = bulk, purk = purk, eps_border = eps_border, eps_sub_endo = eps_sub_endo), 
+        #     element=self.Q.ufl_element(), degree=3, eps=eps)
 
-        # check if theta is not within the transition from base to purkinje
-        #   if true (not in transition), theta is only within the transmural transition or completely in the purkinje system
-        #   if false (within transition), theta is either in both the transmural transition and the transition from base to purkinje
-        #       or only within the transition from base to purkinje
-        purk_trans = Expression('(theta > {theta_max})? purk_trans_layer : purk_trans_base'.format(theta_max=theta_max),
-            element=self.Q.ufl_element(), degree=3, theta=theta, purk_trans_layer=purk_trans_layer,purk_trans_base=purk_trans_base)
+        # # check if eps is within the transmural transition area, if not, eps is in the purkinje layer
+        # purk_trans_layer = Expression('(eps >= {eps_sub_endo} && eps <= {eps_border})? purk_trans_eps : {purk}'.format(
+        #     eps_border = eps_border, eps_sub_endo = eps_sub_endo, theta_max = theta_max, purk=purk), 
+        #     element=self.Q.ufl_element(), degree=3, purk_trans_eps = purk_trans_eps, eps=eps)
+
+        # # linear transition equation from the base (no purkinje) to the purkinje system
+        # purk_trans_base_theta = Expression('{bulk} + ({purk} - {bulk}) * ((theta - {theta_min})/({theta_max} - {theta_min}))'.format(
+        #     bulk = bulk, purk = purk, theta_min=theta_min,theta_max=theta_max),
+        #     element=self.Q.ufl_element(), degree=3, eps=eps, theta=theta)
+
+        # # linear transitions: transition from the base to the purkinje system and transmural transition 
+        # purk_trans_base_eps = Expression('{bulk} + ({purk} - {bulk}) * 0.5 * ((eps - {eps_border})/({eps_sub_endo} - {eps_border}) * (theta - {theta_min})/({theta_max} - {theta_min}))'.format(
+        #     bulk = bulk, purk = purk, eps_border = eps_border, eps_sub_endo = eps_sub_endo, theta_min=theta_min,theta_max=theta_max),
+        #     element=self.Q.ufl_element(), degree=3, eps=eps, theta=theta)
+
+        # # check if eps is within the transmural transition layer:
+        # #   if true, eps is both in the transmural transition as in the transition from base to purkinje
+        # #   if false, eps is only within the transition layer from base to purkinje
+        # purk_trans_base = Expression('(eps >= {eps_sub_endo} && eps <= {eps_border})? purk_trans_base_eps : purk_trans_base_theta'.format(
+        #     eps_border = eps_border, eps_sub_endo = eps_sub_endo),
+        #     element=self.Q.ufl_element(), degree=3, eps=eps, purk_trans_base_eps=purk_trans_base_eps, purk_trans_base_theta=purk_trans_base_theta)
+
+        # # check if theta is not within the transition from base to purkinje
+        # #   if true (not in transition), theta is only within the transmural transition or completely in the purkinje system
+        # #   if false (within transition), theta is either in both the transmural transition and the transition from base to purkinje
+        # #       or only within the transition from base to purkinje
+        # purk_trans = Expression('(theta > {theta_max})? purk_trans_layer : purk_trans_base'.format(theta_max=theta_max),
+        #     element=self.Q.ufl_element(), degree=3, theta=theta, purk_trans_layer=purk_trans_layer,purk_trans_base=purk_trans_base)
 
         # convert purkinje layer + transitions to Function
         purk = Function(self.Q)
@@ -368,6 +482,20 @@ class EikonalProblem(object):
         # combine bulk and purkinje layer Expressions
         bulk_purk_exp = Expression(purkinje_layer, element=self.Q.ufl_element(), degree=3, eps=eps, purk = purk)
         val.interpolate(bulk_purk_exp)
+
+        if self.ischemia != None:
+            print('ischemia')
+            T0_file = HDF5File(mpi_comm_world(), self.ischemia, 'r')
+            vector_T0 = 'T0/vector_0'
+            T0_f = Function(self.Q)
+            T0_file.read(T0_f, vector_T0)
+
+            # the wave velocities of the nodes in the ischemic area (defined by T0 <= 60) are dived by a certain factor
+            ischemic_sig = "(T0_f <= 60.)? val/{div_isch} : val".format(div_isch = self.parameters['div_ischemic'])
+
+            ischemic_exp = Expression(ischemic_sig, element=self.Q.ufl_element(), degree=3, T0_f = T0_f, val = val)
+            val = Function(self.Q)
+            val.interpolate(ischemic_exp)
 
         # write values to xdmf for easy viewing. 
         ofile = XDMFFile(mpi_comm_world(), os.path.join(self.dir_out,"{}.xdmf".format(str_val)))
@@ -402,17 +530,22 @@ class EikonalProblem(object):
     @staticmethod
     def default_parameters():
         prm = Parameters('eikonal')
-        prm.add('k_init', 8e-2) #5e-2 #2.1e-3
-        prm.add('k', 2.1e-3) #2.1e-3
-        prm.add('cm', 0.067) #0.075
-        prm.add('am', 1/2.5)
-        prm.add('ce', 0.4)
-        prm.add('ae', 1/1.5)
+        prm.add('k_init', 2.e-2) #Initialisation value of the diffusion constant 
+        prm.add('k', 5.e-3) #Diffusion constant -> influence of wavefront curvature on wave velocity. ker03b + ker03a: 2.1e-3
+
+        # c = theta -> wave velocity in the myofiber direction
+        prm.add('cm', 0.067) #wave velocity in the myofiber direction in the myocardium. ker03b: 0.075
+        prm.add('am', 0.38) #Anisotropy ratio (c_parallel / c_perpendicular to the myofibers) in the myocardium. ker03b: 1/2.5
+        prm.add('ce', 0.4) #wave velocity in the myofiber direction in the endocardium. ker03b: 0.13
+        # prm.add('ae', 1/1.5) #Anisotropy ratio (c_parallel / c_perpendicular to the myofibers) in the myocardium. ker03b: 1/1.5 (not used in ker03a)
+        prm.add('steps', 10)
         # prm.add('sig_fac_purk', 2.)
         # prm.add('sig_il', (2e-3)) #(2e-3)*2
         # prm.add('sig_it', (4.16e-4)) #(4.16e-4)*2
         # prm.add('sig_el', (2.5e-3)) #(2.5e-3)*2
         # prm.add('sig_et', (1.25e-3)) #(1.25e-3)*2
+        prm.add('div_ischemic', 2.) #divide c in the ischemic area to simulate slower depolarization velocities
+
         prm.add('f', (1))
         prm.add('g', (0))
         prm.add('td0BC', 0.0)
@@ -429,6 +562,7 @@ class EikonalProblem(object):
 
         prm.add(geometry_prm)
 
+        # locations of the root points (td = 0)
         boundary_prm = Parameters('root_points')
         boundary_prm.add('phi0', 0.)
         boundary_prm.add('phi1', 0.) #-1/8*math.pi
@@ -459,10 +593,13 @@ class EikonalProblem(object):
 
         td_project = project(self.td, V)
 
-        td_project.rename('eikonal','eikonal')
+        td_project.rename('td','td')
 
-        file = File(os.path.join(dirout,"td_solution.pvd"))
-        file << td_project
+        # write values to xdmf for easy viewing. 
+        ofile = XDMFFile(mpi_comm_world(), os.path.join(dir_out,"td_solution.xdmf"))
+        ofile.write(td_project)
+        # file = File(os.path.join(dirout,"td_solution.pvd"))
+        # file << td_project
 
         # save mesh and solution for td as hdf5 to be used later on in the model
         with HDF5File(mpi_comm_world(), os.path.join(dirout,'td.hdf5'), 'w') as f:
@@ -470,9 +607,13 @@ class EikonalProblem(object):
             f.write(mesh, 'mesh')
 
 if __name__ == '__main__':
+    inputs = {  'k': k_end,
+                'k_init': k_init,
+                'steps': steps,
+                'div_ischemic': div_ischemic}
 
     # problem = EikonalProblem(dirout, filepath, **inputs)
-    problem = EikonalProblem(dirout, filepath)
+    problem = EikonalProblem(dirout, filepath, ischemia =  ischemic_dir, **inputs)
     problem.eikonal()
 
     if project_td == True:
