@@ -994,7 +994,7 @@ def simulate(wk, model, results, inputs, heart_type=None, solver=None, dir_out='
 
     elif heart_type == 'LeftVentricle':
         # Create the output data files.
-        write_data_lv(t, t_cycle, phase, cycle, wk, model, 0, 0, results, new=True, dir_out=dir_out,
+        write_data_lv(t, t_cycle, t_active_stress, phase, cycle, wk, model, 0, 0, results, new=True, dir_out=dir_out,
                       save_fiber_vector=fiber_reorientation)
 
         # Create the volume solver to solve the system.                            #
@@ -1171,7 +1171,7 @@ def simulate(wk, model, results, inputs, heart_type=None, solver=None, dir_out='
                                  model.pressure['rv'], model.volume['rv']))
 
         elif heart_type == 'LeftVentricle':
-            write_data_lv(t, t_cycle, phase, cycle, wk, model, est, accuracy, results, new=new, dir_out=dir_out,
+            write_data_lv(t, t_cycle, t_active_stress, phase, cycle, wk, model, est, accuracy, results, new=new, dir_out=dir_out,
                           save_fiber_vector=fiber_reorientation)
 
             # Print some state information about the completed timestep:
@@ -1186,9 +1186,11 @@ def simulate(wk, model, results, inputs, heart_type=None, solver=None, dir_out='
             raise ValueError('Unknown heart_type "{}".'.format(heart_type))
 
         # Check if the active stress's internal time needs to be reset. (Based on LV phase).
+        # model.active_stress.activation_time is a function map
         if phase['lv'] < 3 and t_active_stress >= inputs['time']['tc']:
+            print('time reset, t_active stress: ', t_active_stress)
             t_active_stress = t_active_stress - inputs['time']['tc']
-            model.active_stress.activation_time = -1 * inputs['time']['tc'] - inputs['active_stress']['tdep']
+            model.active_stress.activation_time = -1 * inputs['time']['tc'] #- inputs['active_stress']['tdep']
 
         # Exit if maximum cycles reached:
         if cycle > inputs['number_of_cycles']:
@@ -1422,7 +1424,7 @@ def write_data_biv(t, t_cycle, phase, cycle, wk_dict, biv, est, accuracy, result
         results.save(os.path.join(dir_out, 'results.csv'))
 
 
-def write_data_lv(t, t_cycle, phase, cycle, wk_dict, lv, est, acc, results, new=False, dir_out='.',
+def write_data_lv(t, t_cycle, t_active_stress, phase, cycle, wk_dict, lv, est, acc, results, new=False, dir_out='.',
                   save_fiber_vector=False):
     """
     Helper function to write data to the HDF5 and CSV records for left ventricular simulations.
@@ -1437,8 +1439,8 @@ def write_data_lv(t, t_cycle, phase, cycle, wk_dict, lv, est, acc, results, new=
 
     data_timestep = {'time': t,
                      't_cycle': t_cycle,
-                    #  't_act': float(lv.active_stress.activation_time),
-                     't_act': (lv.active_stress.activation_time),
+                     't_act': float(t_active_stress),
+                    #  't_act': (lv.active_stress.activation_time),
 
                      'cycle': cycle,
                      'phase': phase['lv'],

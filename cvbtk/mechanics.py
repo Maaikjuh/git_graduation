@@ -226,8 +226,8 @@ class ActiveStressModel(ConstitutiveModel):
         self.file = XDMFFile(os.path.join(dir_out, 'td.xdmf'))
         if self.parameters['eikonal']['td_dir'] == None or self.parameters['eikonal']['td_dir'] == '':
             self.Q = vector_space_to_scalar_space(u.ufl_function_space())
-            self._tact_dummy = Function(self.Q, name='tact_dummy')
-            self._tact_dummy.assign(Constant(0.0 - self.parameters['tdep']))
+            # self._tact_dummy = Function(self.Q, name='tact_dummy')
+            # self._tact_dummy.assign(Constant(0.0 - self.parameters['tdep']))
             self._tact = Function(self.Q, name='tact')
             self._tact.assign(Constant(0.0 - self.parameters['tdep']))
         else:
@@ -259,15 +259,16 @@ class ActiveStressModel(ConstitutiveModel):
     def activation_time(self, value):
 #        self._tact.assign(float(value) - self.parameters['tdep'])
 
-        self._tact_dummy.vector()[:] += float(value)
-        self._tact.assign(self._tact_dummy)
+        # self._tact_dummy.vector()[:] += float(value)
+        self._tact.vector()[:] += float(value)
+        # self._tact.assign(self._tact_dummy)
         
-        # self.td_save += self.dt #(value)
+        self.td_save += 2. #(value)
     
-        # self.file.write(self._tact, (self.td_save))
+        self.file.write(self._tact, (self.td_save))
 
         # print_once('min t_act:',min(self._tact.vector().array()))
-        print_once('max t_act:',min(self._tact.vector().array()))
+        print_once('max t_act:',max(self._tact.vector().array()))
 
     def activation_time_map(self, tact):
         self._tact = tact
@@ -299,7 +300,7 @@ class ActiveStressModel(ConstitutiveModel):
 
         #create a dummy variable (is used to update the activation map)
         #FIXME not sure of the dummy is necessary
-        self._tact_dummy = self._tact
+        # self._tact_dummy = self._tact
         
         if not os.path.isfile('eikonal.xdmf'):
             #save the projection to xdmf to check if the projection has been succesful
@@ -498,8 +499,8 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         if self.parameters['infarct']['infarct_dir'] is not None and self.parameters['infarct']['infarct_dir'] != '':
             self.ischemic_T0(u, self.parameters['infarct']['infarct_dir'])
             
-        self.f_twitch = Function(self.Q, name='f_twitch')
-        self.f_twitch.assign(Constant(0))
+        # self.f_twitch = Function(self.Q, name='f_twitch')
+        # self.f_twitch.assign(Constant(0))
 
         if prm['restrict_lc']:
             # Upper bound: restrict lc to not be greater than ls.
@@ -625,7 +626,7 @@ class ArtsKerckhoffsActiveStress(ActiveStressModel):
         twitch_cond = conditional(And(twitch_cond_1, twitch_cond_2), 1, 0)
         f_twitch = twitch_cond*twitch_term_1*twitch_term_2
         
-        projected = project(f_twitch, self.Q)
+        # projected = project(f_twitch, self.Q)
         p = f_iso*f_twitch*prm['Ea']*(self.ls - self.lc)
         
         return p
@@ -707,9 +708,19 @@ class BovendeerdMaterial(ConstitutiveModel):
         self.mesh = u.ufl_domain().ufl_cargo()
         self.W = TensorFunctionSpace(self.mesh, 'Lagrange' , 2)
         self.V = FunctionSpace(self.mesh, 'Lagrange', 2)
+
+        # create functionspace for material model parameters
+        # if an infarct is simulated, a map will be projected on the functionspace 
+        # in which the values for all the nodes have been given
+        # Assign normal value to the functionsapce in case no infarct is simulated
+        # otherwise the functionspace will be empty if no infarct is simulated
         self.a0 = Function(self.V)
         self.a0.assign(Constant(self.parameters['a0']))
 
+        # self.a3 = Function(self.V)
+        # self.a3.assign(Constant(self.parameters['a3']))        
+
+        # check if an infarct should be simulated
         if self.parameters['infarct']['infarct_dir'] is not None and self.parameters['infarct']['infarct_dir'] != '':
             self.ischemic_a0(self.parameters['infarct']['infarct_dir'])
 
@@ -759,6 +770,24 @@ class BovendeerdMaterial(ConstitutiveModel):
             dir_out = self.parameters['infarct']['save_infarct_mesh']
             file_mesh = XDMFFile(os.path.join(dir_out, 'a0.xdmf'))
             file_mesh.write(self.a0)
+
+        # a3_ = Function(self.V)
+
+        # openfile = HDF5File(mpi_comm_world(), os.path.join(infarct_dir, 'a3.hdf5'), 'r')
+        # openfile.read(a3_,'a3/vector_0')
+        # openfile.close()
+
+        # #project the ischemic map onto the mechanical mesh
+        # self.a3 = project(a3_, self.V)
+
+        # #rename the function (this will give the function a name in Paraview)
+        # self.a3.rename('a3','a3')
+        
+        # if not os.path.isfile('a3.xdmf'):
+        #     #save the projection to xdmf to check if the projection has been succesful
+        #     dir_out = self.parameters['infarct']['save_infarct_mesh']
+        #     file_mesh = XDMFFile(os.path.join(dir_out, 'a3.xdmf'))
+        #     file_mesh.write(self.a3)
 
     def piola_kirchhoff2(self, u):
         """

@@ -793,6 +793,8 @@ class Export(object):
         # Create attribute for active stress scalar.
         self._active_stress = None
 
+        self.pk1 = None
+
         # Create attribute for GL strain.
         self._E_cyl = None
         self._E_car = None
@@ -823,6 +825,19 @@ class Export(object):
             self._active_stress = contractility * p * f
 
         return self._active_stress
+    
+    def piola_kirchhoff1(self):
+        """
+        Return the first piola kirchhoff stress.
+        """
+        if self._active_stress is None:
+            contractility = self.model.parameters['contractility']
+            p = self.model.active_stress.active_stress_scalar(self.model.u)
+            f = self.inputs['active_stress']['ls0'] / self.model.active_stress.ls 
+
+            self._pk1 = contractility * p * f
+
+        return self._pk1        
 
     def passive_fiber_stress(self):
         """
@@ -1266,6 +1281,7 @@ class Export(object):
                     #'ef',
                     'lc',
                     'active_stress',
+                    # 'piola_kirchhoff1',
                     #'von_mises',
                     'fiber_stress',
                     #'sign_active_stress',
@@ -1273,6 +1289,7 @@ class Export(object):
                     'Err',
                     'Ecr',
                     'Ell',
+                    'Ett',
                     'myofiber_strain',
                     #'curves_file',
                     'work'
@@ -1282,6 +1299,7 @@ class Export(object):
     def initialize_functions(self, V, Q):
         # Add new variables here.
         self.functions['active_stress'] = Function(Q, name='active_stress')
+        self.functions['piola_kirchhoff1'] = Function(Q, name='piola_kirchhoff1')
         self.functions['u'] = Function(V, name='u')
         self.functions['ef'] = Function(V, name='fiber_vector')
         self.functions['Ecc'] = Function(Q, name='Ecc')
@@ -1488,6 +1506,16 @@ class Export(object):
 
         self.xdmf_files['active_stress'].write(active_stress, t)
         self.hdf5_files['active_stress'].write(active_stress,'active_stress', t)
+
+    def save_piola_kirchhoff1(self, **kwargs):
+        t = kwargs['t']
+        Q = kwargs['Q']
+
+        pk1 = self.functions['piola_kirchhoff1']
+        project(self.piola_kirchhoff1(), Q, function=pk1)
+
+        self.xdmf_files['piola_kirchhoff1'].write(pk1, t)
+        self.hdf5_files['piola_kirchhoff1'].write(pk1,'piola_kirchhoff1', t)
 
     def save_curves_file(self):
         curves = self.curves()
@@ -1791,6 +1819,9 @@ class Export(object):
 
         if 'active_stress' in vari:
             self.save_active_stress(**kwargs)
+
+        if 'piola_kirchhoff1' in vari:
+            self.save_piola_kirchhoff1(**kwargs)
 
         if 'ef' in vari:
             self.save_ef(**kwargs)
